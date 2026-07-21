@@ -1,8 +1,8 @@
 ---
 title: Near-real-time detection paths
 translation_of: near-real-time-detection-paths.md
-translation_source_sha: 49b9ad52fd5a036c27dc233a87d076920c6f7731
-translation_revised: 2026-07-13
+translation_source_sha: 6499e54567d627c4bd91b21da09407222ea65f04
+translation_revised: 2026-07-21
 ---
 
 # 근실시간 감지 경로
@@ -10,15 +10,21 @@ translation_revised: 2026-07-13
 이벤트로 도착하는 신호(KubeEvents, Activity Log 등)는 이미 서브초에
 처리되지만, **샘플 메트릭 경로에서 지연이 살아있음**. 이 문서는 이 리포가
 지원하는 모든 push / pull 경로를 열거해서 fork가 자기 비용·지연 예산에
-맞는 조합을 고를 수 있게 한다. upstream은 가장 안전한 pull baseline만
-켠 채로 shipping하고, fork가 Terraform + env-var seam을 통해 더 빠른
-경로를 opt-in한다.
+맞는 조합을 고를 수 있게 한다. Upstream은 가장 안전한 pull baseline을 제공하지만 analyzer
+tick cron의 기본값은 빈 문자열이라 실행은 opt-in입니다. Fork가 Terraform + env-var seam을
+통해 pull 또는 더 빠른 push 경로를 명시적으로 켭니다.
+
+> **구현 상태**: Pull provider/CLI, 두 push normalizer/route 및 Terraform primitive는
+> 구현되어 있습니다. Path #2 Kafka consumer glue는 fork 작업입니다. Path #1은 추가로 인증
+> bridge가 필요합니다. 현재 Action Group Terraform webhook receiver는 FDAI route가 요구하는
+> Bearer header를 설정하지 않으므로 authenticated proxy 또는 AAD secure-webhook adapter 없이
+> route를 직접 호출할 수 없습니다.
 
 ## 지연 요약
 
 | 경로 | End-to-end 지연 | 배선 | 형태 |
 |------|-----------------|------|------|
-| Event-driven Kafka (KubeEvents, Activity Log, forwarded diagnostics) | **서브초** | `FDAI_START_CONSUMER=1` 이면 항상 on | push |
+| Event-driven Kafka (KubeEvents, Activity Log, forwarded diagnostics) | **Kafka 수신 후 보통 서브초**; source emission/forwarding 지연은 별도 | `FDAI_START_CONSUMER=1` 이면 consumer on | push |
 | AKS Managed Prometheus (`RoutedMetricProvider` route #1) | **~15~60s** | `FDAI_PROMETHEUS_ENDPOINT` | pull (tick) |
 | Diagnostic Setting -> Event Hub -> Kafka | **~15~60s** | [`modules/observability/diagnostic-eventhub-route`](../../../infra/modules/observability/diagnostic-eventhub-route/main.tf) | **push (stream)** |
 | Metric Alert Rule -> Action Group -> Webhook | **~30~90s** | [`modules/observability/metric-alert-rules`](../../../infra/modules/observability/metric-alert-rules/main.tf) | **push (webhook)** |
@@ -122,9 +128,9 @@ event로 승격할지 고름.
   root가 두 번째 consumer instance를 diagnostic hub에 붙이고 각 batch를
   normalizer로 흘려주면 됨.
 
-## Push 경로 #3 - Pull with `analyzer_tick_cli` + `RoutedMetricProvider`
+## Pull baseline - `analyzer_tick_cli` + `RoutedMetricProvider`
 
-새로운 건 아니지만, 모든 fork가 default로 받는 baseline
+새로운 건 아니지만, 모든 fork가 사용할 수 있는 opt-in baseline
 ([observability-and-detection-ko.md](observability-and-detection-ko.md)
 참조).
 [analyzer tick job](../../../infra/modules/compute/container-apps/analyzer_tick_job.tf)이
@@ -132,6 +138,9 @@ cron으로 `python -m fdai.delivery.analyzer_tick_cli`를 실행;
 CLI가 조립된 `MetricProvider`
 ([Prom > Metrics API > Logs](../architecture/csp-neutrality-ko.md))에
 대해 reference threshold analyzer들을 호출.
+
+`analyzer_tick_cron_expression`과 `analyzer_targets_json`의 기본값은 모두 비어 있어 generic
+deploy에서는 job이 실행되지 않습니다. Fork가 target과 cadence를 함께 설정해야 합니다.
 
 ## 조합 규칙
 
@@ -166,6 +175,10 @@ CLI가 조립된 `MetricProvider`
 seam은 이미 다 여기 있음.
 
 ## 아직 배송 안 됨
+
+- **Path #1 authenticated Action Group bridge.** Route와 alert-rule module은 존재하지만 shipped
+  Action Group webhook은 Bearer header를 추가하지 않습니다. Fork는 token을 주입하는 trusted
+  proxy 또는 Entra-authenticated secure webhook binding을 제공해야 합니다.
 
 - **Path #2의 Kafka-consumer glue** (위 "fork 작업" 노트 참조). Consumer
   라이브러리와 normalizer 둘 다 존재; diagnostic hub를 읽고 record를

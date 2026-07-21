@@ -8,14 +8,21 @@ The control loop already reacts to Kafka-delivered events in sub-second
 time; **sampled metrics** are where detection latency lives. This page
 catalogs every push and pull path this repo ships so a fork picks the
 combination that fits its cost and freshness envelope. Nothing here is
-mandatory - upstream defaults to the safest pull baseline; a fork opts
-into faster paths by wiring their Terraform + env-var seams.
+mandatory. Upstream provides the safest pull baseline, but the analyzer-tick
+cron defaults to an empty string and is opt-in. A fork explicitly enables a
+pull path or a faster push path through the Terraform and environment-variable seams.
+
+> **Implementation status**: The pull provider and CLI, two push normalizers and routes, and
+> Terraform primitives are implemented. Kafka-consumer glue for path #2 remains a fork task.
+> Path #1 also needs an authentication bridge: the current Action Group Terraform webhook
+> receiver cannot set the Bearer header required by the FDAI route, so it cannot call the route
+> directly without an authenticated proxy or Entra secure-webhook adapter.
 
 ## Latency envelope at a glance
 
 | Path | End-to-end latency | Wired by | Shape |
 |------|-------------------|----------|-------|
-| Event-driven Kafka (KubeEvents, Activity Log, forwarded diagnostics) | **sub-second** | Always on when `FDAI_START_CONSUMER=1` | push |
+| Event-driven Kafka (KubeEvents, Activity Log, forwarded diagnostics) | **Typically sub-second after Kafka receipt**; source emission and forwarding latency are separate | Consumer on when `FDAI_START_CONSUMER=1` | push |
 | AKS Managed Prometheus (`RoutedMetricProvider` route #1) | **~15-60 s** | `FDAI_PROMETHEUS_ENDPOINT` | pull (tick) |
 | Diagnostic Setting -> Event Hub -> Kafka | **~15-60 s** | [`modules/observability/diagnostic-eventhub-route`](../../../infra/modules/observability/diagnostic-eventhub-route/main.tf) | **push (stream)** |
 | Metric Alert Rule -> Action Group -> Webhook | **~30-90 s** | [`modules/observability/metric-alert-rules`](../../../infra/modules/observability/metric-alert-rules/main.tf) | **push (webhook)** |
@@ -81,11 +88,10 @@ module "aks_cpu_alert" {
 }
 ```
 
-The Action Group's webhook receiver POSTs to
-`https://<fdai-endpoint>/webhook/azure-monitor` with
-`Authorization: Bearer <FDAI_AZURE_MONITOR_WEBHOOK_TOKEN>`. The
-token is a shared secret rotated by re-deploying the composition
-root; see the route's factory contract for the safety story.
+The FDAI route requires `Authorization: Bearer <FDAI_AZURE_MONITOR_WEBHOOK_TOKEN>`.
+The shipped Action Group webhook receiver does not add this header. A fork must place a trusted
+proxy that injects the token, or an Entra-authenticated secure-webhook adapter, between the Action
+Group and `https://<fdai-endpoint>/webhook/azure-monitor`.
 
 ## Push path #2 - Diagnostic Setting -> Event Hub -> Kafka (~15-60 s)
 
@@ -123,9 +129,9 @@ picks which ones actually turn into events.
   a second consumer instance at the diagnostic hub and pipes each
   batch through the normalizer.
 
-## Push path #3 - Pull with `analyzer_tick_cli` + `RoutedMetricProvider`
+## Pull baseline - `analyzer_tick_cli` + `RoutedMetricProvider`
 
-Not new, but the baseline every fork gets for free (see
+Not new, but an opt-in baseline available to every fork (see
 [observability-and-detection.md](observability-and-detection.md)).
 The
 [analyzer tick job](../../../infra/modules/compute/container-apps/analyzer_tick_job.tf)
@@ -133,6 +139,9 @@ runs `python -m fdai.delivery.analyzer_tick_cli` on a cron; the CLI
 invokes the reference threshold analyzers against whichever
 `MetricProvider` composition wired
 ([Prom > Metrics API > Logs](../architecture/csp-neutrality.md)).
+
+Both `analyzer_tick_cron_expression` and `analyzer_targets_json` default to empty, so the job does
+not run in a generic deployment. A fork must configure the targets and cadence together.
 
 ## Composition rules
 
@@ -170,6 +179,9 @@ composition root chooses; the seams are already here.
 
 ## What is NOT yet shipped
 
+- **Authenticated Action Group bridge for path #1.** The route and alert-rule module exist, but
+  the shipped Action Group webhook does not add the Bearer header. A fork must supply a trusted
+  token-injecting proxy or an Entra-authenticated secure-webhook binding.
 - **Kafka-consumer glue** for path #2 (see the "fork task" note
   above). The consumer library and the normalizer both exist; only
   the composition-root wiring that reads the diagnostic hub and
