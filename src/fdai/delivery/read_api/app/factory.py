@@ -235,10 +235,18 @@ def build_app(
     # Exception handlers translate RBAC primitives to HTTP status codes.
     # ------------------------------------------------------------------
 
-    async def handle_authentication_error(_: Request, exc: Exception) -> Response:
+    async def handle_authentication_error(request: Request, exc: Exception) -> Response:
+        _LOGGER.warning(
+            "read_api_authentication_failed",
+            extra={"path": request.url.path, "error_type": type(exc).__name__},
+        )
         return _error(401, str(exc))
 
-    async def handle_authorization_error(_: Request, exc: Exception) -> Response:
+    async def handle_authorization_error(request: Request, exc: Exception) -> Response:
+        _LOGGER.warning(
+            "read_api_authorization_failed",
+            extra={"path": request.url.path, "error_type": type(exc).__name__},
+        )
         return _error(403, str(exc))
 
     async def handle_http_exception(_: Request, exc: Exception) -> Response:

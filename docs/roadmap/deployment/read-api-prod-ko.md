@@ -1,7 +1,7 @@
 ---
 title: 콘솔 read-API 프로덕션 배포
 translation_of: read-api-prod.md
-translation_source_sha: c69976e3b1e04fc850c87ebb26847fdd8f85dcdc
+translation_source_sha: 75a1638eba3a4e955369046d360e7b3b384455ea
 translation_revised: 2026-07-21
 ---
 # 콘솔 read-API 프로덕션 배포
@@ -37,6 +37,9 @@ pytest의 `test_fixtures=True`에서만 `UnsafeClaimsExtractor`와 synthetic vie
 - **Database readiness는 즉시 실패.** User context, skill, stream 또는 다른 runtime service를
   시작하기 전에 Postgres read model이 bounded `SELECT 1`을 실행합니다. 연결에 실패하면 lifespan
   startup을 중단하므로 연결되지 않은 revision이 `/healthz`에서 ready로 표시되지 않습니다.
+- **Access failure를 관찰할 수 있습니다.** 모든 `401`과 `403`은 request path와 exception class만
+  포함하는 structured warning을 기록합니다. Authorization header, bearer token, principal id 및
+  exception text는 기록하지 않습니다.
 - **Kafka 기반 실시간 관찰.** Kafka bootstrap endpoint가 구성되면 팩토리는
   `/live/stream`과 `/agents/stream`을 등록합니다. 별도 consumer group이 공유
   `aw.pipeline.stages` 토픽을 읽고 검증된 단계 레코드를 프로세스 내부 SSE sink로

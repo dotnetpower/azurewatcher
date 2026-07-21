@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 from collections.abc import Iterator
 from typing import Any
@@ -510,6 +511,50 @@ class TestAuthenticationGate:
         client = TestClient(app)
         response = client.get("/audit", headers={"authorization": f"Bearer {_no_role_token()}"})
         assert response.status_code == 403
+
+    def test_authentication_failure_is_logged_without_credentials(
+        self,
+        no_dev_env: None,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        del no_dev_env
+        app, _ = _build_stack(dev_mode=False)
+        caplog.set_level(logging.WARNING, logger="fdai.delivery.read_api.app.factory")
+
+        response = TestClient(app).get(
+            "/audit",
+            headers={"authorization": "Bearer highly-sensitive-token"},
+        )
+
+        assert response.status_code == 401
+        record = next(
+            item for item in caplog.records if item.message == "read_api_authentication_failed"
+        )
+        assert record.path == "/audit"  # type: ignore[attr-defined]
+        assert record.error_type == "AuthenticationError"  # type: ignore[attr-defined]
+        assert "highly-sensitive-token" not in caplog.text
+
+    def test_authorization_failure_is_logged_without_identity(
+        self,
+        no_dev_env: None,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        del no_dev_env
+        app, _ = _build_stack(dev_mode=False)
+        caplog.set_level(logging.WARNING, logger="fdai.delivery.read_api.app.factory")
+
+        response = TestClient(app).get(
+            "/audit",
+            headers={"authorization": f"Bearer {_no_role_token()}"},
+        )
+
+        assert response.status_code == 403
+        record = next(
+            item for item in caplog.records if item.message == "read_api_authorization_failed"
+        )
+        assert record.path == "/audit"  # type: ignore[attr-defined]
+        assert record.error_type == "RoleRequiredError"  # type: ignore[attr-defined]
+        assert "user-noone" not in caplog.text
 
     def test_contributor_can_read(self, no_dev_env: None) -> None:
         del no_dev_env

@@ -37,6 +37,9 @@ model from environment only. This doc covers the production entrypoint.
 - **Fail-fast on database readiness.** Before user context, skills, streams, or other runtime
   services start, the Postgres read model executes a bounded `SELECT 1`. A connection failure
   aborts lifespan startup, so `/healthz` never presents an unconnected revision as ready.
+- **Observable access failures.** Every `401` and `403` emits a structured warning with only the
+  request path and exception class. Authorization headers, bearer tokens, principal ids, and
+  exception text are never logged.
 - **Kafka-backed Live observation.** When the Kafka bootstrap endpoint is
   configured, the factory registers `/live/stream` and `/agents/stream`.
   Separate consumer groups read the shared `aw.pipeline.stages` topic and fan
