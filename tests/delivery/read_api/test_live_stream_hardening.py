@@ -15,6 +15,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 
+from fdai.delivery.read_api.streaming.live_route import _offer_latest
 from fdai.delivery.read_api.streaming.live_stream import (
     _MAX_SSE_DATA_CHARS,
     _encode_sse_event,
@@ -151,3 +152,15 @@ async def test_r7_stream_ends_when_sink_errors() -> None:
     assert frames  # the hello frame was sent
     assert any(b"hello" in f for f in frames)
     # The stream closed itself after the sink error (the drain completed).
+
+
+def test_r8_overflow_keeps_newest_event() -> None:
+    queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=2)
+    queue.put_nowait(b"oldest")
+    queue.put_nowait(b"middle")
+
+    dropped = _offer_latest(queue, b"newest")
+
+    assert dropped is True
+    assert queue.get_nowait() == b"middle"
+    assert queue.get_nowait() == b"newest"

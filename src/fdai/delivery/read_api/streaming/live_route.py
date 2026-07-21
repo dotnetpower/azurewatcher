@@ -21,6 +21,20 @@ _LOGGER = logging.getLogger(__name__)
 _KEEPALIVE_COMMENT = b": keepalive\n\n"
 
 
+def _offer_latest(queue: asyncio.Queue[bytes], chunk: bytes) -> bool:
+    """Enqueue ``chunk``, dropping the oldest queued frame when full."""
+    try:
+        queue.put_nowait(chunk)
+        return False
+    except asyncio.QueueFull:
+        try:
+            queue.get_nowait()
+        except asyncio.QueueEmpty:  # pragma: no cover - same-loop queue invariant
+            return True
+        queue.put_nowait(chunk)
+        return True
+
+
 def make_live_stream_route(
     *,
     sink: SseSink,
@@ -53,16 +67,24 @@ def make_live_stream_route(
                     )
             out_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=1024)
             stop = asyncio.Event()
+            dropped_events = 0
 
             async def event_pump() -> None:
+                nonlocal dropped_events
                 try:
                     async for event in sink.subscribe(channel):
                         if stop.is_set():
                             break
-                        try:
-                            out_queue.put_nowait(encode_sse_event(event))
-                        except asyncio.QueueFull:
-                            pass
+                        if _offer_latest(out_queue, encode_sse_event(event)):
+                            dropped_events += 1
+                            if dropped_events & (dropped_events - 1) == 0:
+                                _LOGGER.warning(
+                                    "live_stream_event_queue_overflow",
+                                    extra={
+                                        "channel": channel,
+                                        "dropped_events": dropped_events,
+                                    },
+                                )
                 except asyncio.CancelledError:
                     raise
                 except Exception:
@@ -105,7 +127,14 @@ def make_live_stream_route(
                 event_task.cancel()
                 keepalive_task.cancel()
                 await asyncio.gather(event_task, keepalive_task, return_exceptions=True)
-                _LOGGER.info("live_stream_close", extra={"actor": oid, "channel": channel})
+                _LOGGER.info(
+                    "live_stream_close",
+                    extra={
+                        "actor": oid,
+                        "channel": channel,
+                        "dropped_events": dropped_events,
+                    },
+                )
 
         return StreamingResponse(
             stream(),
