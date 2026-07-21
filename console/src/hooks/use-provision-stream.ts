@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useRef, useState } from "preact/hooks";
+import { readSseChunk, SSE_INACTIVITY_TIMEOUT_MS } from "./sse-reader";
 
 /** Provisioning phase - mirrors {@link ProvisionPhase}. */
 export type ProvisionPhase = "progress" | "waiting" | "resumed" | "done" | "failed";
@@ -131,6 +132,7 @@ export function isPermanentProvisionFailure(status: number): boolean {
 export async function consumeProvisionSse(
   response: Response,
   onEvent: (event: ProvisionEvent) => void,
+  inactivityTimeoutMs = SSE_INACTIVITY_TIMEOUT_MS,
 ): Promise<void> {
   if (!response.ok) throw new Error(`provisioning stream returned HTTP ${response.status}`);
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
@@ -153,19 +155,24 @@ export async function consumeProvisionSse(
     if (event) onEvent(event);
   };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    buffer = (buffer + decoder.decode(value, { stream: !done })).replace(/\r\n/g, "\n");
-    let boundary = buffer.indexOf("\n\n");
-    while (boundary >= 0) {
-      consumeBlock(buffer.slice(0, boundary));
-      buffer = buffer.slice(boundary + 2);
-      boundary = buffer.indexOf("\n\n");
+  try {
+    while (true) {
+      const { value, done } = await readSseChunk(reader, inactivityTimeoutMs);
+      buffer = (buffer + decoder.decode(value, { stream: !done })).replace(/\r\n/g, "\n");
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary >= 0) {
+        consumeBlock(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 2);
+        boundary = buffer.indexOf("\n\n");
+      }
+      if (done) {
+        if (buffer.trim()) consumeBlock(buffer);
+        return;
+      }
     }
-    if (done) {
-      if (buffer.trim()) consumeBlock(buffer);
-      return;
-    }
+  } catch (error) {
+    await reader.cancel(error).catch(() => undefined);
+    throw error;
   }
 }
 

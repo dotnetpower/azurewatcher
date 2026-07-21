@@ -1470,8 +1470,9 @@ Diagnostics distinguishes process liveness from an authenticated KPI read
 path. A successful `/healthz` response never claims that operational data is
 healthy. Likewise, last-observed agent frames remain visible as history, but
 Engaged, Watching, and Idle are current counts only while the agent stream is
-open. Authenticated live and agent SSE readers cancel a connection after 45 seconds without any
-bytes, including keepalive comments, and enter the existing bounded reconnect path. Canvas
+open. Authenticated live, agent, and provisioning SSE readers cancel a connection after 45 seconds
+without any bytes, including keepalive comments, and enter the existing bounded reconnect path.
+Provisioning also cancels its reader when event delivery fails. Canvas
 visualizations provide an equivalent keyboard and screen-reader
 resource selector, and composite tab widgets move DOM focus together with
 roving selection.

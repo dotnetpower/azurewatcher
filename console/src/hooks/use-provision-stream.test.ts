@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   consumeProvisionSse,
   decodeProvisionEvent,
@@ -13,6 +13,10 @@ import {
  * console state: the producer is not fully trusted, so malformed or hostile
  * payloads must be rejected or sanitised rather than corrupting the view.
  */
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("decodeProvisionEvent", () => {
   test("decodes a well-formed progress event", () => {
@@ -106,5 +110,40 @@ describe("fetch SSE boundary", () => {
       new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } }),
       () => {},
     )).rejects.toThrow(/content type/);
+  });
+
+  test("cancels a provisioning stream after byte inactivity", async () => {
+    vi.useFakeTimers();
+    const cancel = vi.fn();
+    const response = new Response(
+      new ReadableStream<Uint8Array>({ cancel }),
+      { status: 200, headers: { "content-type": "text/event-stream" } },
+    );
+    const result = consumeProvisionSse(response, () => undefined, 1_000);
+    const rejection = expect(result).rejects.toThrow(/inactivity timeout/);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await rejection;
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  test("cancels a provisioning stream when the event callback fails", async () => {
+    const cancel = vi.fn();
+    const encoder = new TextEncoder();
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('data: {"type":"provision.progress"}\n\n'));
+        },
+        cancel,
+      }),
+      { status: 200, headers: { "content-type": "text/event-stream" } },
+    );
+
+    await expect(consumeProvisionSse(response, () => {
+      throw new Error("callback failed");
+    })).rejects.toThrow("callback failed");
+    expect(cancel).toHaveBeenCalledOnce();
   });
 });
