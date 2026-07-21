@@ -1,7 +1,7 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: 3300d69e780ddd7f058515af12dc3c8be7b809ab
+translation_source_sha: 5089ad4054fe52261aaf8d0b2c81df0bdc8e1e38
 translation_revised: 2026-07-22
 ---
 
@@ -61,6 +61,15 @@ Starlette route와 server-owned evidence resolver로 별도 검증합니다.
 |-----------|-------------|--------------|
 | State store (통합 테스트) | `pgvector/pgvector:pg16` on `:5432` | Azure PostgreSQL Flexible + pgvector |
 | Event bus (통합 테스트) | Redpanda on `:19092` (Kafka wire) | Event Hubs Kafka on `:9093` |
+
+### Workspace context 정리
+
+커밋된 VS Code 설정은 dependency tree, cache, 생성된 report, local runtime state, secret,
+Terraform state 및 임시 output을 용도에 따라 Explorer, search 또는 file watching에서
+제외합니다. 이 제외는 editor 부하를 줄이고 생성되거나 로컬에만 있는 artifact가 기본 workspace
+search context에 포함되지 않게 합니다. 탐색 기본값일 뿐이므로 명시적 작업에서는 제외된 경로를
+직접 열 수 있습니다. 어떤 제외도 evidence profile, authentication mode, action lifecycle 또는
+runtime adapter를 선택하지 않습니다. Source, test 및 담당 design doc은 계속 검색할 수 있습니다.
 
 ### 로컬 개발의 Console 데이터
 

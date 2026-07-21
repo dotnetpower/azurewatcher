@@ -1,3 +1,47 @@
 {
-    "makefile.configureOnOpen": false
+    "makefile.configureOnOpen": false,
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.astro": true,
+        "**/.mypy_cache": true,
+        "**/.pytest_cache": true,
+        "**/.ruff_cache": true,
+        "**/.terraform": true,
+        "**/.vite": true,
+        "**/node_modules": true,
+        ".fdai": true,
+        ".venv": true,
+        "console/playwright-report": true,
+        "console/test-results": true,
+        "htmlcov": true,
+        "site/dist": true
+    },
+    "search.exclude": {
+        "**/*.plan": true,
+        "**/*.pyc": true,
+        "**/*.tfstate*": true,
+        "coverage.xml": true,
+        "docs/internals/**": true,
+        "examples/**": true,
+        "logs/**": true,
+        "resolved-models*.json": true,
+        "secrets/**": true,
+        "tmp/**": true
+    },
+    "files.watcherExclude": {
+        "**/__pycache__/**": true,
+        "**/.astro/**": true,
+        "**/.fdai/**": true,
+        "**/.mypy_cache/**": true,
+        "**/.pytest_cache/**": true,
+        "**/.ruff_cache/**": true,
+        "**/.terraform/**": true,
+        "**/.venv/**": true,
+        "**/.vite/**": true,
+        "**/node_modules/**": true,
+        "**/playwright-report/**": true,
+        "**/test-results/**": true,
+        "**/dist/**": true,
+        "**/htmlcov/**": true
+    }
 }

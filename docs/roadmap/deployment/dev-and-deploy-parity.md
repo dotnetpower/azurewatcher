@@ -59,6 +59,15 @@ contract through the real Starlette route and server-owned evidence resolver.
 | State store (integration tests) | `pgvector/pgvector:pg16` on `:5432` | Azure PostgreSQL Flexible + pgvector |
 | Event bus (integration tests) | Redpanda on `:19092` (Kafka wire) | Event Hubs Kafka on `:9093` |
 
+### Workspace context hygiene
+
+The committed VS Code settings exclude dependency trees, caches, generated reports, local runtime
+state, secrets, Terraform state, and scratch outputs from Explorer, search, or file watching as
+appropriate. These exclusions reduce editor load and keep generated or local artifacts out of
+default workspace-search context. They are discovery preferences only: you can still open an
+excluded path for an explicit task, and no exclusion selects an evidence profile, authentication
+mode, action lifecycle, or runtime adapter. Source, tests, and owning design docs remain searchable.
+
 ### Console data in local development
 
 The canonical local read API uses `FDAI_READ_API_LOCAL_ENTRA=1` and shares route-owned runtime helpers with deployment. The browser obtains the API token
