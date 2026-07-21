@@ -235,7 +235,12 @@ def test_chat_idempotency_conflict_returns_409_instead_of_500() -> None:
 
 
 class _EvidenceResolver:
-    async def resolve(self, prompt: str) -> dict[str, Any] | None:
+    async def resolve(
+        self,
+        prompt: str,
+        *,
+        conversation_context: dict[str, str] | None = None,  # noqa: ARG002
+    ) -> dict[str, Any] | None:
         if "recent" not in prompt:
             return None
         return {
@@ -256,7 +261,12 @@ class _EvidenceResolver:
 
 
 class _NoMatchEvidenceResolver:
-    async def resolve(self, prompt: str) -> dict[str, Any] | None:  # noqa: ARG002
+    async def resolve(
+        self,
+        prompt: str,  # noqa: ARG002
+        *,
+        conversation_context: dict[str, str] | None = None,  # noqa: ARG002
+    ) -> dict[str, Any] | None:
         return {
             "authority": "server_read_model",
             "status": "none",
@@ -345,7 +355,12 @@ class _ToolResolver:
 
 
 class _AlwaysOperationalResolver:
-    async def resolve(self, prompt: str) -> dict[str, Any] | None:  # noqa: ARG002
+    async def resolve(
+        self,
+        prompt: str,  # noqa: ARG002
+        *,
+        conversation_context: dict[str, str] | None = None,  # noqa: ARG002
+    ) -> dict[str, Any] | None:
         return {"authority": "server_read_model", "status": "none"}
 
 

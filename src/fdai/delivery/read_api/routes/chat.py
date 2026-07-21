@@ -143,6 +143,7 @@ from fdai.delivery.read_api.routes.chat_route_common import (
     AnswerPreferenceResolver,
     AuthorizeFn,
     ModelPreferenceResolver,
+    _conversation_context,
     _metering_correlation_id,
     _request_id,
     _session_id,
@@ -275,6 +276,7 @@ def make_chat_route(
         if not isinstance(view_context, dict):
             raise HTTPException(status_code=400, detail="view_context MUST be an object")
         view_context.pop("_answer_plan", None)
+        conversation_context = _conversation_context(body)
         history_raw = body.get("history", [])
         if not isinstance(history_raw, list):
             raise HTTPException(status_code=400, detail="history MUST be a list")
@@ -365,7 +367,10 @@ def make_chat_route(
                 principal_id=user_id,
             )
             view_context = await _with_operational_evidence(
-                clean_prompt, view_context, evidence_resolver
+                clean_prompt,
+                view_context,
+                evidence_resolver,
+                conversation_context=conversation_context,
             )
             view_context = await _with_agent_evidence(
                 clean_prompt,

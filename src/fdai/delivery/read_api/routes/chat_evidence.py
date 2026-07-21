@@ -16,6 +16,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
+from fdai.agents import PANTHEON_NAMES
 from fdai.delivery.read_api.read_model import AuditItem, ConsoleReadModel, IncidentSummary
 from fdai.delivery.read_api.routes.rca_projection import project_rca
 
@@ -145,6 +146,7 @@ def _compact_audit(item: AuditItem) -> dict[str, Any]:
         "seq": item.seq,
         "recorded_at": item.recorded_at,
         "actor": item.actor,
+        "agent": _audit_agent(item),
         "action_kind": item.action_kind,
         "mode": item.mode,
         "fields": fields,
@@ -163,7 +165,24 @@ def _incident_dict(incident: IncidentSummary) -> dict[str, Any]:
         "vertical": incident.vertical,
         "opened_at": incident.opened_at,
         "last_updated_at": incident.last_updated_at,
+        "involved_agents": list(incident.involved_agents),
     }
+
+
+def _audit_agent(item: AuditItem) -> str | None:
+    principal = item.entry.get("producer_principal")
+    if isinstance(principal, str) and principal in PANTHEON_NAMES:
+        return principal
+    action_kind = item.action_kind.casefold()
+    if action_kind.startswith("hil."):
+        return "Var"
+    if action_kind.startswith(("risk_gate.", "rca.")):
+        return "Forseti"
+    if action_kind.startswith("governance."):
+        return "Mimir"
+    if item.actor in PANTHEON_NAMES:
+        return item.actor
+    return None
 
 
 def _search_text(incident: IncidentSummary, audit: Sequence[AuditItem]) -> str:
@@ -210,8 +229,13 @@ class OperationalEvidenceResolver:
     incident_limit: int = 12
     audit_limit: int = 100
 
-    async def resolve(self, prompt: str) -> Mapping[str, Any] | None:
-        if not needs_operational_evidence(prompt):
+    async def resolve(
+        self,
+        prompt: str,
+        *,
+        conversation_context: Mapping[str, str] | None = None,
+    ) -> Mapping[str, Any] | None:
+        if conversation_context is None and not needs_operational_evidence(prompt):
             return None
         terms = _topic_terms(prompt)
         try:
@@ -234,6 +258,36 @@ class OperationalEvidenceResolver:
                 "status": "unavailable",
                 "reason": "operational evidence lookup failed",
             }
+
+        if conversation_context is not None:
+            selected_index = next(
+                (
+                    index
+                    for index, incident in enumerate(page.items)
+                    if incident.correlation_id == conversation_context["correlation_id"]
+                    and conversation_context["incident_id"]
+                    in {
+                        incident.incident_id,
+                        incident.ticket_id,
+                        f"INC-{incident.correlation_id}",
+                    }
+                ),
+                None,
+            )
+            if selected_index is None:
+                return {
+                    "authority": "server_read_model",
+                    "status": "none",
+                    "searched_recent_incidents": len(page.items),
+                    "reason": "selected incident is not available in the server read model",
+                }
+            return _matched_evidence(
+                page.items[selected_index],
+                audits[selected_index].items,
+                terms=terms,
+                candidate_count=1,
+                selected_agent=conversation_context.get("selected_agent"),
+            )
 
         candidates: list[tuple[int, int, IncidentSummary, Sequence[AuditItem]]] = []
         for index, (incident, audit_page) in enumerate(zip(page.items, audits, strict=True)):
@@ -264,23 +318,42 @@ class OperationalEvidenceResolver:
             }
 
         _, _, selected, selected_audit = top[0]
-        rca = project_rca(selected_audit, correlation_id=selected.correlation_id)
-        grounded = [
-            hypothesis.to_dict()
-            for hypothesis in rca.hypotheses
-            if hypothesis.grounded and hypothesis.cause and hypothesis.citations
-        ]
-        return {
-            "authority": "server_read_model",
-            "status": "matched",
-            "topic_terms": list(terms),
-            "selected_incident": _incident_dict(selected),
-            "grounded_hypotheses": grounded,
-            "ungrounded_hypothesis_count": len(rca.hypotheses) - len(grounded),
-            "response_plan": rca.response.to_dict() if rca.response else None,
-            "audit_evidence": [_compact_audit(item) for item in selected_audit[:20]],
-            "candidate_count": len(candidates),
-        }
+        return _matched_evidence(
+            selected,
+            selected_audit,
+            terms=terms,
+            candidate_count=len(candidates),
+        )
+
+
+def _matched_evidence(
+    selected: IncidentSummary,
+    selected_audit: Sequence[AuditItem],
+    *,
+    terms: Sequence[str],
+    candidate_count: int,
+    selected_agent: str | None = None,
+) -> dict[str, Any]:
+    rca = project_rca(selected_audit, correlation_id=selected.correlation_id)
+    grounded = [
+        hypothesis.to_dict()
+        for hypothesis in rca.hypotheses
+        if hypothesis.grounded and hypothesis.cause and hypothesis.citations
+    ]
+    evidence: dict[str, Any] = {
+        "authority": "server_read_model",
+        "status": "matched",
+        "topic_terms": list(terms),
+        "selected_incident": _incident_dict(selected),
+        "grounded_hypotheses": grounded,
+        "ungrounded_hypothesis_count": len(rca.hypotheses) - len(grounded),
+        "response_plan": rca.response.to_dict() if rca.response else None,
+        "audit_evidence": [_compact_audit(item) for item in selected_audit[:20]],
+        "candidate_count": candidate_count,
+    }
+    if selected_agent is not None:
+        evidence["selected_agent_context"] = selected_agent
+    return evidence
 
 
 __all__ = ["OperationalEvidenceResolver", "needs_operational_evidence"]

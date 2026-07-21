@@ -211,6 +211,48 @@ async def test_returns_ambiguous_candidates_without_recency_tiebreak() -> None:
     assert len(evidence["candidates"]) == 2
 
 
+async def test_exact_incident_binding_wins_over_equal_topic_matches() -> None:
+    model = InMemoryConsoleReadModel()
+    _seed_memory_incident(model, "corr-memory-a")
+    _seed_memory_incident(model, "corr-memory-b")
+
+    evidence = await OperationalEvidenceResolver(model).resolve(
+        "what is happening?",
+        conversation_context={
+            "kind": "incident",
+            "incident_id": "INC-corr-memory-b",
+            "correlation_id": "corr-memory-b",
+            "selected_agent": "Var",
+        },
+    )
+
+    assert evidence is not None
+    assert evidence["status"] == "matched"
+    assert evidence["selected_incident"]["correlation_id"] == "corr-memory-b"
+    assert evidence["candidate_count"] == 1
+    assert evidence["selected_agent_context"] == "Var"
+    assert evidence["selected_incident"]["involved_agents"] == ["Forseti"]
+    assert evidence["audit_evidence"][0]["agent"] == "Forseti"
+
+
+async def test_stale_incident_binding_never_falls_back_to_fuzzy_match() -> None:
+    model = InMemoryConsoleReadModel()
+    _seed_memory_incident(model, "corr-memory-a")
+
+    evidence = await OperationalEvidenceResolver(model).resolve(
+        "memory issue cause",
+        conversation_context={
+            "kind": "incident",
+            "incident_id": "INC-missing",
+            "correlation_id": "corr-missing",
+        },
+    )
+
+    assert evidence is not None
+    assert evidence["status"] == "none"
+    assert "selected_incident" not in evidence
+
+
 class _FailingReadModel(InMemoryConsoleReadModel):
     async def list_incidents(self, **kwargs):  # type: ignore[no-untyped-def]
         raise RuntimeError("database unavailable")

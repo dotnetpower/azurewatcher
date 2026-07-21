@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from inspect import Parameter, signature
 from typing import Any, Protocol
 
 from fdai.agents import PANTHEON_NAMES
@@ -21,7 +22,12 @@ from fdai.delivery.read_api.routes.chat_prompt import (
 class OperationalEvidenceResolverProtocol(Protocol):
     """Read-only server evidence seam used only for cross-screen questions."""
 
-    async def resolve(self, prompt: str) -> Mapping[str, Any] | None: ...
+    async def resolve(
+        self,
+        prompt: str,
+        *,
+        conversation_context: Mapping[str, str] | None = None,
+    ) -> Mapping[str, Any] | None: ...
 
 
 class ChatBehaviorEvidenceResolver(Protocol):
@@ -78,6 +84,17 @@ def _uses_view_explanations(prompt: str, view_context: Mapping[str, Any]) -> boo
     )
 
 
+def _supports_conversation_context(resolver: OperationalEvidenceResolverProtocol) -> bool:
+    try:
+        parameters = signature(resolver.resolve).parameters.values()
+    except (TypeError, ValueError):
+        return True
+    return any(
+        parameter.name == "conversation_context" or parameter.kind is Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+
+
 async def _with_behavior_evidence(
     prompt: str,
     view_context: dict[str, Any],
@@ -99,6 +116,8 @@ async def _with_operational_evidence(
     prompt: str,
     view_context: dict[str, Any],
     resolver: OperationalEvidenceResolverProtocol | None,
+    *,
+    conversation_context: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Replace any client-supplied evidence with server-owned evidence."""
 
@@ -109,12 +128,16 @@ async def _with_operational_evidence(
     if (
         resolver is None
         or "_behavior_evidence" in enriched
-        or not needs_operational_evidence(prompt, enriched)
+        or (conversation_context is None and not needs_operational_evidence(prompt, enriched))
         or "_tool_evidence" in enriched
         or "_current_screen_tool" in enriched
     ):
         return enriched
-    evidence = await resolver.resolve(prompt)
+    evidence = (
+        await resolver.resolve(prompt, conversation_context=conversation_context)
+        if _supports_conversation_context(resolver)
+        else await resolver.resolve(prompt)
+    )
     if evidence is not None:
         enriched["_operational_evidence"] = dict(evidence)
     return enriched

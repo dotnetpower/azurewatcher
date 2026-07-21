@@ -10,6 +10,7 @@ from typing import Any, Final
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 
+from fdai.agents import PANTHEON_NAMES
 from fdai.core.conversation.answer_preferences import ResponsePreferenceProfile
 from fdai.core.conversation.policy_prompt import UserPolicyCompiler
 from fdai.delivery.read_api.routes.chat_prompt import _COMPILED_USER_POLICY_KEY
@@ -22,6 +23,31 @@ DEFAULT_MAX_HISTORY_ITEMS: Final[int] = 200
 
 
 DEFAULT_MAX_SESSION_ID_CHARS: Final[int] = 200
+
+
+def _conversation_context(body: Mapping[str, Any]) -> dict[str, str] | None:
+    raw = body.get("conversation_context")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise HTTPException(status_code=400, detail="conversation_context MUST be an object")
+    if raw.get("kind") != "incident":
+        raise HTTPException(status_code=400, detail="conversation_context kind MUST be incident")
+    context: dict[str, str] = {"kind": "incident"}
+    for field in ("incident_id", "correlation_id"):
+        value = raw.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise HTTPException(status_code=400, detail=f"{field} MUST be a non-empty string")
+        normalized = value.strip()
+        if len(normalized) > 256:
+            raise HTTPException(status_code=400, detail=f"{field} exceeds cap (256)")
+        context[field] = normalized
+    selected_agent = raw.get("selected_agent")
+    if selected_agent is not None:
+        if not isinstance(selected_agent, str) or selected_agent not in PANTHEON_NAMES:
+            raise HTTPException(status_code=400, detail="selected_agent MUST name a Pantheon agent")
+        context["selected_agent"] = selected_agent
+    return context
 
 
 def _turn_metadata(
