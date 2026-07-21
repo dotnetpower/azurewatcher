@@ -599,6 +599,18 @@ class TestLocalAzureCliHarness:
         assert sources["operational-state"]["durable"] is True
         assert sources["overview-measurement"]["availability"] == "unknown"
 
+    def test_rejects_local_postgresql_with_authoritative_proxy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv(_DEV_ENV, raising=False)
+        monkeypatch.delenv(_LOCAL_ENTRA_ENV, raising=False)
+        monkeypatch.setenv(_LOCAL_AZURE_CLI_ENV, "1")
+        monkeypatch.setenv(_DATABASE_URL_ENV, "postgresql://example.invalid/fdai")
+        monkeypatch.setenv(_AUTHORITATIVE_READ_API_ENV, "https://read.example.test")
+
+        with pytest.raises(RuntimeError, match="MUST NOT be configured together"):
+            _local.app()
+
     def test_local_postgresql_profile_registers_durable_read_surfaces(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

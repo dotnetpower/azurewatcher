@@ -99,6 +99,9 @@ runs a bounded `SELECT 1` through that adapter. A failed probe stops startup ins
 partially connected console. After the probe succeeds, PostgreSQL-backed entries report
 `available` and `reachable=true`; configured remote and Azure request-time sources remain `unknown`
 until their own evidence contract verifies them.
+`FDAI_DATABASE_URL` and `FDAI_AUTHORITATIVE_READ_API_BASE_URL` select mutually exclusive source
+profiles. Configuring both stops startup before either provider is constructed so the manifest can
+never describe local PostgreSQL while allowlisted requests are served by the remote API.
 
 Runtime skill inspection follows the same rule. Production reconstructs the enabled catalog from
 signed PostgreSQL trusted-artifact records before accepting traffic. Interactive local exposes the

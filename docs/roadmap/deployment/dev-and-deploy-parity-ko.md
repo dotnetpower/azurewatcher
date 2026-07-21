@@ -1,7 +1,7 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: 1e2b644651685f3c42c0f9d672d1681c0bbf78fc
+translation_source_sha: b06675508fd480f3e2e3c3f13d70c2e551aee2b9
 translation_revised: 2026-07-21
 ---
 
@@ -103,6 +103,9 @@ PostgreSQL read-model adapter가 local pgvector를 사용합니다. Local read A
 노출하지 않고 startup을 중단합니다. Probe가 성공하면 PostgreSQL 기반 entry는 `available` 및
 `reachable=true`를 보고합니다. 구성된 remote 및 Azure request-time source는 자체 evidence
 contract가 검증할 때까지 `unknown`을 유지합니다.
+`FDAI_DATABASE_URL`과 `FDAI_AUTHORITATIVE_READ_API_BASE_URL`은 상호배타적인 source profile을
+선택합니다. 둘을 함께 구성하면 provider를 만들기 전에 startup을 중단하므로 manifest가 local
+PostgreSQL을 설명하면서 allowlist request를 remote API가 처리하는 상태를 허용하지 않습니다.
 
 Runtime skill inspection도 같은 규칙을 따릅니다. Production은 traffic을 받기 전에 signed
 PostgreSQL trusted-artifact record에서 enabled catalog를 재구성합니다. Interactive local은 durable

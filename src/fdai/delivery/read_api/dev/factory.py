@@ -69,6 +69,7 @@ from fdai.delivery.read_api.auth import (  # noqa: E402
     build_authenticator,
 )
 from fdai.delivery.read_api.dev.authoritative_proxy import (  # noqa: E402
+    AUTHORITATIVE_READ_API_ENV,
     authoritative_read_proxy_from_env,
 )
 from fdai.delivery.read_api.dev.azure_cli_identity import (  # noqa: E402
@@ -232,11 +233,19 @@ def build_local_app(
             f"{_LOCAL_AZURE_CLI_ENV}=1 (current az login user); this module is a "
             "local dev entrypoint and MUST NOT boot in production."
         )
+    local_database_configured = bool(os.environ.get("FDAI_DATABASE_URL", "").strip())
+    authoritative_proxy_configured = bool(
+        os.environ.get(AUTHORITATIVE_READ_API_ENV, "").strip()
+    )
+    if local_database_configured and authoritative_proxy_configured:
+        raise RuntimeError(
+            "FDAI_DATABASE_URL and FDAI_AUTHORITATIVE_READ_API_BASE_URL "
+            "MUST NOT be configured together"
+        )
     local_cli_identity = identity_resolver() if local_azure_cli else None
     authoritative_read_proxy = (
         None if test_fixtures else authoritative_read_proxy_from_env(os.environ)
     )
-    local_database_configured = bool(os.environ.get("FDAI_DATABASE_URL", "").strip())
     read_model: ConsoleReadModel
     if local_database_configured and not test_fixtures:
         read_model = build_prod_read_model(os.environ)
