@@ -43,6 +43,8 @@ and the core executor - never a concrete ChatOps / state adapter.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -135,6 +137,12 @@ class RequestOutcome(StrEnum):
     """Action parked but the HilChannel push failed. The action stays
     pending (fail-toward-safety); a re-drive or a fallback channel can
     still deliver the card. Never auto-executes."""
+
+    ALREADY_PARKED = "already_parked"
+    """An exact replay found the same approval request already parked."""
+
+    APPROVAL_ID_CONFLICT = "approval_id_conflict"
+    """The approval ID was already bound to a different request."""
 
 
 class ResolveOutcome(StrEnum):
@@ -274,12 +282,29 @@ class HilResumeCoordinator:
             raise ValueError(
                 "submitter_oid MUST be non-empty - it is the no-self-approval authority"
             )
+        if ttl_seconds <= 0:
+            raise ValueError("ttl_seconds MUST be > 0")
+        if approval_id is not None and not approval_id.strip():
+            raise ValueError("approval_id MUST be non-empty when supplied")
         aid = approval_id or uuid4().hex
+        if len(aid) > 200:
+            raise ValueError("approval_id exceeds cap (200)")
+        normalized_submitter = submitter_oid.strip()
         on_call = await self._resolve_on_call()
         resolved_assignee = (assignee_oid or "").strip() or (
             on_call.primary_oid if on_call is not None else None
         )
         parked_at = datetime.now(tz=UTC)
+        request_fingerprint = _approval_request_fingerprint(
+            action=action,
+            rule=rule,
+            submitter_oid=normalized_submitter,
+            correlation_id=correlation_id,
+            reasons=reasons,
+            blast_radius_summary=blast_radius_summary,
+            ttl_seconds=ttl_seconds,
+            assignee_oid=resolved_assignee,
+        )
         parked = {
             "status": _STATUS_PENDING,
             "approval_id": aid,
@@ -287,10 +312,11 @@ class HilResumeCoordinator:
             "rule_id": rule.id,
             "rule": rule.model_dump(mode="json"),
             "action_type": action.action_type,
-            "submitter_oid": submitter_oid,
+            "submitter_oid": normalized_submitter,
             "assignee_oid": resolved_assignee,
             "correlation_id": correlation_id,
             "idempotency_key": action.idempotency_key,
+            "request_fingerprint": request_fingerprint,
             "parked_at": parked_at.isoformat(),
             "approval_context": {
                 "reasons": list(reasons),
@@ -300,10 +326,7 @@ class HilResumeCoordinator:
             },
             "on_call": _on_call_detail(on_call),
         }
-        await self._state_store.write_state(_park_key(aid), parked)
-        if self._pending_index_writer is not None:
-            await self._pending_index_writer(self._state_store, aid)
-        await self._audit(
+        requested_audit = self._audit_entry(
             action_kind="hil.requested",
             idempotency_key=f"{action.idempotency_key}:hil_request",
             approval_id=aid,
@@ -313,11 +336,43 @@ class HilResumeCoordinator:
                 "rule_id": rule.id,
                 "severity": rule.severity.value,
                 "category": rule.category.value,
-                "submitter_oid": submitter_oid,
+                "submitter_oid": normalized_submitter,
                 "assignee_oid": resolved_assignee,
                 "on_call": _on_call_detail(on_call),
             },
         )
+        created = await self._state_store.write_state_with_audit_if_absent(
+            _park_key(aid),
+            parked,
+            requested_audit,
+        )
+        if not created:
+            existing = await self._state_store.read_state(_park_key(aid))
+            if existing is not None and existing.get("request_fingerprint") == request_fingerprint:
+                await self._audit(
+                    action_kind="hil.request.duplicate",
+                    idempotency_key=f"{action.idempotency_key}:hil_request_duplicate",
+                    approval_id=aid,
+                    correlation_id=correlation_id,
+                    detail={},
+                )
+                return RequestApprovalResult(
+                    outcome=RequestOutcome.ALREADY_PARKED,
+                    approval_id=aid,
+                )
+            await self._audit(
+                action_kind="hil.request.approval_id_conflict",
+                idempotency_key=f"{aid}:hil_request_conflict",
+                approval_id=aid,
+                correlation_id=correlation_id,
+                detail={"attempted_action_id": str(action.action_id)},
+            )
+            return RequestApprovalResult(
+                outcome=RequestOutcome.APPROVAL_ID_CONFLICT,
+                approval_id=aid,
+            )
+        if self._pending_index_writer is not None:
+            await self._pending_index_writer(self._state_store, aid)
 
         request = HilApprovalRequest(
             approval_id=aid,
@@ -621,17 +676,59 @@ class HilResumeCoordinator:
         detail: Mapping[str, Any],
     ) -> None:
         await self._state_store.append_audit_entry(
-            {
-                "actor": self._actor,
-                "action_kind": action_kind,
-                "mode": Mode.SHADOW.value,
-                "idempotency_key": idempotency_key,
-                "approval_id": approval_id,
-                "correlation_id": correlation_id,
-                "recorded_at": datetime.now(tz=UTC).isoformat(),
-                **dict(detail),
-            }
+            self._audit_entry(
+                action_kind=action_kind,
+                idempotency_key=idempotency_key,
+                approval_id=approval_id,
+                correlation_id=correlation_id,
+                detail=detail,
+            )
         )
+
+    def _audit_entry(
+        self,
+        *,
+        action_kind: str,
+        idempotency_key: str,
+        approval_id: str,
+        correlation_id: str,
+        detail: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "actor": self._actor,
+            "action_kind": action_kind,
+            "mode": Mode.SHADOW.value,
+            "idempotency_key": idempotency_key,
+            "approval_id": approval_id,
+            "correlation_id": correlation_id,
+            "recorded_at": datetime.now(tz=UTC).isoformat(),
+            **dict(detail),
+        }
+
+
+def _approval_request_fingerprint(
+    *,
+    action: Action,
+    rule: Rule,
+    submitter_oid: str,
+    correlation_id: str,
+    reasons: Sequence[str],
+    blast_radius_summary: str,
+    ttl_seconds: int,
+    assignee_oid: str | None,
+) -> str:
+    payload = {
+        "action": action.model_dump(mode="json"),
+        "rule": {"id": rule.id, "version": rule.version},
+        "submitter_oid": submitter_oid,
+        "correlation_id": correlation_id,
+        "reasons": list(reasons),
+        "blast_radius_summary": blast_radius_summary,
+        "ttl_seconds": ttl_seconds,
+        "assignee_oid": assignee_oid,
+    }
+    canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _is_success(

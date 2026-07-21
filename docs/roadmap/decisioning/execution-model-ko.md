@@ -1,7 +1,7 @@
 ---
 title: Execution 모델
 translation_of: execution-model.md
-translation_source_sha: 9cf12f721453ba68a0ad644ae37b9a7845e88f9b
+translation_source_sha: efb9f6fffbbc2e6f1efb16e4bdc9bb3834887955
 translation_revised: 2026-07-21
 ---
 
@@ -533,6 +533,9 @@ RiskGate 가 `hil` 을 반환하면 executor 는 실행되지 않고 control loo
 - **idempotent** - park 는 첫 terminal 결정에서 `status=resolved` 로
   전환; 중복 결정은 no-op, 상충 결정은 거부되어 승인이 double-apply
   될 수 없음.
+- **approval ID claim** - parking은 approval ID와 requested audit record를 atomic하게
+  claim합니다. 동일 요청 replay는 channel push 없이 기존 park를 반환하고, 같은 ID의 다른
+  요청 content는 audited conflict로 처리되어 기존 park를 덮어쓸 수 없습니다.
 - **self-approval 금지** - `approver_oid == submitter_oid` 는 실행 전에
   거부; loop 은 system submitter 신원으로 park 하므로 실제 approver 는
   항상 구별됨.

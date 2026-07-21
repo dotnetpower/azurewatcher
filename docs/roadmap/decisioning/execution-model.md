@@ -548,6 +548,9 @@ A later decision (a ChatOps callback or a poll) drives
 - **idempotent** - the park flips to `status=resolved` on the first
   terminal decision; a duplicate decision is a no-op and a conflicting
   decision is refused, so an approval can never double-apply.
+- **approval ID claim** - parking atomically claims the approval ID together with its requested
+  audit record. An exact request replay returns the existing park without another channel push;
+  different request content under the same ID is an audited conflict and cannot overwrite it.
 - **no self-approval** - `approver_oid == submitter_oid` is refused
   before any execution; the loop parks with a system submitter identity
   so any real approver is distinct.
