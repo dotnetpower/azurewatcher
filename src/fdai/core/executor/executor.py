@@ -40,6 +40,8 @@ publisher's own idempotency check (also keyed on
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -96,6 +98,9 @@ class ExecutorOutcome(StrEnum):
     REJECTED_INVARIANT = "rejected_invariant"
     """Action was missing one of the four safety invariants (empty
     ``stop_condition``, missing rollback, blast_radius, ...)."""
+
+    REJECTED_IDEMPOTENCY_CONFLICT = "rejected_idempotency_conflict"
+    """The idempotency key was already bound to a different action."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,12 +229,20 @@ class ShadowExecutor:
         # outside the lock lets an obvious duplicate short-circuit.
         cached = self._dedupe.get(action.idempotency_key)
         if cached is not None:
-            return cached
+            return await self._deduplicated_or_conflict(
+                action=action,
+                rule=rule,
+                cached=cached,
+            )
 
         async with self._resource_lock.acquire(action.target_resource_ref):
             cached = self._dedupe.get(action.idempotency_key)
             if cached is not None:
-                return cached
+                return await self._deduplicated_or_conflict(
+                    action=action,
+                    rule=rule,
+                    cached=cached,
+                )
 
             # Durable L2 guard: a prior mutation recorded under this key
             # (possibly by an earlier process, before a restart) is
@@ -239,8 +252,14 @@ class ShadowExecutor:
                 stored = await self._idempotency.seen(action.idempotency_key)
                 if stored is not None:
                     result = _result_from_payload(stored)
-                    self._remember(action.idempotency_key, result)
-                    return result
+                    resolved = await self._deduplicated_or_conflict(
+                        action=action,
+                        rule=rule,
+                        cached=result,
+                    )
+                    if resolved is result:
+                        self._remember(action.idempotency_key, result)
+                    return resolved
 
             blast_reason = self._check_blast_radius(action)
             if blast_reason is not None:
@@ -289,6 +308,25 @@ class ShadowExecutor:
     # helpers
     # ------------------------------------------------------------------
 
+    async def _deduplicated_or_conflict(
+        self,
+        *,
+        action: Action,
+        rule: Rule,
+        cached: ExecutionResult,
+    ) -> ExecutionResult:
+        expected = _execution_fingerprint(action=action, rule=rule)
+        recorded = cached.audit_context.get("idempotency_fingerprint")
+        if recorded == expected:
+            return cached
+        return await self._finish(
+            action=action,
+            rule=rule,
+            outcome=ExecutorOutcome.REJECTED_IDEMPOTENCY_CONFLICT,
+            reason="idempotency key is already bound to a different action payload",
+            remember=False,
+        )
+
     def _check_blast_radius(self, action: Action) -> str | None:
         count = action.blast_radius.count
         if count is not None and count > self._config.max_affected_resources:
@@ -313,6 +351,7 @@ class ShadowExecutor:
         reason: str | None,
         pr_ref: str | None = None,
         pr_url: str | None = None,
+        remember: bool = True,
     ) -> ExecutionResult:
         result = ExecutionResult(
             action_id=str(action.action_id),
@@ -328,6 +367,7 @@ class ShadowExecutor:
                 "action_type": action.action_type,
                 "operation": action.operation.value,
                 "blast_radius_scope": action.blast_radius.scope.value,
+                "idempotency_fingerprint": _execution_fingerprint(action=action, rule=rule),
             },
         )
         # Write audit BEFORE caching the result. If the audit-store
@@ -338,11 +378,12 @@ class ShadowExecutor:
         # attempt entirely, silently losing the durable trail for one
         # event delivery.
         await self._write_audit(action=action, rule=rule, result=result)
-        self._remember(action.idempotency_key, result)
+        if remember:
+            self._remember(action.idempotency_key, result)
         # Durable dedup: record only mutating outcomes so a post-restart
         # retry does not re-publish. Recorded AFTER the audit write for
         # the same reason _remember is (a failed audit must re-execute).
-        if self._idempotency is not None and outcome in _MUTATION_OUTCOMES:
+        if remember and self._idempotency is not None and outcome in _MUTATION_OUTCOMES:
             await self._idempotency.record(action.idempotency_key, _result_to_payload(result))
         return result
 
@@ -412,6 +453,32 @@ def _missing_safety_invariant(action: Action) -> str | None:
     if not action.citing_rules:
         return "action.citing_rules MUST include at least one rule id"
     return None
+
+
+def _execution_fingerprint(*, action: Action, rule: Rule) -> str:
+    payload = {
+        "action_id": str(action.action_id),
+        "event_id": str(action.event_id),
+        "action_type": action.action_type,
+        "target_resource_ref": action.target_resource_ref,
+        "operation": action.operation.value,
+        "params": dict(action.params),
+        "stop_condition": action.stop_condition,
+        "rollback": {
+            "kind": action.rollback_ref.kind.value,
+            "reference": action.rollback_ref.reference,
+        },
+        "blast_radius": {
+            "scope": action.blast_radius.scope.value,
+            "count": action.blast_radius.count,
+            "rate_per_minute": action.blast_radius.rate_per_minute,
+        },
+        "mode": action.mode.value,
+        "citing_rules": sorted(action.citing_rules),
+        "rule": {"id": rule.id, "version": rule.version},
+    }
+    canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _build_remediation_pr(*, action: Action, rule: Rule, patch: str) -> RemediationPr:

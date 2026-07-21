@@ -800,6 +800,9 @@ migration record in [action-ontology.md § 10](action-ontology.md#10-migration-r
 - **Direct-API idempotency** - the executor's dispatch is called
   twice with the same idempotency key; the substrate adapter records
   exactly one mutation.
+- **Idempotency collision** - the executor binds each key to a deterministic action fingerprint.
+  Reusing a key with a different action, target, rule version, or safety contract fails closed as
+  an audited conflict and never replaces the original successful receipt.
 - **PR-native + PR-manual auto-merge policy** - contract tests over
   the label sets the adapter emits; the label matrix is asserted.
 - **RiskDecision cannot upgrade authority** - property test:

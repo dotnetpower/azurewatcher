@@ -1,7 +1,7 @@
 ---
 title: Execution 모델
 translation_of: execution-model.md
-translation_source_sha: 9561c6975e046977c4e85253a8127e033a7721df
+translation_source_sha: 3a3f27f2e406df0b50400be5c88fd7ce1a2ab42a
 translation_revised: 2026-07-21
 ---
 
@@ -776,6 +776,9 @@ ActionType migration record와 일치합니다.
 - **Direct-API idempotency** - executor 의 dispatch 가 동일한
   idempotency key 로 두 번 호출; substrate adapter 가 정확히 하나의
   mutation 기록.
+- **Idempotency collision** - executor는 각 key를 deterministic action fingerprint에
+  binding합니다. 다른 action, target, rule version 또는 safety contract에 같은 key를
+  재사용하면 audited conflict로 fail closed하며 기존 성공 receipt를 교체하지 않습니다.
 - **PR-native + PR-manual auto-merge 정책** - adapter 가 emit 하는
   label set 에 대한 contract test; label 매트릭스 assert.
 - **RiskDecision 은 authority 를 upgrade 할 수 없음** - property test:
