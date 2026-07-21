@@ -1,8 +1,10 @@
 import {
+  AGENT_ROLE,
   AGENT_RUNTIME_BINDING,
   STATE_TASK,
   type AgentNode,
 } from "./agents.model";
+import { getLocale, t } from "../i18n";
 
 export const STATE_LABEL: Readonly<Record<string, string>> = {
   idle: "idle",
@@ -42,10 +44,10 @@ export function rosterLayerOf(name: string): Exclude<RosterLayer, "all"> {
 }
 
 export function stateTime(iso: string): string {
-  if (!iso) return "No signal yet";
+  if (!iso) return t("agents.common.noSignalYet");
   const value = new Date(iso);
   if (Number.isNaN(value.getTime())) return iso;
-  return value.toLocaleString([], {
+  return value.toLocaleString(getLocale() === "ko" ? "ko-KR" : "en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -54,19 +56,41 @@ export function stateTime(iso: string): string {
 }
 
 export function currentTask(node: AgentNode): string {
-  if (!node.observed) return "No runtime signal observed";
+  if (!node.observed) return t("agents.task.unobserved");
+  if (node.detail === "awaiting human approval") return t("agents.task.awaitingApproval");
   const binding = AGENT_RUNTIME_BINDING[node.name];
   if (
     node.state === "idle" &&
     (binding === "event-bus subscriber" || binding === "raw ingress subscriber")
   ) {
-    return "Subscribed and waiting for events";
+    return t("agents.task.subscribed");
   }
-  return node.detail ?? STATE_TASK[node.state];
+  return node.detail ?? stateTaskLabel(node.state);
 }
 
 export function agentStateLabel(node: AgentNode): string {
-  return node.observed ? (STATE_LABEL[node.state] ?? node.state) : "unobserved";
+  return node.observed ? t(`agents.state.${node.state}`) : t("agents.state.unobserved");
+}
+
+export function stateTaskLabel(state: AgentNode["state"]): string {
+  return t(`agents.task.${state}`);
+}
+
+export function agentRoleTitle(name: string): string | undefined {
+  return AGENT_ROLE[name] ? t(`agents.role.${name.toLowerCase()}.title`) : undefined;
+}
+
+export function agentRoleSummary(name: string): string | undefined {
+  return AGENT_ROLE[name] ? t(`agents.role.${name.toLowerCase()}.summary`) : undefined;
+}
+
+export function agentRuntimeBindingLabel(name: string): string {
+  const binding = AGENT_RUNTIME_BINDING[name];
+  if (binding === "raw ingress subscriber") return t("agents.binding.rawIngressSubscriber");
+  if (binding === "external adapter") return t("agents.binding.externalAdapter");
+  if (binding === "scheduled trigger") return t("agents.binding.scheduledTrigger");
+  if (binding === "event-bus subscriber") return t("agents.binding.eventBusSubscriber");
+  return t("agents.common.notConfigured");
 }
 
 export function agentStateClass(node: AgentNode): string {

@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 export type FrameSource = "unknown" | "synthetic-dev" | "replay" | "runtime-observed";
 export type ObservationSource = FrameSource | "mixed";
 
@@ -24,9 +26,9 @@ export function mergeObservationSource(
 }
 
 export function observationSourceLabel(source: ObservationSource): string {
-  if (source === "synthetic-dev") return "Generated sample";
-  if (source === "replay") return "Scenario replay";
-  if (source === "runtime-observed") return "Runtime observed";
-  if (source === "mixed") return "Mixed sources";
-  return "Source unavailable";
+  if (source === "synthetic-dev") return t("observationSource.syntheticDev");
+  if (source === "replay") return t("observationSource.replay");
+  if (source === "runtime-observed") return t("observationSource.runtimeObserved");
+  if (source === "mixed") return t("observationSource.mixed");
+  return t("observationSource.unavailable");
 }

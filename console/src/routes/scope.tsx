@@ -21,7 +21,7 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
+import { t } from "./i18n/evidence";
 
 /**
  * Scope view. Read-only projection of the effective monitoring and
@@ -130,17 +130,17 @@ function ScopeBody({ data }: { readonly data: EffectiveScope }) {
   return (
     <div class="stack governance-scope">
       <div class="governance-readonly-banner">
-        <strong>Effective scope, not an editor.</strong>
-        <span>Monitoring and action scope come from policy-as-code. The executor boundary remains the hard privilege ceiling.</span>
+        <strong>{t("evidence.scope.bannerTitle")}</strong>
+        <span>{t("evidence.scope.bannerBody")}</span>
       </div>
       <KpiGrid>
-        <KpiCard label="Monitoring resources" value={monitoringCount} hint="included resources FDAI can observe" />
-        <KpiCard label="Action-eligible resources" value={actionCount} hint="included resources eligible for governed action" />
+        <KpiCard label={t("evidence.scope.monitoringResources")} value={monitoringCount} hint={t("evidence.scope.monitoringHint")} />
+        <KpiCard label={t("evidence.scope.actionResources")} value={actionCount} hint={t("evidence.scope.actionHint")} />
         <KpiCard
-          label="Executor resource groups"
+          label={t("evidence.scope.executorGroups")}
           value={data.executor_boundary.resource_groups.length}
           tone={data.executor_boundary.resource_groups.length > 0 ? "warning" : "default"}
-          hint="hard identity boundary"
+          hint={t("evidence.scope.executorHint")}
         />
       </KpiGrid>
       <div class="scope-axis-grid">
@@ -300,8 +300,8 @@ function ScopeBuilder({ org }: { readonly org: string }) {
   return (
     <section class="stack-section scope-builder-card">
       <div class="governance-readonly-banner">
-        <strong>PR artifact only.</strong>
-        <span>The builder prepares policy-as-code for review. It never changes monitoring, action scope, or executor permissions from the browser.</span>
+        <strong>{t("evidence.scope.artifactBannerTitle")}</strong>
+        <span>{t("evidence.scope.artifactBannerBody")}</span>
       </div>
       <h3 class="section-title">{t("scope.builder")}</h3>
       <p class="muted footnote">{t("scope.builderHint")}</p>
@@ -413,8 +413,8 @@ function draftColumns(onRemove: (id: number) => void): readonly Column<DraftEntr
 function renderArtifact(org: string, drafts: readonly DraftEntry[]): string {
   const axes: ScopeAxisName[] = ["monitoring", "action"];
   const lines: string[] = [
-    "# FDAI governance scope change - open as a remediation / config PR.",
-    "# Generated read-only by the operator console; never applied from a button.",
+    `# ${t("evidence.scope.artifactCommentTitle")}`,
+    `# ${t("evidence.scope.artifactCommentSource")}`,
   ];
   for (const axisName of axes) {
     const forAxis = drafts.filter((d) => d.axis === axisName);

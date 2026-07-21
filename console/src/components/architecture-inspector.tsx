@@ -1,5 +1,6 @@
 import { CopyButton } from "./ui";
 import { routeHref } from "../router";
+import { t } from "../routes/i18n/architecture";
 import {
   RESOURCE_COLOR_TOKENS,
   layerOf,
@@ -22,32 +23,32 @@ interface Props {
 }
 
 const CAMERA_LABELS: Readonly<Record<ArchitectureCameraView, string>> = {
-  top: "Top",
-  iso: "Iso",
-  front: "Front",
+  top: "camera.top",
+  iso: "camera.iso",
+  front: "camera.front",
 };
 
 const LAYER_LABELS = {
-  scope: "Scope",
-  network: "Network",
-  security: "Security",
-  runtime: "Runtime",
-  data: "Data",
-  messaging: "Messaging",
-  observability: "Observability",
+  scope: "layer.scope",
+  network: "layer.network",
+  security: "layer.security",
+  runtime: "layer.runtime",
+  data: "layer.data",
+  messaging: "layer.messaging",
+  observability: "layer.observability",
 } as const;
 
 export function architectureRelationshipLabel(
   link: InventoryLink,
   selectedId: string,
 ): string {
-  if (link.type === "contains") return link.source === selectedId ? "Contains" : "Contained by";
-  if (link.type === "attached_to") return "Attached to";
-  return link.source === selectedId ? "Depends on" : "Required by";
+  if (link.type === "contains") return t(link.source === selectedId ? "relationship.contains" : "relationship.containedBy");
+  if (link.type === "attached_to") return t("relationship.attachedTo");
+  return t(link.source === selectedId ? "relationship.dependsOn" : "relationship.requiredBy");
 }
 
 export function architectureStatusLabel(status: string): string {
-  if (status.trim().toLowerCase() === "unknown") return "Status unavailable";
+  if (status.trim().toLowerCase() === "unknown") return t("statusUnavailable");
   return status.replaceAll(/[._-]+/g, " ").replace(/^./, (character) => character.toUpperCase());
 }
 
@@ -68,36 +69,36 @@ export function ArchitectureInspector({
   const colorTokens = [...new Set(graph.resources.map(resourceColorTokenOf))];
 
   return (
-    <aside class="architecture-inspector" aria-label="Architecture details">
+    <aside class="architecture-inspector" aria-label={t("details")}>
       <section class="architecture-selection-section" aria-live="polite">
         {selected ? (
           <>
-            <span class="eyebrow">{LAYER_LABELS[layerOf(selected)]}</span>
+            <span class="eyebrow">{t(LAYER_LABELS[layerOf(selected)])}</span>
             <h3>{selected.name}</h3>
             <div class={`architecture-resource-status${selected.status.toLowerCase() === "unknown" ? " is-unknown" : ""}`}>
               <span aria-hidden="true" />
               {architectureStatusLabel(selected.status)}
             </div>
             {selected.status.toLowerCase() === "unknown" ? (
-              <p class="architecture-status-note">The inventory did not report a status for this resource.</p>
+              <p class="architecture-status-note">{t("statusNotReported")}</p>
             ) : null}
             <dl class="architecture-resource-summary">
-              <dt>Resource type</dt>
+              <dt>{t("resourceType")}</dt>
               <dd>{RESOURCE_COLOR_TOKENS[resourceColorTokenOf(selected)].label}</dd>
-              <dt>Parent boundary</dt>
+              <dt>{t("parentBoundary")}</dt>
               <dd>
                 {parent ? (
                   <button type="button" class="architecture-text-button" onClick={() => onSelect(parent)}>
                     {parent.name}
                   </button>
-                ) : "Tenant"}
+                ) : t("tenant")}
               </dd>
             </dl>
             <a class="btn architecture-primary-action" href={routeHref("blast-radius", { params: { target: selected.id, view: graph.active_view } })}>
-              View impact scope
+              {t("viewImpactScope")}
             </a>
             <section class="architecture-relationships" aria-labelledby="selected-relationships-title">
-              <h4 id="selected-relationships-title">Direct relationships</h4>
+              <h4 id="selected-relationships-title">{t("directRelationships")}</h4>
               {relationships.length > 0 ? (
                 <ul>
                   {relationships.map((link) => {
@@ -112,31 +113,31 @@ export function ArchitectureInspector({
                     );
                   })}
                 </ul>
-              ) : <p>No direct relationships were reported.</p>}
+              ) : <p>{t("noDirectRelationships")}</p>}
             </section>
             <details class="architecture-technical-details">
-              <summary>Technical details</summary>
+              <summary>{t("technicalDetails")}</summary>
               <dl>
-                <dt>Canonical type</dt><dd><code>{selected.type}</code></dd>
-                <dt>Resource ID</dt>
+                <dt>{t("canonicalType")}</dt><dd><code>{selected.type}</code></dd>
+                <dt>{t("resourceId")}</dt>
                 <dd>
                   <code>{selected.id}</code>
-                  <CopyButton text={selected.id} label="Copy resource ID" />
+                  <CopyButton text={selected.id} label={t("copyResourceId")} />
                 </dd>
               </dl>
             </details>
           </>
         ) : (
           <div class="architecture-empty-inspector">
-            <strong>Select a resource</strong>
-            <p>Resource status, boundary, and direct relationships appear here.</p>
+            <strong>{t("selectResource")}</strong>
+            <p>{t("selectionHint")}</p>
           </div>
         )}
       </section>
       <details class="architecture-map-settings">
-        <summary>Map display</summary>
-        <h4>View</h4>
-        <div class="architecture-camera-control" role="group" aria-label="Camera view">
+        <summary>{t("mapDisplay")}</summary>
+        <h4>{t("view")}</h4>
+        <div class="architecture-camera-control" role="group" aria-label={t("cameraView")}>
           {(["top", "iso", "front"] as const).map((view) => (
             <button
               type="button"
@@ -144,23 +145,23 @@ export function ArchitectureInspector({
               aria-pressed={cameraView === view}
               onClick={() => onCameraViewChange(view)}
             >
-              {CAMERA_LABELS[view]}
+              {t(CAMERA_LABELS[view])}
             </button>
           ))}
         </div>
-        <h4>Display</h4>
+        <h4>{t("display")}</h4>
         <div class="architecture-display-options">
           {([
-            ["showConnections", "Relationships"],
-            ["showLabels", "Labels"],
-            ["showReflections", "Reflections"],
-            ["showGrid", "Grid points"],
+            ["showConnections", "displayOption.relationships"],
+            ["showLabels", "displayOption.labels"],
+            ["showReflections", "displayOption.reflections"],
+            ["showGrid", "displayOption.gridPoints"],
           ] as const).map(([key, label]) => (
-            <label><input type="checkbox" checked={displayOptions[key]} onChange={() => onToggleDisplay(key)} />{label}</label>
+            <label><input type="checkbox" checked={displayOptions[key]} onChange={() => onToggleDisplay(key)} />{t(label)}</label>
           ))}
         </div>
-        <h4>Resource legend</h4>
-        <div class="architecture-color-legend" aria-label="Resource type colors">
+        <h4>{t("resourceLegend")}</h4>
+        <div class="architecture-color-legend" aria-label={t("resourceTypeColors")}>
           {colorTokens.map((token) => (
             <span>
               <i style={{ backgroundColor: RESOURCE_COLOR_TOKENS[token].color }} aria-hidden="true" />

@@ -163,15 +163,15 @@ export function ActivityWaterfall({ items, selected }: ActivityWaterfallProps) {
   if (shown.length === 0) {
     return (
       <EmptyState
-        title="No matching correlation groups"
-        body="No correlated activity for this agent yet. Clear the filter to see the full waterfall."
+        title={t("agentActivity.waterfall.emptyTitle")}
+        body={t("agentActivity.waterfall.emptyBody")}
       />
     );
   }
 
   return (
     <div class="waterfall-wrap">
-      <div class="waterfall" aria-label="Agent activity waterfall">
+      <div class="waterfall" aria-label={t("agentActivity.waterfall.label")}>
         {shown.map((g) => {
           const isCollapsed = collapsed.has(g.correlation);
           return (
@@ -184,7 +184,9 @@ export function ActivityWaterfall({ items, selected }: ActivityWaterfallProps) {
                   type="button"
                   class="waterfall-toggle"
                   aria-expanded={!isCollapsed}
-                  aria-label={isCollapsed ? "Expand correlation group" : "Collapse correlation group"}
+                  aria-label={isCollapsed
+                    ? t("agentActivity.waterfall.expand")
+                    : t("agentActivity.waterfall.collapse")}
                   onClick={() => toggle(g.correlation)}
                 >
                   <span class={`waterfall-chevron ${isCollapsed ? "" : "waterfall-chevron-open"}`} aria-hidden="true">
@@ -275,12 +277,8 @@ export function ActivityWaterfall({ items, selected }: ActivityWaterfallProps) {
           <StepDetail item={selectedItem} onClose={() => openStep(null)} />
         ) : (
           <div class="waterfall-detail-empty">
-            <p class="waterfall-detail-empty-title">Select a step</p>
-            <p class="muted">
-              Pick any agent step on the left to see its full lifecycle - when the
-              event was sent and received, how long it queued and worked, what it
-              consumed and produced, and the recorded decision.
-            </p>
+            <p class="waterfall-detail-empty-title">{t("agentActivity.waterfall.selectTitle")}</p>
+            <p class="muted">{t("agentActivity.waterfall.selectBody")}</p>
           </div>
         )}
       </div>

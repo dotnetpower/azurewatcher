@@ -18,10 +18,10 @@ import {
   usePublishViewContext,
 } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
 import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
 import { OntologyActionsView, requestedOntologyAction } from "./ontology-actions";
 import { OntologyLinksView } from "./ontology-links";
+import { formatNumber, t } from "./i18n/ontology";
 import {
   ontologyView,
   type OntologyGraphResponse,
@@ -159,10 +159,7 @@ export function OntologyRoute({ client }: Props) {
           if (isOptionalReadApiUnavailable(err)) {
             setState({
               status: "unavailable",
-              message:
-                "The ontology explorer route is not wired on this deployment. " +
-                "Set ReadApiConfig.ontology_object_types + ontology_link_types " +
-                "in the composition root to enable it.",
+              message: t("ontology.route.unavailable"),
             });
           } else {
             setState({ status: "error", message });
@@ -179,9 +176,9 @@ export function OntologyRoute({ client }: Props) {
     <div class="stack governance-route ontology-route">
       <PageHeader
         title={t("route.ontology")}
-        subtitle="Browse ObjectTypes, LinkTypes, and the ActionType safety contracts registered on this deployment."
+        subtitle={t("ontology.route.subtitle")}
       />
-      <AsyncBoundary state={state} resourceLabel="ontology graph">
+      <AsyncBoundary state={state} resourceLabel={t("ontology.route.loadingLabel")}>
         {(data) => (
           <OntologyBody
             data={data}
@@ -283,13 +280,14 @@ function OntologyBody({
       );
       return {
         routeId: "ontology",
-        routeLabel: "Ontology",
-        purpose:
-          "The registered ObjectTypes and LinkTypes - the typed vocabulary the " +
-          "control plane reasons over (resources, actions, and the causal links " +
-          "between them). Read-only reference.",
+        routeLabel: t("ontology.context.ontologyLabel"),
+        purpose: t("ontology.context.ontologyPurpose"),
         glossary: composeGlossary([TERMS.actionType, TERMS.blastRadius]),
-        headline: `${data.object_type_count} ObjectTypes - ${data.link_type_count} LinkTypes - ${data.action_type_count ?? actionTypes.length} ActionTypes`,
+        headline: t("ontology.context.ontologyHeadline", {
+          objects: formatNumber(data.object_type_count),
+          links: formatNumber(data.link_type_count),
+          actions: formatNumber(data.action_type_count ?? actionTypes.length),
+        }),
         capturedAt: new Date().toISOString(),
         facts: [
           { key: "selected_object_type", value: selectedName, group: "selection" },
@@ -320,29 +318,29 @@ function OntologyBody({
   );
   return (
     <div class="stack governance-ontology">
-      <nav class="ontology-tabs" aria-label="Ontology registry views">
-        <OntologyTab view="objects" active={view} count={data.object_type_count} label="Objects" />
-        <OntologyTab view="links" active={view} count={data.link_type_count} label="Links" />
-        <OntologyTab view="actions" active={view} count={data.action_type_count ?? actionTypes.length} label="Actions" />
+      <nav class="ontology-tabs" aria-label={t("ontology.objects.viewsLabel")}>
+        <OntologyTab view="objects" active={view} count={data.object_type_count} label={t("ontology.common.objects")} />
+        <OntologyTab view="links" active={view} count={data.link_type_count} label={t("ontology.common.links")} />
+        <OntologyTab view="actions" active={view} count={data.action_type_count ?? actionTypes.length} label={t("ontology.common.actions")} />
       </nav>
 
       {view === "objects" ? (
         <>
           <div class="ontology-object-toolbar">
-            <span>One-hop ObjectType neighborhood</span>
+            <span>{t("ontology.objects.toolbar")}</span>
             <label class="inline-toggle">
               <input
                 type="checkbox"
                 checked={includeProperties}
                 onChange={(event) => onIncludePropertiesChange((event.target as HTMLInputElement).checked)}
               />
-              show properties
+              {t("ontology.objects.showProperties")}
             </label>
           </div>
           <div class="ontology-browser-layout">
             <aside class="ontology-type-sidebar">
               <TypeSelector
-                title="ObjectTypes"
+                title={t("ontology.objects.directoryTitle")}
                 names={data.object_types}
                 selected={selectedName}
                 onSelect={selectType}
@@ -351,12 +349,14 @@ function OntologyBody({
             <section class="ontology-neighborhood">
               <header>
                 <div>
-                  <h3>Neighborhood of <code>{selectedName ?? "ontology"}</code></h3>
-                  <p>Select a neighboring card to move through the one-hop graph. Hover or focus a card to inspect its properties.</p>
+                  <h3>{t("ontology.objects.neighborhoodTitle", {
+                    name: selectedName ?? t("ontology.objects.defaultName"),
+                  })}</h3>
+                  <p>{t("ontology.objects.neighborhoodHint")}</p>
                 </div>
               </header>
               {invalidName ? (
-                <UnavailableState message={`ObjectType ${invalidName} is not registered. Choose a type from the directory.`} />
+                <UnavailableState message={t("ontology.objects.invalid", { name: invalidName })} />
               ) : data.nodes && data.edges ? (
                 <OntologyGraph
                   key={selectedName ?? "default"}
@@ -367,12 +367,12 @@ function OntologyBody({
                   onLinkSelect={(name) => navigate(routeHref("ontology", { params: { view: "links", link: name } }))}
                 />
               ) : (
-                <MermaidDiagram source={data.mermaid} ariaLabel="Ontology class diagram" />
+                <MermaidDiagram source={data.mermaid} ariaLabel={t("ontology.objects.diagramLabel")} />
               )}
             </section>
           </div>
           <details class="mermaid-source-toggle governance-source-details">
-            <summary class="details-summary">Show deterministic Mermaid source</summary>
+            <summary class="details-summary">{t("ontology.objects.showMermaid")}</summary>
             <pre class="mono scroll code-block">{data.mermaid}</pre>
           </details>
         </>
@@ -412,7 +412,7 @@ function OntologyTab({
       aria-current={view === active ? "page" : undefined}
     >
       <span>{label}</span>
-      <strong>{count}</strong>
+      <strong>{formatNumber(count)}</strong>
     </a>
   );
 }
@@ -430,8 +430,8 @@ function TypeSelector({
 }) {
   return (
     <section>
-      <h3>{title} <span>{names.length}</span></h3>
-      {names.length === 0 ? <p class="muted">None registered.</p> : (
+      <h3>{title} <span>{formatNumber(names.length)}</span></h3>
+      {names.length === 0 ? <p class="muted">{t("ontology.common.noneRegistered")}</p> : (
         <ul>
           {names.map((name) => (
             <li key={name}>

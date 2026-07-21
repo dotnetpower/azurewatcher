@@ -13,8 +13,8 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
 import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
+import { displayValue, t } from "./i18n/governance";
 import {
   panelArray,
   panelBoolean,
@@ -126,9 +126,7 @@ export function PromotionGatesRoute({ client }: Props) {
           if (isOptionalReadApiUnavailable(err)) {
             setState({
               status: "unavailable",
-              message:
-                "Promotion-gate dashboard route is not wired on this deployment. " +
-                "Set ReadApiConfig.promotion_gate_source in the composition root to enable it.",
+              message: t("governance.promotion.unavailable"),
             });
           } else {
             setState({ status: "error", message });
@@ -145,9 +143,9 @@ export function PromotionGatesRoute({ client }: Props) {
     <div class="stack governance-route promotion-route">
       <PageHeader
         title={t("route.promotionGates")}
-        subtitle="Per-ActionType readiness against each shipped promotion_gate. Actions promote from shadow to enforce only when every gap is closed."
+        subtitle={t("governance.promotion.subtitle")}
       />
-      <AsyncBoundary state={state} resourceLabel="promotion gates">
+      <AsyncBoundary state={state} resourceLabel={t("governance.promotion.resourceLabel")}>
         {(data) => <PromotionBody
           data={data}
           statusFilter={statusFilter}
@@ -187,7 +185,7 @@ export function decodePromotionGates(value: unknown): Response {
   const root = panelRecord(value, "promotion gates");
   const windowDays = root["window_days"];
   if (windowDays !== null && (typeof windowDays !== "number" || !Number.isFinite(windowDays) || windowDays < 0)) {
-    throw new ReadApiError(502, "invalid read API response: promotion gates.window_days MUST be a non-negative number or null");
+    throw new ReadApiError(502, t("governance.promotion.error.windowDays"));
   }
   const rows = panelArray(root["rows"], "promotion gates.rows").map((value, index) => {
       const row = panelRecord(value, `promotion gates.rows[${index}]`);
@@ -196,7 +194,7 @@ export function decodePromotionGates(value: unknown): Response {
       if (agreedCount > reviewedCount) {
         throw new ReadApiError(
           502,
-          "invalid read API response: promotion gate row.agreed_count MUST NOT exceed reviewed_count",
+          t("governance.promotion.error.agreedCount"),
         );
       }
       return {
@@ -214,7 +212,7 @@ export function decodePromotionGates(value: unknown): Response {
   const readyCount = panelNonNegativeInteger(root, "ready_count", "promotion gates");
   const blockedCount = panelNonNegativeInteger(root, "blocked_count", "promotion gates");
   if (readyCount !== rows.filter((row) => row.ready).length || blockedCount !== rows.filter((row) => !row.ready).length) {
-    throw new ReadApiError(502, "invalid read API response: promotion gate summary counts MUST match rows");
+    throw new ReadApiError(502, t("governance.promotion.error.summaryCounts"));
   }
   return {
     window_days: windowDays,
@@ -250,19 +248,21 @@ function PromotionBody({
   usePublishViewContext(
     () => ({
       routeId: "promotion-gates",
-      routeLabel: "Promotion gates",
-      purpose:
-        "Which ActionTypes running in shadow mode have met their promotion gate " +
-        "(measured accuracy with zero policy escapes) and are ready to enforce, " +
-        "and which are still blocked and why. Read-only: promotion itself is a " +
-        "separately reviewed change.",
+      routeLabel: t("governance.promotion.context.routeLabel"),
+      purpose: t("governance.promotion.context.purpose"),
       glossary: composeGlossary([
         TERMS.actionType,
         TERMS.shadowMode,
         TERMS.mode,
         TERMS.gateDecision,
       ]),
-      headline: `${data.ready_count} ready - ${data.blocked_count} blocked${data.window_days !== null ? ` (window ${data.window_days}d)` : ""}`,
+      headline: t("governance.promotion.context.headline", {
+        ready: data.ready_count,
+        blocked: data.blocked_count,
+        window: data.window_days !== null
+          ? t("governance.promotion.context.window", { days: data.window_days })
+          : "",
+      }),
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "ready_count", value: data.ready_count, group: "summary" },
@@ -289,7 +289,7 @@ function PromotionBody({
   const columns: readonly Column<Row>[] = [
     {
       key: "at",
-      header: "ActionType",
+      header: t("governance.promotion.column.actionType"),
       render: (r) => (
         <a href={routeHref("workflow-builder", { params: { action: r.action_type_name } })}>
           {r.action_type_name}
@@ -299,24 +299,24 @@ function PromotionBody({
     },
     {
       key: "rd",
-      header: "Status",
+      header: t("governance.common.status"),
       render: (r) => (
         <StatusPill
           kind={r.ready ? "success" : "warning"}
-          label={r.ready ? "ready" : "blocked"}
+          label={displayValue("status", r.ready ? "ready" : "blocked")}
         />
       ),
     },
     {
       key: "days",
-      header: "Shadow days",
+      header: t("governance.promotion.column.shadowDays"),
       render: (r) => r.shadow_days_elapsed.toFixed(2),
       cellClass: "num", headerClass: "num",
     },
-    { key: "samp", header: "Samples", render: (r) => r.sample_count, cellClass: "num", headerClass: "num" },
+    { key: "samp", header: t("governance.promotion.column.samples"), render: (r) => r.sample_count, cellClass: "num", headerClass: "num" },
     {
       key: "rev",
-      header: "Reviewed / agreed",
+      header: t("governance.promotion.column.reviewedAgreed"),
       render: (r) => (
         <PromotionMeter
           value={r.reviewed_count > 0 ? r.agreed_count / r.reviewed_count : 0}
@@ -327,7 +327,7 @@ function PromotionBody({
     },
     {
       key: "acc",
-      header: "Accuracy",
+      header: t("governance.promotion.column.accuracy"),
       render: (r) => (
         <PromotionMeter
           value={r.accuracy}
@@ -338,7 +338,7 @@ function PromotionBody({
     },
     {
       key: "esc",
-      header: "Policy escapes",
+      header: t("governance.promotion.column.policyEscapes"),
       render: (r) => (
         r.policy_escapes > 0
           ? <StatusPill kind="danger" label={String(r.policy_escapes)} />
@@ -348,7 +348,7 @@ function PromotionBody({
     },
     {
       key: "gaps",
-      header: "Gaps",
+      header: t("governance.promotion.column.gaps"),
       render: (r) =>
         r.gaps.length === 0
           ? <span class="muted">-</span>
@@ -360,11 +360,11 @@ function PromotionBody({
     },
     {
       key: "gate",
-      header: "Gate",
+      header: t("governance.promotion.column.gate"),
       render: (r) => (
         <span class={`promotion-gate ${r.ready ? "is-ready" : "is-blocked"}`}>
-          <strong>{r.ready ? "gate green" : "blocked"}</strong>
-          <small>{r.ready ? "promote via reviewed PR" : "address recorded gaps"}</small>
+          <strong>{r.ready ? t("governance.promotion.gate.green") : t("governance.common.blocked")}</strong>
+          <small>{r.ready ? t("governance.promotion.gate.promote") : t("governance.promotion.gate.addressGaps")}</small>
         </span>
       ),
     },
@@ -373,29 +373,31 @@ function PromotionBody({
   return (
     <div class="stack">
       <div class="governance-readonly-banner">
-        <strong>Shadow before enforce.</strong>
-        <span>Promotion is a separately reviewed catalog PR. This screen only renders measured readiness.</span>
+        <strong>{t("governance.promotion.banner.title")}</strong>
+        <span>{t("governance.promotion.banner.body")}</span>
       </div>
       <KpiGrid>
-        <KpiCard label="In shadow" value={data.rows.length} hint="ActionTypes measured in this window" />
+        <KpiCard label={t("governance.promotion.kpi.inShadow")} value={data.rows.length} hint={t("governance.promotion.kpi.inShadowHint")} />
         <KpiCard
-          label="Ready for promotion"
+          label={t("governance.promotion.kpi.ready")}
           value={data.ready_count}
           tone={data.ready_count > 0 ? "positive" : "default"}
-          hint="every gate cleared"
+          hint={t("governance.promotion.kpi.readyHint")}
         />
         <KpiCard
-          label="Blocked"
+          label={t("governance.common.blocked")}
           value={data.blocked_count}
           tone={data.blocked_count > 0 ? "warning" : "positive"}
-          hint="still in shadow"
+          hint={t("governance.promotion.kpi.blockedHint")}
         />
         <KpiCard
-          label="Measurement window"
-          value={data.window_days !== null ? `${data.window_days}d` : "-"}
+          label={t("governance.promotion.kpi.window")}
+          value={data.window_days !== null
+            ? t("governance.promotion.kpi.windowValue", { days: data.window_days })
+            : "-"}
         />
       </KpiGrid>
-      <section class="governance-filterbar" aria-label="Promotion gate filters">
+      <section class="governance-filterbar" aria-label={t("governance.promotion.filter.aria")}>
         <div class="governance-chipset">
           {(["all", "ready", "blocked"] as const).map((status) => (
             <button
@@ -405,39 +407,39 @@ function PromotionBody({
               aria-pressed={statusFilter === status}
               onClick={() => onStatus(status)}
             >
-              {status}
+              {status === "all" ? t("governance.common.all") : displayValue("status", status)}
             </button>
           ))}
         </div>
         <label>
-          <span class="sr-only">Search promotion gates</span>
+          <span class="sr-only">{t("governance.promotion.filter.searchAria")}</span>
           <input
             type="search"
             value={query}
-            placeholder="ActionType or recorded gap"
+            placeholder={t("governance.promotion.filter.searchPlaceholder")}
             onInput={(event) => onQuery(event.currentTarget.value)}
           />
         </label>
       </section>
       {reason === "policy-escape" ? (
-        <div class="filter-summary" aria-label="active promotion filters">
-          <span>reason: <strong>policy escape</strong></span>
-          <button type="button" class="btn btn-small" onClick={onClearReason}>Clear</button>
+        <div class="filter-summary" aria-label={t("governance.promotion.filter.activeAria")}>
+          <span>{t("governance.promotion.filter.reason")}: <strong>{t("governance.promotion.filter.policyEscape")}</strong></span>
+          <button type="button" class="btn btn-small" onClick={onClearReason}>{t("governance.common.clear")}</button>
         </div>
       ) : null}
       {invalidReason !== null ? (
         <div class="state-block state-unavailable" role="alert">
-          <span>Promotion reason <code>{invalidReason}</code> is not registered.</span>
-          <button type="button" class="btn btn-small" onClick={onClearReason}>Clear filter</button>
+          <span>{t("governance.promotion.filter.invalid", { reason: invalidReason })}</span>
+          <button type="button" class="btn btn-small" onClick={onClearReason}>{t("governance.common.clearFilter")}</button>
         </div>
       ) : null}
       <section class="stack-section">
-        <h3 class="section-title">ActionTypes ({rows.length})</h3>
+        <h3 class="section-title">{t("governance.promotion.section", { count: rows.length })}</h3>
         <DataTable
           columns={columns}
           rows={rows}
           keyOf={(r) => r.action_type_name}
-          empty="No ActionTypes declared a promotion gate."
+          empty={t("governance.promotion.empty")}
         />
       </section>
     </div>

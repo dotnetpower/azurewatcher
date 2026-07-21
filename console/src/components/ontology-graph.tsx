@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { formatNumber, t } from "../routes/i18n/ontology";
 import { FocusCard } from "./ontology-graph.focus";
 import {
   buildOntologyNeighborhood,
@@ -60,7 +61,7 @@ export function OntologyGraph({ nodes, edges, initialName = null, onFocusChange,
   }, [focus?.name]);
 
   if (!focus) {
-    return <p class="ontology-graph-empty muted">No ObjectTypes are registered.</p>;
+    return <p class="ontology-graph-empty muted">{t("ontology.graph.empty")}</p>;
   }
 
   const rowCount = Math.max(neighborhood.incoming.length, neighborhood.outgoing.length, 4);
@@ -80,16 +81,16 @@ export function OntologyGraph({ nodes, edges, initialName = null, onFocusChange,
   return (
     <div class="ontology-orbit">
       <div class="ontology-orbit-canvas-wrap" ref={canvasRef}>
-        <div class="ontology-graph-key" aria-label="Relationship direction legend">
-          <span><i class="is-incoming" />Incoming</span>
-          <span><i class="is-outgoing" />Outgoing</span>
-          <span><i class="is-causal" />Causal link</span>
+        <div class="ontology-graph-key" aria-label={t("ontology.graph.directionLegend")}>
+          <span><i class="is-incoming" />{t("ontology.common.incoming")}</span>
+          <span><i class="is-outgoing" />{t("ontology.common.outgoing")}</span>
+          <span><i class="is-causal" />{t("ontology.graph.causalLink")}</span>
         </div>
         <svg
           class="ontology-neighborhood-svg"
           viewBox={`0 0 ${VIEW_WIDTH} ${height}`}
           role="group"
-          aria-label={`One-hop neighborhood of ${focus.name}`}
+          aria-label={t("ontology.graph.neighborhoodLabel", { name: focus.name })}
         >
           <defs>
             <marker
@@ -221,7 +222,7 @@ export function OntologyGraph({ nodes, edges, initialName = null, onFocusChange,
           </g>
         </svg>
         <p class="ontology-graph-note muted">
-          Select a neighboring ObjectType to move through the registry. Relationship details remain visible in the inspector.
+          {t("ontology.graph.navigationHint")}
         </p>
       </div>
       <FocusCard
@@ -311,7 +312,9 @@ function RelationLabel({
 }) {
   const primary = edges[0];
   if (!primary) return null;
-  const suffix = edges.length > 1 ? ` +${edges.length - 1}` : ` ${shortCard(primary.cardinality)}`;
+  const suffix = edges.length > 1
+    ? ` +${formatNumber(edges.length - 1)}`
+    : ` ${shortCard(primary.cardinality)}`;
   const label = `${truncate(primary.name, 17)}${suffix}`;
   return (
     <g
@@ -319,7 +322,7 @@ function RelationLabel({
       transform={`translate(${point.x} ${point.y})`}
       role={onLinkSelect ? "link" : undefined}
       tabIndex={onLinkSelect ? 0 : undefined}
-      aria-label={onLinkSelect ? `Open LinkType ${primary.name}` : undefined}
+      aria-label={onLinkSelect ? t("ontology.graph.openLinkType", { name: primary.name }) : undefined}
       onClick={() => onLinkSelect?.(primary.name)}
       onKeyDown={(event) => {
         if (onLinkSelect && (event.key === "Enter" || event.key === " ")) {
@@ -378,6 +381,7 @@ function NodeCard({
 }) {
   const cluster = clusterOf(node.name);
   const clusterMeta = CLUSTERS[cluster];
+  const clusterLabel = t(`ontology.graph.cluster.${cluster}`);
   const activate = (): void => onActivate(node.name);
   return (
     <g
@@ -385,7 +389,11 @@ function NodeCard({
       transform={`translate(${point.x} ${point.y})`}
       role="button"
       tabIndex={0}
-      aria-label={`${node.name}, ${node.property_count} properties, ${clusterMeta.label}`}
+      aria-label={t("ontology.graph.nodeLabel", {
+        name: node.name,
+        count: formatNumber(node.property_count),
+        cluster: clusterLabel,
+      })}
       onMouseEnter={() => onHover(node.name)}
       onMouseLeave={() => onHover(null)}
       onFocus={() => onHover(node.name)}
@@ -402,9 +410,15 @@ function NodeCard({
       <circle class="ontology-node-cluster" cx="17" cy="18" r="5" fill={clusterMeta.hex} />
       <text class="ontology-node-title" x="29" y="22">{truncate(node.name, 19)}</text>
       <text class="ontology-node-meta" x="17" y="43">
-        {node.property_count} properties | {clusterMeta.label}
+        {t("ontology.graph.nodeMeta", {
+          count: formatNumber(node.property_count),
+          cluster: clusterLabel,
+        })}
       </text>
-      <title>{node.name}: {node.description ?? "No description recorded."}</title>
+      <title>{t("ontology.graph.nodeTitle", {
+        name: node.name,
+        description: node.description ?? t("ontology.common.noDescription"),
+      })}</title>
     </g>
   );
 }

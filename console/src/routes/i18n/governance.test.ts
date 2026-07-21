@@ -1,0 +1,69 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n";
+import en from "./governance.en.json";
+import ko from "./governance.ko.json";
+import { displayValue, formatNumber, t } from "./governance";
+
+afterEach(() => setLocale("en"));
+
+function leafPaths(value: unknown, prefix = ""): string[] {
+  if (typeof value === "string") return [prefix];
+  if (typeof value !== "object" || value === null) return [];
+  return Object.entries(value).flatMap(([key, child]) =>
+    leafPaths(child, prefix === "" ? key : `${prefix}.${key}`),
+  );
+}
+
+describe("governance route localization", () => {
+  it("renders the English source and interpolates values", () => {
+    expect(t("governance.capabilities.unregistered", { id: "cap.read" }))
+      .toBe("Capability cap.read is not registered.");
+  });
+
+  it("provides complete Korean leaf-key coverage", () => {
+    expect(leafPaths(ko).sort()).toEqual(leafPaths(en).sort());
+  });
+
+  it("resolves every route-local leaf in both locales", () => {
+    const paths = leafPaths(en);
+    for (const path of paths) {
+      const key = `governance.${path}`;
+      expect(t(key)).not.toBe(key);
+    }
+    setLocale("ko");
+    for (const path of paths) {
+      const key = `governance.${path}`;
+      expect(t(key)).not.toBe(key);
+    }
+  });
+
+  it("falls back to English for a missing Korean route value", () => {
+    const mutableKo = ko as { common: { all?: string } };
+    const original = mutableKo.common.all;
+    if (original === undefined) throw new Error("Korean all value is required for this test");
+    delete mutableKo.common.all;
+    try {
+      setLocale("ko");
+      expect(t("governance.common.all")).toBe("All");
+    } finally {
+      mutableKo.common.all = original;
+    }
+  });
+
+  it("localizes known display values and preserves unknown machine values", () => {
+    setLocale("ko");
+    expect(displayValue("severity", "critical")).toBe("매우 심각");
+    expect(displayValue("severity", "future-value")).toBe("future-value");
+  });
+
+  it("falls back to the main catalog for shared keys", () => {
+    setLocale("ko");
+    expect(t("route.rules")).toBe("규칙");
+  });
+
+  it("formats numbers for the active locale", () => {
+    expect(formatNumber(1234567)).toBe("1,234,567");
+    setLocale("ko");
+    expect(formatNumber(1234567)).toBe("1,234,567");
+  });
+});

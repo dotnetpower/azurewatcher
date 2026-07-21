@@ -43,7 +43,8 @@
     "incidents": "인시던트",
     "rca": "RCA",
     "scope": "범위",
-    "labs": "Labs"
+    "labs": "Labs",
+    "ruleTrace": "추적"
   },
   "nav": {
     "group": {
@@ -170,7 +171,12 @@
       "settingsIntegrations": "ID, 전달 및 운영자 채널 연결",
       "settingsDiagnostics": "읽기 전용 런타임 및 인증 진단",
       "incidents": "인시던트 상태, 처분 및 교정 이력",
-      "labs": "개발 전용 디자인 및 UI 도구"
+      "labs": "개발 전용 디자인 및 UI 도구",
+      "trace": "하나의 상관관계 ID를 처음부터 끝까지 재구성",
+      "blastRadius": "변경 전에 도달 가능한 하위 그래프 시뮬레이션",
+      "promotionGates": "ActionType별 관찰 모드에서 실행 모드로의 승격 준비도",
+      "rca": "근본 원인: 근거 기반 가설, 인용 및 대응 계획",
+      "scope": "구독 및 리소스 그룹별 유효 모니터링과 자동 작업 범위"
     }
   },
   "browserEvidence": {
@@ -286,10 +292,19 @@
     "subtitle": "출처와 lineage가 있는 접근 가능한 이전 turn",
     "query": "검색어",
     "mode": "일치 방식",
-    "modes": { "terms": "모든 단어", "phrase": "정확한 구문", "prefix": "단어 접두사" },
+    "modes": {
+      "terms": "모든 단어",
+      "phrase": "정확한 구문",
+      "prefix": "단어 접두사"
+    },
     "channel": "채널",
     "role": "역할",
-    "roles": { "operator": "오퍼레이터", "assistant": "어시스턴트", "tool": "도구", "system": "시스템" },
+    "roles": {
+      "operator": "오퍼레이터",
+      "assistant": "어시스턴트",
+      "tool": "도구",
+      "system": "시스템"
+    },
     "session": "세션",
     "incident": "인시던트",
     "after": "이후",
@@ -401,14 +416,29 @@
     "notServed": "이 배포에서는 유효 범위 뷰를 제공하지 않습니다.",
     "viewPurpose": "구독 및 리소스 그룹 단위의 유효 모니터링 범위(FDAI가 관찰하는 것)와 자동 작업 범위(자율 작업이 건드릴 수 있는 것), 그리고 RG 범위 executor 신원 경계입니다. 읽기 전용이며 범위 변경은 policy-as-code PR로 배송됩니다.",
     "viewHeadline": "모니터링 {monitoring}개, 작업 {action}개 범위 항목",
-    "axis": {"monitoring": "모니터링 범위", "action": "자동 작업 범위"},
+    "axis": {
+      "monitoring": "모니터링 범위",
+      "action": "자동 작업 범위"
+    },
     "axisHint": {
       "monitoring": "FDAI가 관찰하는 구독과 리소스 그룹.",
       "action": "자율(비승인) 작업이 건드릴 수 있는 구독과 리소스 그룹."
     },
-    "column": {"state": "상태", "level": "레벨", "subscription": "구독", "resourceGroup": "리소스 그룹", "axis": "축"},
-    "state": {"included": "포함", "excluded": "제외"},
-    "level": {"subscription": "구독", "resource_group": "리소스 그룹"},
+    "column": {
+      "state": "상태",
+      "level": "레벨",
+      "subscription": "구독",
+      "resourceGroup": "리소스 그룹",
+      "axis": "축"
+    },
+    "state": {
+      "included": "포함",
+      "excluded": "제외"
+    },
+    "level": {
+      "subscription": "구독",
+      "resource_group": "리소스 그룹"
+    },
     "allRgs": "모든 리소스 그룹",
     "emptyAxis": "이 축에 대한 범위 항목이 없습니다.",
     "executor": "Executor 신원 경계",
@@ -432,12 +462,48 @@
   },
   "incidents": {
     "subtitle": "추가 전용 감사 로그에서 가져온 인시던트 중심 상태 및 교정 이력입니다. 읽기 전용이며 작업과 승인은 Git 및 ChatOps에서 처리합니다.",
-    "filter": {"active": "활성", "resolved": "해결됨", "all": "전체"},
-    "column": {"title": "인시던트", "severity": "심각도", "status": "상태", "disposition": "처분", "vertical": "영역", "updated": "업데이트"},
-    "status": {"open": "열림", "in_progress": "진행 중", "resolved": "해결됨"},
-    "disposition": {"pending": "대기 중", "awaiting_hil": "승인 대기", "action_delivered": "작업 전달됨", "no_action": "작업 없음", "failed": "실패", "rolled_back": "롤백됨", "resolved": "해결됨", "unknown": "알 수 없음"},
-    "severity": {"critical": "심각", "high": "높음", "medium": "중간", "low": "낮음", "info": "정보", "unknown": "알 수 없음"},
-    "vertical": {"resilience": "복원력", "change_safety": "변경 안전", "cost_governance": "비용 거버넌스", "unknown": "알 수 없음"},
+    "filter": {
+      "active": "활성",
+      "resolved": "해결됨",
+      "all": "전체"
+    },
+    "column": {
+      "title": "인시던트",
+      "severity": "심각도",
+      "status": "상태",
+      "disposition": "처분",
+      "vertical": "영역",
+      "updated": "업데이트"
+    },
+    "status": {
+      "open": "열림",
+      "in_progress": "진행 중",
+      "resolved": "해결됨"
+    },
+    "disposition": {
+      "pending": "대기 중",
+      "awaiting_hil": "승인 대기",
+      "action_delivered": "작업 전달됨",
+      "no_action": "작업 없음",
+      "failed": "실패",
+      "rolled_back": "롤백됨",
+      "resolved": "해결됨",
+      "unknown": "알 수 없음"
+    },
+    "severity": {
+      "critical": "심각",
+      "high": "높음",
+      "medium": "중간",
+      "low": "낮음",
+      "info": "정보",
+      "unknown": "알 수 없음"
+    },
+    "vertical": {
+      "resilience": "복원력",
+      "change_safety": "변경 안전",
+      "cost_governance": "비용 거버넌스",
+      "unknown": "알 수 없음"
+    },
     "empty": "이 필터에 해당하는 인시던트가 없습니다.",
     "detail": "인시던트 상세",
     "select": "교정 이력을 확인할 인시던트를 선택하세요.",
@@ -917,9 +983,32 @@
   },
   "deck": {
     "answerPlan": {
-      "intent": {"definition": "정의", "why": "이유", "procedure": "절차", "comparison": "비교", "diagnosis": "진단", "status": "상태", "list": "목록", "summary": "요약", "proposal": "제안", "open_question": "열린 질문", "greeting": "인사"},
-      "detail": {"brief": "간단히", "standard": "표준", "deep": "상세"},
-      "format": {"prose": "문장", "bullets": "항목", "numbered_steps": "번호 단계", "table": "표", "checklist": "체크리스트", "mixed": "혼합"},
+      "intent": {
+        "definition": "정의",
+        "why": "이유",
+        "procedure": "절차",
+        "comparison": "비교",
+        "diagnosis": "진단",
+        "status": "상태",
+        "list": "목록",
+        "summary": "요약",
+        "proposal": "제안",
+        "open_question": "열린 질문",
+        "greeting": "인사"
+      },
+      "detail": {
+        "brief": "간단히",
+        "standard": "표준",
+        "deep": "상세"
+      },
+      "format": {
+        "prose": "문장",
+        "bullets": "항목",
+        "numbered_steps": "번호 단계",
+        "table": "표",
+        "checklist": "체크리스트",
+        "mixed": "혼합"
+      },
       "preferenceApplied": "저장된 선호"
     },
     "answerPlanning": {
@@ -1222,5 +1311,456 @@
     "openTrace": "추적 열기",
     "openAudit": "감사 열기",
     "openRca": "RCA 열기"
+  },
+  "agentActivity": {
+    "toolbar": {
+      "label": "에이전트 활동 필터",
+      "engaged": "{count}개 참여 중",
+      "refreshing": "감사 새로 고치는 중...",
+      "lastSignal": "마지막 신호 {time}",
+      "waiting": "신호 대기 중",
+      "window": "기간",
+      "layer": "계층",
+      "verb": "작업",
+      "searchLabel": "에이전트 활동 검색",
+      "searchPlaceholder": "이벤트, 리소스, 상관관계 또는 요약",
+      "filterLabel": "{label} 필터"
+    },
+    "filter": {
+      "15m": "15분",
+      "1h": "1시간",
+      "24h": "24시간",
+      "7d": "7일",
+      "all": "전체",
+      "governance": "거버넌스",
+      "pipeline": "파이프라인",
+      "domain": "도메인",
+      "execute": "실행",
+      "approve": "승인",
+      "reject": "거부",
+      "rollback": "롤백",
+      "abstain": "판정 보류",
+      "audit": "감사"
+    },
+    "waterfall": {
+      "emptyTitle": "일치하는 상관관계 그룹 없음",
+      "emptyBody": "아직 이 에이전트와 관련된 활동이 없습니다. 전체 워터폴을 보려면 필터를 지우세요.",
+      "label": "에이전트 활동 워터폴",
+      "expand": "상관관계 그룹 펼치기",
+      "collapse": "상관관계 그룹 접기",
+      "selectTitle": "단계 선택",
+      "selectBody": "왼쪽에서 에이전트 단계를 선택하면 이벤트 송수신 시각, 대기 및 작업 시간, 입력과 출력, 기록된 결정을 포함한 전체 수명 주기를 볼 수 있습니다."
+    },
+    "detail": {
+      "label": "단계 상세",
+      "close": "상세 닫기",
+      "lifecycle": "수명 주기",
+      "worked": "작업",
+      "queued": "대기",
+      "whatItDid": "수행 내용",
+      "agentConversation": "에이전트 대화",
+      "inputs": "입력",
+      "outputs": "출력",
+      "record": "기록",
+      "otherFields": "기타 기록 필드",
+      "evidenceSource": "근거 출처",
+      "localSample": "로컬 샘플",
+      "operationalAudit": "운영 감사",
+      "tier": "티어",
+      "mode": "모드",
+      "outcome": "결과",
+      "decision": "결정",
+      "pipelineStage": "파이프라인 단계",
+      "reason": "사유",
+      "correlation": "상관관계",
+      "sequence": "순번",
+      "eventId": "이벤트 ID",
+      "entryHash": "항목 해시",
+      "previousHash": "이전 해시"
+    },
+    "live": {
+      "pantheon": "판테온",
+      "session": "이 브라우저 세션",
+      "title": "관찰된 실시간 활동",
+      "counts": "프레임 {frames}개 - 작업 이벤트 {events}개",
+      "noWork": "아직 관찰된 작업 이벤트 없음",
+      "waiting": "{subject}은 연결되어 수신 이벤트를 기다리고 있습니다. 아래 런타임 하트비트는 연결 상태를 보여주지만 운영 작업은 아닙니다.",
+      "noFrames": "이 브라우저 세션에 도착한 런타임 프레임이 없습니다.",
+      "noCorrelation": "상관관계 없음",
+      "retention": "메모리 내 프레임 {total}개 중 최신 {count}개를 표시합니다.",
+      "incident": "인시던트",
+      "handoff": "인계",
+      "state": "상태"
+    },
+    "main": {
+      "auditUnavailable": "영구 감사 사용 불가",
+      "runtimeStillConnected": "아래의 실시간 런타임 활동은 계속 연결되어 있습니다.",
+      "sampleTitle": "로컬 샘플 감사 데이터",
+      "sampleBody": "표시된 {count}개 행은 합성 UI 근거입니다. 감사 및 추적 화면에서 계속 볼 수 있지만 실시간 관찰을 나타내거나 인시던트 목록 항목을 만들지는 않습니다.",
+      "unknownAgent": "에이전트 {agent}는 고정 판테온 또는 불러온 감사 활동에 없습니다.",
+      "latestRows": "최신 감사 행 {count}개를 표시합니다. 이전 활동은 감사 로그에서 볼 수 있습니다.",
+      "agentFilterLabel": "에이전트별 필터",
+      "viewLabel": "활동 보기",
+      "waterfall": "워터폴",
+      "noSelectedAudit": "{agent}의 기록된 감사 활동 없음",
+      "noAudit": "아직 영구 에이전트 감사 활동 없음",
+      "noMatches": "필터와 일치하는 활동 없음",
+      "noAuditBody": "선택한 에이전트의 실시간 런타임 상태는 계속 볼 수 있습니다. 감사 이벤트는 제어 루프가 기록한 뒤 표시됩니다.",
+      "noMatchesBody": "기간을 늘리거나 계층, 작업, 에이전트 및 검색 필터를 지우세요.",
+      "liveActivityLabel": "{agent} 실시간 활동",
+      "liveEvidence": "실시간 런타임 근거",
+      "runtimeUnobserved": "런타임 관찰되지 않음",
+      "stream": "스트림",
+      "activeCorrelation": "활성 상관관계",
+      "liveIncidents": "실시간 인시던트",
+      "operationalAudit": "운영 감사",
+      "localSamples": "로컬 샘플",
+      "evidenceLinks": "{agent} 근거 링크",
+      "openDetail": "실시간 상세 열기",
+      "recentIncidents": "최근 실시간 인시던트",
+      "noSelectionEvidence": "이 선택 항목에는 실시간 런타임 노드나 귀속된 감사 행이 없습니다.",
+      "liveState": "{agent}의 상태는 {state}이며 {source} 실시간 런타임 근거에서 가져왔습니다.",
+      "noRuntimeFrame": "{agent}의 런타임 상태 프레임이 관찰되지 않았습니다.",
+      "noActiveCorrelation": "활성 상관관계나 인시던트가 없습니다.",
+      "noCorrelationAudit": "상관관계 {correlation}에는 현재 기간에 귀속된 감사 행이 없습니다.",
+      "noDurableAudit": "현재 기간에 이 에이전트로 귀속된 영구 감사 행이 없습니다."
+    }
+  },
+  "agents": {
+    "workspace": {
+      "label": "에이전트 작업 영역",
+      "roster": "목록",
+      "organization": "조직",
+      "activity": "활동",
+      "handover": "인수인계"
+    },
+    "common": {
+      "none": "없음",
+      "staff": "스태프",
+      "incident": "인시던트",
+      "unknown": "알 수 없음",
+      "noSignalYet": "아직 신호 없음",
+      "notConfigured": "구성되지 않음",
+      "notEngaged": "참여 중인 인시던트가 없습니다."
+    },
+    "header": {
+      "eyebrow": "읽기 전용 실시간 상태",
+      "title": "에이전트 플릿",
+      "descriptionLead": "고정된 15개 에이전트 판테온의 실시간 작업입니다. 현재 작업을 확인하고, 각 에이전트의 근거 타임라인을 열거나, 근거가 있는 컨텍스트를 질문할 수 있습니다. 상태는 영구",
+      "descriptionMiddle": " 스냅샷과 다음 엔드포인트의 실시간 델타를 결합합니다:",
+      "descriptionTail": ".",
+      "engaged": "{count}개 참여 중"
+    },
+    "layout": {
+      "label": "레이아웃 모드",
+      "roster": "목록",
+      "constellation": "연결도",
+      "organization": "조직도",
+      "pantheonLabel": "에이전트 판테온",
+      "staffToOdin": "Odin 직속 스태프"
+    },
+    "connection": {
+      "idle": "대기",
+      "connecting": "연결 중",
+      "open": "연결됨",
+      "closed": "연결 종료",
+      "unsupported": "지원되지 않음"
+    },
+    "state": {
+      "idle": "대기",
+      "watching": "관찰 중",
+      "collecting": "수집 중",
+      "analyzing": "분석 중",
+      "deciding": "판정 중",
+      "executing": "실행 중",
+      "approving": "승인 중",
+      "auditing": "감사 중",
+      "unobserved": "관찰되지 않음"
+    },
+    "task": {
+      "idle": "활성 작업 없이 대기 중",
+      "watching": "신호를 감지하며 대기 관찰 중",
+      "collecting": "이벤트 신호를 수집하고 상관관계를 분석 중",
+      "analyzing": "인시던트 근본 원인을 분석 중",
+      "deciding": "위험 게이트에서 판정을 내리는 중",
+      "executing": "승인된 교정 작업을 적용 중",
+      "approving": "사람 승인 요청을 검토 중",
+      "auditing": "추가 전용 감사 기록을 작성 중",
+      "unobserved": "관찰된 런타임 신호 없음",
+      "subscribed": "구독 후 이벤트 대기 중",
+      "awaitingApproval": "사람 승인 대기 중"
+    },
+    "role": {
+      "odin": {
+        "title": "마스터 플래너",
+        "summary": "영역 간 판단을 조정하고 최종 판정 전에 동률을 해소합니다."
+      },
+      "thor": {
+        "title": "대응 담당",
+        "summary": "판정을 전달하는 유일한 권한 실행자이며 직접 판정하지 않습니다."
+      },
+      "forseti": {
+        "title": "판정자",
+        "summary": "교차 확인, 검증, 근거 확인 후 auto / hil / deny 판정을 내립니다."
+      },
+      "vidar": {
+        "title": "복구 담당",
+        "summary": "롤백과 재해 복구 장애 조치의 책임 주체입니다."
+      },
+      "bragi": {
+        "title": "내레이터",
+        "summary": "대화 채널의 번역자 역할만 수행하며 실행자를 직접 호출하지 않습니다."
+      },
+      "var": {
+        "title": "승인 담당",
+        "summary": "사람 승인 책임 주체이며 Thor와 분리되어 있습니다."
+      },
+      "huginn": {
+        "title": "이벤트 수집기",
+        "summary": "실시간 리소스 탐색 수신과 이벤트 정규화를 담당하며 클라우드 I/O는 어댑터에 유지합니다."
+      },
+      "heimdall": {
+        "title": "관찰자",
+        "summary": "탐색 최신성과 범위를 감시하고 신호의 상관관계를 분석해 발견 사항을 만듭니다."
+      },
+      "njord": {
+        "title": "비용 담당",
+        "summary": "비용 및 FinOps 영역 전문가로서 Forseti에 조언하며 실행하지 않습니다."
+      },
+      "freyr": {
+        "title": "용량 담당",
+        "summary": "용량 및 예측 영역 전문가로서 Forseti에 조언하며 실행하지 않습니다."
+      },
+      "loki": {
+        "title": "카오스 담당",
+        "summary": "카오스 및 복원력 전문가로서 실험을 예약하고 Forseti에 조언합니다."
+      },
+      "mimir": {
+        "title": "규칙 관리자",
+        "summary": "규칙 카탈로그를 담당하고 Forseti의 판정을 최신 규칙에 근거시킵니다."
+      },
+      "muninn": {
+        "title": "메모리 담당",
+        "summary": "메모리 및 컨텍스트 저장소를 담당하고 이전 인시던트 컨텍스트를 Forseti와 Bragi에 제공합니다."
+      },
+      "saga": {
+        "title": "감사자",
+        "summary": "모든 종단 상태를 추가 전용으로 감사하고 인수인계를 구체화합니다."
+      },
+      "norns": {
+        "title": "학습 담당",
+        "summary": "감사된 결과에서 학습하고 Mimir에 규칙 개정을 제안합니다."
+      }
+    },
+    "binding": {
+      "eventBusSubscriber": "이벤트 버스 구독자",
+      "rawIngressSubscriber": "원시 수신 구독자",
+      "externalAdapter": "외부 어댑터",
+      "scheduledTrigger": "예약 트리거"
+    },
+    "layer": {
+      "governance": "거버넌스",
+      "pipeline": "파이프라인",
+      "domain": "도메인"
+    },
+    "authority": {
+      "execute": "실행",
+      "approve": "승인",
+      "advise": "관찰 / 조언"
+    },
+    "roster": {
+      "interpretationLabel": "목록 상태 해석",
+      "interpretationTitle": "상태는 설명이며 지시가 아닙니다.",
+      "interpretationBody": "참여 중 수치는 모든 구독 런타임 루프가 아니라 현재 파이프라인 단계를 처리하는 에이전트 수입니다. 대기 에이전트는 자신의 토픽에서 깨어납니다. 이 콘솔은 작업을 관찰하며 승인하거나 실행하지 않습니다. 실시간 델타 출처: {source}. 인시던트 이력은 영구 감사 프로젝션에서 가져옵니다.",
+      "discoveryLabel": "리소스 탐색 담당",
+      "discoveryTitle": "리소스 탐색",
+      "discoverySource": "Huginn 실시간 수신",
+      "discoveryBody": "Azure 리소스 쓰기와 삭제는 Event Hubs와 Huginn을 통해 지속해서 수신됩니다. Inventory 동기화 작업은 누락된 신호를 조정하기 위해 6시간마다 ARM fallback을 포함한 Azure Resource Graph를 실행합니다. Heimdall은 최신성과 범위를 감시합니다. 로컬 하네스는 기본적으로 읽기 전용 Azure CLI 탐색을 사용합니다.",
+      "summaryLabel": "플릿 요약",
+      "metric": {
+        "bindings": "구독자 바인딩",
+        "bindingsDetail": "구성된 런타임 역할",
+        "engaged": "참여 중",
+        "workingNow": "현재 작업 중",
+        "streamUnavailable": "실시간 스트림 사용 불가",
+        "watching": "관찰 중",
+        "sensingSignals": "신호 감지 중",
+        "lastStateRetained": "마지막 상태 유지됨",
+        "idle": "대기",
+        "readyToWake": "작업 시작 대기",
+        "unobserved": "관찰되지 않음",
+        "noRuntimeSignal": "런타임 신호 없음",
+        "incidents": "인시던트",
+        "retainedCollaborations": "보존된 협업",
+        "recentTouches": "최근 접점",
+        "lastSignal": "마지막 신호 {time}"
+      }
+    },
+    "filter": {
+      "toolbarLabel": "목록 필터",
+      "layer": "계층",
+      "state": "상태",
+      "searchLabel": "에이전트 필터",
+      "searchPlaceholder": "에이전트, 역할 또는 현재 작업",
+      "empty": "이 필터와 일치하는 에이전트가 없습니다.",
+      "clear": "필터 지우기",
+      "groupLabel": "{label} 필터",
+      "option": {
+        "all": "전체",
+        "governance": "거버넌스",
+        "pipeline": "파이프라인",
+        "domain": "도메인",
+        "engaged": "참여 중",
+        "watching": "관찰 중",
+        "idle": "대기",
+        "unobserved": "관찰되지 않음"
+      }
+    },
+    "card": {
+      "currentWork": "현재 작업",
+      "activeIncident": "활성 인시던트",
+      "stateSince": "상태 시작",
+      "recentEvents": "최근 이벤트",
+      "reportsTo": "보고 대상",
+      "runtimeBinding": "런타임 바인딩",
+      "authority": "권한"
+    },
+    "action": {
+      "open": "열기",
+      "ask": "{agent}에게 질문"
+    },
+    "focus": {
+      "closeLabel": "에이전트 상세 닫기",
+      "chat": "{agent}와 대화",
+      "events": "이벤트",
+      "noIncidents": "아직 {agent}와 관련된 인시던트가 없습니다."
+    },
+    "workflow": {
+      "selectIncident": "에이전트 협업을 보려면 인시던트를 선택하세요.",
+      "ask": "이 인시던트를 대화 창에 질문",
+      "askHint": "질문은 읽기 전용입니다. 명령은 제안서를 열며 여기서 실행되지 않고 판정을 거칩니다.",
+      "evidenceLabel": "인시던트 근거",
+      "conversationLabel": "에이전트 대화",
+      "noConversation": "아직 대화가 없습니다.",
+      "rootCause": "근본 원인",
+      "step": {
+        "detect": "감지",
+        "ticket": "티켓",
+        "rca": "RCA",
+        "resolve": "해결"
+      }
+    },
+    "incidents": {
+      "label": "인시던트",
+      "title": "인시던트",
+      "recent": "최근",
+      "all": "전체 ({count})",
+      "empty": "인시던트 없음 - 자율 운영 유지 중."
+    },
+    "context": {
+      "purpose": "15개 에이전트 판테온의 실시간 상태입니다. 각 인시던트는 하나의 협업입니다. 이 읽기 전용 화면은 선택한 작업을 설명하고 여기서 실행하지 않는 통제된 제안을 엽니다.",
+      "selectedHeadline": "{title} ({status}) - 에이전트 {agents}개, turn {turns}개",
+      "headline": "인시던트 {incidents}개 - 에이전트 {agents}개 참여 중"
+    },
+    "error": {
+      "historyUnavailable": "영구 인시던트 이력을 사용할 수 없습니다: {error}",
+      "unknownAgent": "에이전트 {agent}는 고정 판테온에 없습니다.",
+      "unknownIncident": "인시던트 {incident}는 보존된 에이전트 스트림에 없습니다."
+    }
+  },
+  "finops": {
+    "loadFailed": "FinOps 패널을 불러오지 못했습니다: {message}",
+    "costActions": "비용 작업",
+    "monthlySavings": "월간 예상 절감액",
+    "sampledEvents": "샘플링 이벤트",
+    "actionsByKind": "종류별 작업"
+  },
+  "handover": {
+    "subtitle": "FDAI가 제어 평면을 운영하는 현재, 15개 에이전트의 책임 담당자와 FDAI 유지관리자 및 인수인계 범위를 보여주는 읽기 전용 화면입니다.",
+    "unavailable": "이 배포에는 담당 체계 엔드포인트가 연결되지 않았습니다. 활성화하려면 구성 루트에서 ReadApiConfig.stewardship_map을 설정하세요.",
+    "noMaintainer": "구성된 유지관리자가 없습니다. 최소 1명이 필요합니다.",
+    "oneMaintainer": "유지관리자가 1명뿐입니다. 안전한 승계를 위해 2명을 권장합니다.",
+    "agents": "에이전트",
+    "maintainers": "유지관리자",
+    "autonomous": "자율 운영",
+    "coverage": "담당 범위",
+    "clean": "양호",
+    "review": "검토 필요",
+    "proposeTitle": "변경 제안",
+    "proposeLead": "인수인계 맵 편집은 Owner 게이트를 거치는 거버넌스 초안 PR입니다. 다음 파일을 편집하세요:",
+    "proposeTail": "그런 다음 PR을 여세요. 콘솔은 이 파일을 직접 쓰지 않습니다. 병합되면 영향받는 에이전트 담당자와 유지관리자에게 알리고 감사 로그에 변경을 기록합니다.",
+    "mapTitle": "인수인계 맵",
+    "agent": "에이전트",
+    "owners": "담당자",
+    "backupCoverage": "백업 범위",
+    "mode": "모드",
+    "noReason": "사유 없음",
+    "mapped": "담당 지정",
+    "findingsTitle": "담당 범위 발견 사항",
+    "severity": "심각도",
+    "code": "코드",
+    "message": "메시지"
+  },
+  "observationSource": {
+    "syntheticDev": "생성된 샘플",
+    "replay": "시나리오 재생",
+    "runtimeObserved": "런타임 관찰됨",
+    "mixed": "혼합 출처",
+    "unavailable": "출처 사용 불가"
+  },
+  "pantheon": {
+    "subtitle": "각 에이전트의 현재 런타임 상태가 결합된 고정 15개 에이전트 조직입니다.",
+    "sourceLabel": "판테온 데이터 출처",
+    "sourceTitle": "읽기 전용 조직",
+    "sourceLead": "카드는 변경이 잠긴 판테온 레지스트리에서 가져옵니다. 런타임 상태는",
+    "sourceTail": "에서 가져오며 실행 권한을 부여하지 않습니다.",
+    "engaged": "{count}개 참여 중",
+    "directoryTitle": "에이전트 디렉터리",
+    "organizationTitle": "보고 조직",
+    "directoryHint": "계층별 담당, 종속성 및 런타임 작업을 비교합니다.",
+    "organizationHint": "보고 체계를 따라 실시간 상태를 확인하고 에이전트 상세를 엽니다.",
+    "viewLabel": "판테온 보기",
+    "directory": "디렉터리",
+    "organization": "조직도",
+    "flagsLabel": "판테온 표시",
+    "hotPathLlm": "핫패스 LLM",
+    "offPathLlm": "오프패스 LLM",
+    "hardDependency": "필수 종속성",
+    "layer": {
+      "governance": "방향, 메모리, 학습 및 감사",
+      "pipeline": "감지, 판정, 승인, 실행 및 복구",
+      "domain": "실행 권한이 없는 자문 전문가"
+    },
+    "layerTitle": "{layer} 계층",
+    "agentCount": "에이전트 {count}개",
+    "reportingTree": "보고 체계",
+    "reportingTreeHint": "모든 보고 관계는 레지스트리에서 투영됩니다.",
+    "workflows": "에이전트 간 워크플로우",
+    "registered": "{count}개 등록됨",
+    "column": {
+      "id": "ID",
+      "name": "이름",
+      "primary": "주 담당",
+      "participants": "참여자",
+      "mode": "모드"
+    },
+    "owns": "담당",
+    "reportsTo": "보고 대상",
+    "root": "- (루트)",
+    "openAgent": "{name} 열기, 역할: {role}",
+    "organizationChartLabel": "판테온 조직도"
+  },
+  "shared": {
+    "loading": "불러오는 중...",
+    "loadingResource": "{resource} 불러오는 중...",
+    "loadFailed": "{resource}을(를) 불러오지 못했습니다: {message}",
+    "noRows": "표시할 행이 없습니다.",
+    "copy": "복사",
+    "copied": "복사됨",
+    "panelFailed": "패널을 불러오지 못했습니다.",
+    "reloadConsole": "콘솔 새로고침",
+    "diagramRendering": "다이어그램 렌더링 중...",
+    "diagramFailed": "다이어그램 렌더링 실패",
+    "mermaidDiagram": "Mermaid 다이어그램"
   }
 }

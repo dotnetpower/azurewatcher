@@ -1,12 +1,17 @@
 import { openDeckWithPrompt } from "../deck/open-deck";
+import { t } from "../i18n";
 import { routeHref } from "../router";
 import {
   AGENT_ROLE,
-  STATE_TASK,
   type AgentNode,
   type Incident,
 } from "./agents.model";
-import { STATE_LABEL } from "./agents.view-model";
+import {
+  agentRoleSummary,
+  agentRoleTitle,
+  agentStateLabel,
+  stateTaskLabel,
+} from "./agents.view-model";
 
 export function isAgentEventExpanded(
   correlationId: string,
@@ -37,28 +42,28 @@ export function AgentFocus({
   readonly onPickIncident: (id: string) => void;
 }) {
   const role = AGENT_ROLE[node.name];
-  const task = STATE_TASK[node.state] ?? node.state;
+  const task = node.detail ?? stateTaskLabel(node.state);
   return (
     <div class={`agent-focus layer-${node.layer}`}>
       <div class="agent-focus-head">
         <div>
           <strong class="agent-focus-name">{node.name}</strong>
-          {role && <span class="agent-focus-title">{role.title}</span>}
+          {role && <span class="agent-focus-title">{agentRoleTitle(node.name)}</span>}
         </div>
-        <button type="button" class="agent-focus-close" aria-label="Close agent focus" onClick={onClose}>
+        <button type="button" class="agent-focus-close" aria-label={t("agents.focus.closeLabel")} onClick={onClose}>
           {"\u00d7"}
         </button>
       </div>
-      {role && <p class="agent-focus-summary">{role.summary}</p>}
+      {role && <p class="agent-focus-summary">{agentRoleSummary(node.name)}</p>}
       <div class="agent-focus-meta">
         {role?.reportsTo && (
           <span class="agent-focus-reports">
-            Reports to <strong>{role.reportsTo}</strong>
-            {role.staff ? " (staff)" : ""}
+            {t("agents.card.reportsTo")} <strong>{role.reportsTo}</strong>
+            {role.staff ? ` (${t("agents.common.staff")})` : ""}
           </span>
         )}
         <span class={`agent-focus-state state-${node.state}`}>
-          {STATE_LABEL[node.state] ?? node.state}
+          {agentStateLabel(node)}
         </span>
       </div>
       <p class="agent-focus-task">{task}</p>
@@ -67,20 +72,20 @@ export function AgentFocus({
           <span class="agent-focus-chat-glyph" aria-hidden="true">
             {"\u25c6"}
           </span>
-          Chat with {node.name}
+          {t("agents.focus.chat", { agent: node.name })}
         </button>
         <a href={routeHref("agent-activity", {
           params: { agent: node.name, correlation: node.correlationId },
         })}>
-          Activity
+          {t("agents.workspace.activity")}
         </a>
       </div>
       <div class="agent-focus-events">
         <h4>
-          Events <span class="agent-focus-count">{incidents.length}</span>
+          {t("agents.focus.events")} <span class="agent-focus-count">{incidents.length}</span>
         </h4>
         {incidents.length === 0 ? (
-          <p class="agents-empty">No incidents involve {node.name} yet.</p>
+          <p class="agents-empty">{t("agents.focus.noIncidents", { agent: node.name })}</p>
         ) : (
           <ul>
             {incidents.map((inc) => {
@@ -114,19 +119,19 @@ export function IncidentWorkflow({ incident }: { incident: Incident | null }) {
   if (incident === null) {
     return (
       <div class="incident-workflow is-empty">
-        <p>Select an incident to watch the agents collaborate.</p>
+        <p>{t("agents.workflow.selectIncident")}</p>
       </div>
     );
   }
   const steps: { readonly key: string; readonly label: string; readonly done: boolean }[] = [
-    { key: "detect", label: "Detect", done: true },
-    { key: "ticket", label: "Ticket", done: incident.ticketId !== "" },
+    { key: "detect", label: t("agents.workflow.step.detect"), done: true },
+    { key: "ticket", label: t("agents.workflow.step.ticket"), done: incident.ticketId !== "" },
     {
       key: "rca",
-      label: "RCA",
+      label: t("agents.workflow.step.rca"),
       done: incident.status === "investigating" || incident.status === "resolved",
     },
-    { key: "resolve", label: "Resolve", done: incident.status === "resolved" },
+    { key: "resolve", label: t("agents.workflow.step.resolve"), done: incident.status === "resolved" },
   ];
   return (
     <div class="incident-workflow">
@@ -146,19 +151,18 @@ export function IncidentWorkflow({ incident }: { incident: Incident | null }) {
             )
           }
         >
-          Ask the deck about this incident
+          {t("agents.workflow.ask")}
         </button>
         <span class="incident-deck-hint">
-          Questions are read-only; a command opens a proposal (judged, never
-          executed here).
+          {t("agents.workflow.askHint")}
         </span>
       </div>
 
-      <nav class="incident-evidence-links" aria-label="Incident evidence">
-        <a href={routeHref("incidents", { params: { status: "all", correlation: incident.correlationId } })}>Incident</a>
-        <a href={routeHref("trace", { params: { correlation: incident.correlationId } })}>Trace</a>
-        <a href={routeHref("audit", { params: { correlation: incident.correlationId } })}>Audit</a>
-        <a href={routeHref("rca", { params: { correlation: incident.correlationId } })}>RCA</a>
+      <nav class="incident-evidence-links" aria-label={t("agents.workflow.evidenceLabel")}>
+        <a href={routeHref("incidents", { params: { status: "all", correlation: incident.correlationId } })}>{t("route.incidents")}</a>
+        <a href={routeHref("trace", { params: { correlation: incident.correlationId } })}>{t("route.ruleTrace")}</a>
+        <a href={routeHref("audit", { params: { correlation: incident.correlationId } })}>{t("route.audit")}</a>
+        <a href={routeHref("rca", { params: { correlation: incident.correlationId } })}>{t("route.rca")}</a>
       </nav>
 
       <ol class="incident-steps">
@@ -169,9 +173,9 @@ export function IncidentWorkflow({ incident }: { incident: Incident | null }) {
         ))}
       </ol>
 
-      <div class="incident-conversation" aria-label="agent conversation">
+      <div class="incident-conversation" aria-label={t("agents.workflow.conversationLabel")}>
         {incident.turns.length === 0 ? (
-          <p class="agents-empty">No conversation yet.</p>
+          <p class="agents-empty">{t("agents.workflow.noConversation")}</p>
         ) : (
           incident.turns.map((t, i) => (
             <div key={i} class={`turn kind-${t.kind}`}>
@@ -188,7 +192,7 @@ export function IncidentWorkflow({ incident }: { incident: Incident | null }) {
 
       {incident.rca !== null && (
         <div class="incident-rca">
-          <span class="incident-rca-label">Root cause</span>
+          <span class="incident-rca-label">{t("agents.workflow.rootCause")}</span>
           <p>{incident.rca}</p>
         </div>
       )}

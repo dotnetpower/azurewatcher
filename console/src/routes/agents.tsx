@@ -18,6 +18,7 @@ import { AgentWorkspaceNav } from "../components/agent-workspace-nav";
 import { UnavailableState } from "../components/ui";
 import { agentStreamDescriptor, useAgentStream } from "../hooks/use-agent-stream";
 import { observationSourceLabel } from "../hooks/observation-source";
+import { t } from "../i18n";
 import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
 import { usePublishViewContext } from "../deck/context";
 import { agentTerm, composeGlossary, TERMS } from "../deck/glossary";
@@ -39,8 +40,8 @@ import {
 } from "./agents.model";
 import {
   EMPTY_GEOMETRY,
-  STATE_LABEL,
   agentIconUrl,
+  agentRoleTitle,
   agentStateLabel,
   currentTask,
   rosterLayerOf,
@@ -244,7 +245,14 @@ export function AgentsRoute({ client }: Props) {
       .filter((node) => {
         if (!query) return true;
         const role = AGENT_ROLE[node.name];
-        return [node.name, agentStateLabel(node), node.detail, role?.title, currentTask(node)]
+        return [
+          node.name,
+          agentStateLabel(node),
+          node.detail,
+          role?.title,
+          agentRoleTitle(node.name),
+          currentTask(node),
+        ]
           .filter(Boolean)
           .join(" ")
           .toLocaleLowerCase()
@@ -306,13 +314,8 @@ export function AgentsRoute({ client }: Props) {
   usePublishViewContext(
     () => ({
       routeId: "agents",
-      routeLabel: "Agents",
-      purpose:
-        "The 15-agent pantheon, live. Each incident (correlation id) is one " +
-        "collaboration: Huginn/Heimdall sense, Forseti judges, Var queues an approval " +
-        "approval, Thor executes, Saga records. Read-only - ask the deck about " +
-        "the selected incident, or propose a runtime action (it is judged, never " +
-        "executed from here).",
+      routeLabel: t("route.pantheon"),
+      purpose: t("agents.context.purpose"),
       glossary: composeGlossary([
         TERMS.correlationId,
         TERMS.hil,
@@ -321,8 +324,16 @@ export function AgentsRoute({ client }: Props) {
         agentTerm(),
       ]),
       headline: selected
-        ? `${selected.title} (${selected.status}) - ${selected.involved.length} agent(s), ${selected.turns.length} turn(s)`
-        : `${state.incidentOrder.length} incident(s) - ${active ?? "unknown"} agent(s) engaged`,
+        ? t("agents.context.selectedHeadline", {
+            title: selected.title,
+            status: selected.status,
+            agents: selected.involved.length,
+            turns: selected.turns.length,
+          })
+        : t("agents.context.headline", {
+            incidents: state.incidentOrder.length,
+            agents: active ?? t("agents.common.unknown"),
+          }),
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "incidents", value: state.incidentOrder.length, group: "page" },
@@ -376,7 +387,9 @@ export function AgentsRoute({ client }: Props) {
     const engaged = runtimeCurrent && isEngaged(node);
     const incident = node.correlationId ? (state.incidents[node.correlationId] ?? null) : null;
     const role = AGENT_ROLE[name];
-    const subLabel = layout === "org" && role ? role.title : (STATE_LABEL[node.state] ?? node.state);
+    const subLabel = layout === "org" && role
+      ? agentRoleTitle(name)
+      : agentStateLabel(node);
     const iconUrl = agentIconUrl(name);
     return (
       <button
@@ -413,24 +426,23 @@ export function AgentsRoute({ client }: Props) {
       <AgentWorkspaceNav />
       <header class="agents-head">
         <div>
-          <span class="agents-eyebrow">Read-only live status</span>
-          <h2>Agent fleet</h2>
+          <span class="agents-eyebrow">{t("agents.header.eyebrow")}</span>
+          <h2>{t("agents.header.title")}</h2>
           <p class="agents-sub">
-            Live work across the fixed 15-agent pantheon. Inspect current tasks,
-            open each agent's evidence timeline, or ask about its grounded context.
-            State combines the durable <code>GET /incidents</code> snapshot with live
-            deltas from <code>GET /agents/stream</code>.
+            {t("agents.header.descriptionLead")} <code>GET /incidents</code>
+            {t("agents.header.descriptionMiddle")} <code>GET /agents/stream</code>
+            {t("agents.header.descriptionTail")}
           </p>
         </div>
         <div class="agents-meta">
-          <div class="agents-layout-toggle" role="group" aria-label="layout mode">
+          <div class="agents-layout-toggle" role="group" aria-label={t("agents.layout.label")}>
             <button
               type="button"
               class={layout === "roster" ? "is-active" : ""}
               aria-pressed={layout === "roster"}
               onClick={() => selectLayout("roster")}
             >
-              Roster
+              {t("agents.layout.roster")}
             </button>
             <button
               type="button"
@@ -438,7 +450,7 @@ export function AgentsRoute({ client }: Props) {
               aria-pressed={layout === "constellation"}
               onClick={() => selectLayout("constellation")}
             >
-              Constellation
+              {t("agents.layout.constellation")}
             </button>
             <button
               type="button"
@@ -446,21 +458,21 @@ export function AgentsRoute({ client }: Props) {
               aria-pressed={layout === "org"}
               onClick={() => selectLayout("org")}
             >
-              Org chart
+              {t("agents.layout.organization")}
             </button>
           </div>
-          <span class={`agents-conn conn-${status}`}>{status}</span>
+          <span class={`agents-conn conn-${status}`}>{t(`agents.connection.${status}`)}</span>
           <span class="status-pill status-pill-neutral">
             {observationSourceLabel(streamSource)}
           </span>
           <span class="agents-active">
-            <strong>{active ?? "-"}</strong> engaged
+            {t("agents.header.engaged", { count: active ?? "-" })}
           </span>
         </div>
       </header>
 
       {snapshotError ? (
-        <UnavailableState message={`Durable incident history is unavailable: ${snapshotError}`} />
+        <UnavailableState message={t("agents.error.historyUnavailable", { error: snapshotError })} />
       ) : null}
 
       {layout === "roster" ? (
@@ -488,7 +500,7 @@ export function AgentsRoute({ client }: Props) {
       <div class="agents-layout">
         <section
           class={`agents-stage layout-${layout}`}
-          aria-label="agent pantheon"
+          aria-label={t("agents.layout.pantheonLabel")}
           ref={constellationRef}
         >
           {layout === "org" && <OrgReportingLines geometry={geometry} />}
@@ -511,7 +523,7 @@ export function AgentsRoute({ client }: Props) {
                   </div>
                 ))}
                 <div class="org-branch org-staff-branch">
-                  <div class="org-staff-label">Staff to Odin</div>
+                  <div class="org-staff-label">{t("agents.layout.staffToOdin")}</div>
                   <div class="org-reports">{ORG_CHART.staff.map((n) => renderNode(n))}</div>
                 </div>
               </div>
@@ -521,10 +533,10 @@ export function AgentsRoute({ client }: Props) {
 
         <aside class="agents-side">
           {selectedAgent && !selectedAgentNode ? (
-            <UnavailableState message={`Agent ${selectedAgent} is not in the fixed pantheon.`} />
+            <UnavailableState message={t("agents.error.unknownAgent", { agent: selectedAgent })} />
           ) : null}
           {selectedId && !selected ? (
-            <UnavailableState message={`Incident ${selectedId} is not present in the retained agent stream.`} />
+            <UnavailableState message={t("agents.error.unknownIncident", { incident: selectedId })} />
           ) : null}
           {selectedAgentNode && (
             <AgentFocus
@@ -550,9 +562,9 @@ export function AgentsRoute({ client }: Props) {
               }}
             />
           )}
-          <div class="agents-incident-list" aria-label="incidents">
+          <div class="agents-incident-list" aria-label={t("agents.incidents.label")}>
             <div class="agents-incident-head">
-              <h3>Incidents</h3>
+              <h3>{t("agents.incidents.title")}</h3>
               {state.incidentOrder.length > INCIDENT_PREVIEW && (
                 <button
                   type="button"
@@ -560,12 +572,14 @@ export function AgentsRoute({ client }: Props) {
                   aria-pressed={showAllIncidents}
                   onClick={() => setShowAllIncidents((v) => !v)}
                 >
-                  {showAllIncidents ? "Recent" : `All (${state.incidentOrder.length})`}
+                  {showAllIncidents
+                    ? t("agents.incidents.recent")
+                    : t("agents.incidents.all", { count: state.incidentOrder.length })}
                 </button>
               )}
             </div>
             {state.incidentOrder.length === 0 ? (
-              <p class="agents-empty">No incidents - autonomy holding.</p>
+              <p class="agents-empty">{t("agents.incidents.empty")}</p>
             ) : (
               <ul>
                 {(showAllIncidents

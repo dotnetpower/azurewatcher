@@ -16,7 +16,6 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
 import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
 import {
   BLAST_RADIUS_LINKS,
@@ -26,6 +25,7 @@ import {
   DEFAULT_BLAST_RADIUS_LINKS,
   type BlastRadiusQuery,
 } from "./blast-radius.model";
+import { formatNumber, t } from "./i18n/ontology";
 
 /**
  * Blast-radius simulator panel. Wraps ``GET /simulate/blast-radius`` -
@@ -68,9 +68,7 @@ export function blastRadiusFailure(error: unknown): AsyncState<never> {
   if (isOptionalReadApiUnavailable(error)) {
     return {
       status: "unavailable",
-      message:
-        "Blast-radius simulation is not wired on this deployment. " +
-        "Configure the inventory graph provider to enable it.",
+      message: t("ontology.blast.unavailable"),
     };
   }
   return {
@@ -173,13 +171,13 @@ export function BlastRadiusRoute({ client }: Props) {
     <div class="stack governance-route blast-radius-route">
       <PageHeader
         title={t("route.blastRadius")}
-        subtitle="Simulate the reachable subgraph before approving a change. Read-only projection over the ontology - no resources are touched."
+        subtitle={t("ontology.blast.subtitle")}
       />
 
       <section class="impact-query-panel" aria-labelledby="impact-query-title">
         <header class="impact-query-head">
-          <h3 id="impact-query-title">Impact query</h3>
-          <p>Read-only traversal. No resource changes are sent.</p>
+          <h3 id="impact-query-title">{t("ontology.blast.queryTitle")}</h3>
+          <p>{t("ontology.blast.queryDescription")}</p>
         </header>
         <form
           class="impact-query-grid"
@@ -194,7 +192,7 @@ export function BlastRadiusRoute({ client }: Props) {
           }}
         >
           <label class="impact-query-field">
-            <span>Target resource id</span>
+            <span>{t("ontology.blast.targetResourceId")}</span>
             <input
               class="impact-query-input"
               type="text"
@@ -213,7 +211,7 @@ export function BlastRadiusRoute({ client }: Props) {
             />
           </label>
           <label class="impact-query-field is-compact">
-            <span>Traversal depth (1-5)</span>
+            <span>{t("ontology.blast.depthInput")}</span>
             <input
               class="impact-query-input"
               type="number"
@@ -234,7 +232,7 @@ export function BlastRadiusRoute({ client }: Props) {
             />
           </label>
           <fieldset class="impact-query-checks">
-            <legend>Link types</legend>
+            <legend>{t("ontology.blast.linkTypes")}</legend>
             <div class="impact-query-options">
               {BLAST_RADIUS_LINKS.map((name) => (
                 <label key={name} class="impact-query-check">
@@ -250,13 +248,13 @@ export function BlastRadiusRoute({ client }: Props) {
             </div>
           </fieldset>
           <div class="impact-query-action">
-            <span>Run read-only check</span>
+            <span>{t("ontology.blast.runReadOnly")}</span>
             <button
               type="submit"
               class="btn primary impact-query-submit"
               disabled={state.status === "loading" || target.trim().length === 0 || linkSet.size === 0}
             >
-              Simulate impact
+              {t("ontology.blast.simulate")}
             </button>
           </div>
         </form>
@@ -264,8 +262,8 @@ export function BlastRadiusRoute({ client }: Props) {
 
       <AsyncBoundary
         state={state}
-        resourceLabel="blast-radius simulation"
-        idle={<p class="muted footnote">Enter a target and select at least one link type to simulate impact.</p>}
+        resourceLabel={t("ontology.blast.loadingLabel")}
+        idle={<p class="muted footnote">{t("ontology.blast.idle")}</p>}
       >
         {(data) => <ReportView data={data} client={client} architectureView={architectureView} />}
       </AsyncBoundary>
@@ -287,18 +285,20 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
   usePublishViewContext(
     () => ({
       routeId: "blast-radius",
-      routeLabel: "Blast radius",
-      purpose:
-        "Simulates how many resources one action could reach by traversing the " +
-        "resource graph from a target. The risk gate caps blast radius so a " +
-        "single change can never touch more than its scope. Read-only what-if.",
+      routeLabel: t("ontology.context.impactLabel"),
+      purpose: t("ontology.context.impactPurpose"),
       glossary: composeGlossary([TERMS.blastRadius, TERMS.actionType]),
-      headline: `${data.affected_count} resource(s) reachable at depth ${data.traversal_depth}${data.truncated_at_depth ? " (truncated)" : ""}`,
+      headline: t(data.truncated_at_depth
+        ? "ontology.context.impactHeadlineTruncated"
+        : "ontology.context.impactHeadline", {
+        resources: formatNumber(data.affected_count),
+        depth: formatNumber(data.traversal_depth),
+      }),
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "target", value: data.target, group: "query" },
         { key: "depth", value: data.traversal_depth, group: "query" },
-        { key: "links", value: data.traversal_links.join(", ") || "(none)", group: "query" },
+        { key: "links", value: data.traversal_links.join(", ") || t("ontology.context.none"), group: "query" },
         { key: "affected_count", value: data.affected_count, group: "result" },
         { key: "edge_count", value: data.edges.length, group: "result" },
         { key: "truncated", value: data.truncated_at_depth, group: "result" },
@@ -321,32 +321,32 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
   );
 
   const reachedColumns: readonly Column<ReachedNode>[] = [
-    { key: "d", header: "Depth", render: (n) => n.depth, cellClass: "num", headerClass: "num" },
+    { key: "d", header: t("ontology.blast.columnDepth"), render: (n) => formatNumber(n.depth), cellClass: "num", headerClass: "num" },
     {
       key: "id",
-      header: "Resource id",
+      header: t("ontology.blast.columnResourceId"),
       render: (n) => <a href={architectureHref(n.resource_id, architectureView)}>{n.resource_id}</a>,
       cellClass: "mono",
     },
     {
       key: "via",
-      header: "Reached via",
-      render: (n) => n.via_link_type ?? <span class="muted">(target)</span>,
+      header: t("ontology.blast.columnReachedVia"),
+      render: (n) => n.via_link_type ?? <span class="muted">{t("ontology.blast.targetMarker")}</span>,
       cellClass: "mono",
     },
   ];
   const edgeColumns: readonly Column<TraversedEdge>[] = [
-    { key: "d", header: "Depth", render: (e) => e.depth, cellClass: "num", headerClass: "num" },
+    { key: "d", header: t("ontology.blast.columnDepth"), render: (e) => formatNumber(e.depth), cellClass: "num", headerClass: "num" },
     {
       key: "s",
-      header: "Source",
+      header: t("ontology.blast.columnSource"),
       render: (e) => <a href={architectureHref(e.source, architectureView)}>{e.source}</a>,
       cellClass: "mono",
     },
-    { key: "l", header: "Link", render: (e) => e.link_type, cellClass: "mono" },
+    { key: "l", header: t("ontology.blast.columnLink"), render: (e) => e.link_type, cellClass: "mono" },
     {
       key: "t",
-      header: "Target",
+      header: t("ontology.blast.columnTarget"),
       render: (e) => <a href={architectureHref(e.target, architectureView)}>{e.target}</a>,
       cellClass: "mono",
     },
@@ -354,36 +354,36 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
 
   return (
     <div class="stack">
-      <div class="governance-summary-strip" aria-label="Blast-radius context">
+      <div class="governance-summary-strip" aria-label={t("ontology.blast.contextLabel")}>
         <span class="is-steel"><strong>{data.target}</strong></span>
-        <span>depth {data.traversal_depth}</span>
-        <span>{data.traversal_links.join(" + ") || "no links"}</span>
+        <span>{t("ontology.blast.depthSummary", { depth: formatNumber(data.traversal_depth) })}</span>
+        <span>{data.traversal_links.join(" + ") || t("ontology.blast.noLinks")}</span>
         <span class={data.truncated_at_depth ? "is-plum" : "is-teal"}>
-          {data.truncated_at_depth ? "truncated at depth cap" : "bounded neighborhood complete"}
+          {data.truncated_at_depth ? t("ontology.blast.truncated") : t("ontology.blast.complete")}
         </span>
       </div>
       <KpiGrid>
         <KpiCard
-          label="Affected resources"
-          value={data.affected_count}
+          label={t("ontology.blast.affectedResources")}
+          value={formatNumber(data.affected_count)}
           tone={data.affected_count > 25 ? "warning" : "default"}
         />
-        <KpiCard label="Traversal depth" value={data.traversal_depth} />
+        <KpiCard label={t("ontology.blast.traversalDepth")} value={formatNumber(data.traversal_depth)} />
         <KpiCard
-          label="Truncated at cap"
-          value={data.truncated_at_depth ? "yes" : "no"}
+          label={t("ontology.blast.truncatedAtCap")}
+          value={data.truncated_at_depth ? t("ontology.common.yes") : t("ontology.common.no")}
           tone={data.truncated_at_depth ? "warning" : "positive"}
-          hint={data.truncated_at_depth ? "raise --depth to see more" : "full graph explored"}
+          hint={data.truncated_at_depth ? t("ontology.blast.raiseDepth") : t("ontology.blast.fullGraph")}
         />
       </KpiGrid>
 
       <section class="stack-section">
         <div class="section-header">
-          <h3 class="section-title">Affected topology</h3>
-          <div class="segmented-control" role="group" aria-label="Blast radius view">
-            <button type="button" class={view === "impact" ? "active" : ""} onClick={() => selectView("impact")}>Impact</button>
-            <button type="button" class={view === "map" ? "active" : ""} onClick={() => selectView("map")}>Map</button>
-            <button type="button" class={view === "table" ? "active" : ""} onClick={() => selectView("table")}>Table</button>
+          <h3 class="section-title">{t("ontology.blast.topology")}</h3>
+          <div class="segmented-control" role="group" aria-label={t("ontology.blast.viewLabel")}>
+            <button type="button" class={view === "impact" ? "active" : ""} onClick={() => selectView("impact")}>{t("ontology.blast.viewImpact")}</button>
+            <button type="button" class={view === "map" ? "active" : ""} onClick={() => selectView("map")}>{t("ontology.blast.viewMap")}</button>
+            <button type="button" class={view === "table" ? "active" : ""} onClick={() => selectView("table")}>{t("ontology.blast.viewTable")}</button>
           </div>
         </div>
         {view === "impact" ? (
@@ -395,18 +395,18 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
             columns={reachedColumns}
             rows={data.reached}
             keyOf={(node) => `${node.depth}:${node.resource_id}`}
-            empty="No reachable resources at this depth."
+            empty={t("ontology.blast.noReachable")}
           />
         )}
       </section>
 
       <section class="stack-section">
-        <h3 class="section-title">Edges traversed ({data.edges.length})</h3>
+        <h3 class="section-title">{t("ontology.blast.edgesTraversed", { count: formatNumber(data.edges.length) })}</h3>
         <DataTable
           columns={edgeColumns}
           rows={data.edges}
           keyOf={(_e, i) => `${i}`}
-          empty="No edges walked."
+          empty={t("ontology.blast.noEdges")}
         />
       </section>
     </div>
@@ -423,7 +423,7 @@ function BlastImpact({
   const maxDepth = Math.max(1, data.traversal_depth);
   return (
     <div class="blast-impact-layout">
-      <div class="blast-rings" role="img" aria-label={`Blast radius around ${data.target}`}>
+      <div class="blast-rings" role="img" aria-label={t("ontology.blast.scopeAround", { target: data.target })}>
         <svg viewBox="0 0 560 430">
           {Array.from({ length: maxDepth }, (_, index) => {
             const depth = maxDepth - index;
@@ -431,7 +431,7 @@ function BlastImpact({
             return <circle key={depth} cx="280" cy="215" r={radius} class={`blast-ring depth-${depth}`} />;
           })}
           <circle cx="280" cy="215" r="42" class="blast-target" />
-          <text x="280" y="211" text-anchor="middle" class="blast-target-label">target</text>
+          <text x="280" y="211" text-anchor="middle" class="blast-target-label">{t("ontology.common.target")}</text>
           <text x="280" y="229" text-anchor="middle" class="blast-target-name">{shortResource(data.target)}</text>
           {nodes.slice(0, 24).map((node, index) => {
             const peers = nodes.filter((candidate) => candidate.depth === node.depth);
@@ -451,16 +451,16 @@ function BlastImpact({
       </div>
       <section class="blast-impact-list">
         <header>
-          <h4>Impact tree</h4>
-          <span>{data.affected_count} affected</span>
+          <h4>{t("ontology.blast.impactTree")}</h4>
+          <span>{t("ontology.blast.affectedCount", { count: formatNumber(data.affected_count) })}</span>
         </header>
         <ol>
-          <li class="is-target"><span>0</span><a href={architectureHref(data.target, architectureView)}><code>{data.target}</code></a><small>target</small></li>
+          <li class="is-target"><span>{formatNumber(0)}</span><a href={architectureHref(data.target, architectureView)}><code>{data.target}</code></a><small>{t("ontology.common.target")}</small></li>
           {data.reached.map((node) => (
             <li key={`${node.depth}:${node.resource_id}`}>
-              <span>{node.depth}</span>
+              <span>{formatNumber(node.depth)}</span>
               <a href={architectureHref(node.resource_id, architectureView)}><code>{node.resource_id}</code></a>
-              <small>{node.via_link_type ?? "direct"}</small>
+              <small>{node.via_link_type ?? t("ontology.common.direct")}</small>
             </li>
           ))}
         </ol>
@@ -490,13 +490,13 @@ function BlastRadiusMap({ client, data, architectureView }: { readonly client: R
     );
     return () => { cancelled = true; };
   }, [client, architectureView]);
-  if (message) return <p class="muted footnote">Map unavailable: {message}</p>;
-  if (!graph) return <p class="muted footnote">Loading architecture map...</p>;
+  if (message) return <p class="muted footnote">{t("ontology.blast.mapUnavailable", { message })}</p>;
+  if (!graph) return <p class="muted footnote">{t("ontology.blast.mapLoading")}</p>;
   const highlighted = new Set([data.target, ...data.reached.map((node) => node.resource_id)]);
   return (
     <div class="blast-map-wrap">
       <ArchitectureMap graph={graph} highlightedIds={highlighted} selectedId={data.target} />
-      <a class="btn blast-map-open" href={architectureHref(data.target, architectureView)}>Open full architecture</a>
+      <a class="btn blast-map-open" href={architectureHref(data.target, architectureView)}>{t("ontology.blast.openArchitecture")}</a>
     </div>
   );
 }

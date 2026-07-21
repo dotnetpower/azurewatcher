@@ -6,6 +6,7 @@ import {
   type WorkflowDefinitionCatalogResponse,
   type WorkflowDefinitionEntry,
 } from "../workflow/validate";
+import { formatNumber, t, triggerLabel } from "./i18n/workflow";
 
 export function hasEquivalentWorkflowBinding(
   bindings: readonly WorkflowBindingEntry[],
@@ -83,7 +84,7 @@ export function WorkflowAutomations({
   const removeBinding = async (binding: WorkflowBindingEntry): Promise<void> => {
     const definition = definitionById.get(binding.definition_id);
     const workflowName = definition?.workflow_name ?? binding.definition_id;
-    if (!window.confirm(`Remove the ${workflowName} configuration?`)) return;
+    if (!window.confirm(t("workflow.automations.removeConfirm", { workflow: workflowName }))) return;
     setSaving(true);
     try {
       await deleteWorkflowBinding(binding.binding_id);
@@ -100,10 +101,9 @@ export function WorkflowAutomations({
     <section class="workflow-automation-section">
       <header>
         <div>
-          <h3>My automations <span>{bindings.length}</span></h3>
+          <h3>{t("workflow.automations.heading")} <span>{formatNumber(bindings.length)}</span></h3>
           <p>
-            Save a principal-scoped trigger configuration. Runtime dispatch is not active yet;
-            ActionType ceilings remain authoritative when activation lands.
+            {t("workflow.automations.description")}
           </p>
         </div>
       </header>
@@ -116,11 +116,11 @@ export function WorkflowAutomations({
               <article key={binding.binding_id}>
                 <div>
                   <strong>{definition?.workflow_name ?? binding.definition_id}</strong>
-                  <span>{binding.trigger.replaceAll("_", " ")}</span>
+                  <span>{triggerLabel(binding.trigger)}</span>
                   <small>
                     {binding.trigger === "schedule"
                       ? `${binding.cron_expression} - ${binding.timezone}`
-                      : binding.signal_type ?? "configured, not active"}
+                      : binding.signal_type ?? t("workflow.automations.configuredInactive")}
                   </small>
                 </div>
                 <button
@@ -129,47 +129,47 @@ export function WorkflowAutomations({
                   disabled={saving}
                   onClick={() => void removeBinding(binding)}
                 >
-                  Remove
+                  {t("workflow.automations.remove")}
                 </button>
               </article>
             );
           })}
-          {bindings.length === 0 ? <p class="muted small">No personal automations.</p> : null}
+          {bindings.length === 0 ? <p class="muted small">{t("workflow.automations.empty")}</p> : null}
         </div>
 
         <div class="workflow-binding-create">
           <strong>
             {selectedDefinition
-              ? `Use ${selectedDefinition.workflow_name}`
-              : "Select a workflow definition"}
+              ? t("workflow.automations.useWorkflow", { workflow: selectedDefinition.workflow_name })
+              : t("workflow.automations.selectDefinition")}
           </strong>
           <label>
-            <span>Trigger</span>
+            <span>{t("workflow.automations.trigger")}</span>
             <select
               value={trigger}
               disabled={selectedDefinition === null}
               onChange={(event) => setTrigger(event.currentTarget.value as typeof trigger)}
             >
-              <option value="deck_open">Command Deck opens</option>
-              <option value="schedule">Schedule</option>
-              <option value="signal">Signal</option>
+              <option value="deck_open">{t("workflow.automations.deckOpen")}</option>
+              <option value="schedule">{t("workflow.automations.schedule")}</option>
+              <option value="signal">{t("workflow.automations.signal")}</option>
             </select>
           </label>
           {trigger === "schedule" ? (
             <>
               <label>
-                <span>Cron expression</span>
+                <span>{t("workflow.automations.cronExpression")}</span>
                 <input value={cronExpression} onInput={(event) => setCronExpression(event.currentTarget.value)} />
               </label>
               <label>
-                <span>Timezone</span>
+                <span>{t("workflow.automations.timezone")}</span>
                 <input value={timezone} onInput={(event) => setTimezone(event.currentTarget.value)} />
               </label>
             </>
           ) : null}
           {trigger === "signal" ? (
             <label>
-              <span>Signal type</span>
+              <span>{t("workflow.automations.signalType")}</span>
               <input value={signalType} onInput={(event) => setSignalType(event.currentTarget.value)} />
             </label>
           ) : null}
@@ -179,7 +179,9 @@ export function WorkflowAutomations({
             disabled={saving || selectedDefinition === null || equivalentBinding}
             onClick={() => void createBinding()}
           >
-            {equivalentBinding ? "Configuration saved" : "Save configuration"}
+            {t(equivalentBinding
+              ? "workflow.automations.configurationSaved"
+              : "workflow.automations.saveConfiguration")}
           </button>
         </div>
       </div>

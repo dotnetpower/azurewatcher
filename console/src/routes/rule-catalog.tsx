@@ -7,8 +7,8 @@ import {
   PageHeader,
   UnavailableState,
 } from "../components/ui";
-import { t } from "../i18n";
 import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
+import { t } from "./i18n/governance";
 import { RuleCatalogBody } from "./rule-catalog-body";
 import { RuleDetailDrawer } from "./rule-catalog-detail";
 import { isRuleListUpdating } from "./rule-catalog.model";
@@ -105,8 +105,8 @@ export function RuleCatalogRoute({ client }: Props) {
       setStatus("unavailable");
       setErrorMsg(
         lifecycleStatus === "invalid"
-          ? "The requested rule lifecycle status is not registered."
-          : `Rule ${lifecycleStatus} lifecycle evidence is not exposed by this deployment.`,
+          ? t("governance.rules.lifecycleInvalid")
+          : t("governance.rules.lifecycleUnavailable", { status: lifecycleStatus }),
       );
       return () => { cancelled = true; };
     }
@@ -132,11 +132,7 @@ export function RuleCatalogRoute({ client }: Props) {
           const message = err instanceof Error ? err.message : String(err);
           if (isOptionalReadApiUnavailable(err)) {
             setStatus("unavailable");
-            setErrorMsg(
-              "The rule-catalog route is not wired on this deployment. " +
-                "Set ReadApiConfig.rule_catalog_rules / rule_catalog_collected_rules " +
-                "in the composition root to enable it.",
-            );
+            setErrorMsg(t("governance.rules.routeUnavailable"));
           } else {
             setStatus("error");
             setErrorMsg(message);
@@ -276,7 +272,7 @@ export function RuleCatalogRoute({ client }: Props) {
   const header = (
     <PageHeader
       title={t("route.rules")}
-      subtitle="Every policy the system knows: the active catalog T0 evaluates plus the imported collected corpus. Read-only - rule changes flow through the catalog pipeline as PRs."
+      subtitle={t("governance.rules.subtitle")}
     />
   );
 
@@ -286,11 +282,11 @@ export function RuleCatalogRoute({ client }: Props) {
       <div class="stack governance-route rules-route">
         {header}
         {status === "error" ? (
-          <ErrorState message={`Failed to load rule catalog: ${errorMsg}`} />
+          <ErrorState message={t("governance.rules.loadFailed", { message: errorMsg })} />
         ) : status === "unavailable" ? (
           <UnavailableState message={errorMsg} />
         ) : (
-          <LoadingState label="Loading rule catalog..." />
+          <LoadingState label={t("governance.rules.loading")} />
         )}
       </div>
     );
@@ -303,7 +299,7 @@ export function RuleCatalogRoute({ client }: Props) {
     <div class="stack governance-route rules-route">
       {header}
       {status === "error" ? (
-        <ErrorState message={`Failed to refresh rule catalog: ${errorMsg}`} />
+        <ErrorState message={t("governance.rules.refreshFailed", { message: errorMsg })} />
       ) : null}
       <RuleCatalogBody
         data={data}

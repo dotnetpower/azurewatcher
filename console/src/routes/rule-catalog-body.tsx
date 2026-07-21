@@ -9,7 +9,7 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
+import { displayValue, t } from "./i18n/governance";
 import { FacetChips } from "./rule-catalog-components";
 import type { RuleFilters as Filters, RuleSelection as Selection } from "./rule-catalog-state";
 import {
@@ -76,7 +76,7 @@ export function RuleCatalogBody({
             },
             {
               key: "selected_explanation",
-              value: selectedDetail.explanation.description ?? selectedDetail.explanation.title ?? "(none)",
+              value: selectedDetail.explanation.description ?? selectedDetail.explanation.title ?? t("governance.common.parentheticalNone"),
               group: "selection",
             },
             { key: "selected_remediates", value: selectedDetail.remediates, group: "selection" },
@@ -94,7 +94,7 @@ export function RuleCatalogBody({
             key: "selected_affected_count",
             value: selectedFindings.evaluated
               ? (selectedFindings.finding_count ?? selectedFindings.findings.length)
-              : "not evaluated",
+              : t("governance.common.notEvaluated"),
             group: "selection",
           });
           if (selectedFindings.findings.length > 0) {
@@ -110,17 +110,22 @@ export function RuleCatalogBody({
       }
       return {
         routeId: "rules",
-        routeLabel: "Rules",
-        purpose:
-          "The versioned rule catalog the deterministic engine (T0) evaluates - " +
-          "each rule normalized to id/severity/category/resource-type/check/" +
-          "remediation with provenance. Filter by origin, category, severity, " +
-          "or source. Read-only reference.",
+        routeLabel: t("governance.rules.context.routeLabel"),
+        purpose: t("governance.rules.context.purpose"),
         glossary: composeGlossary([TERMS.actionType, TERMS.tier, TERMS.mode]),
         headline:
           selected !== null
-            ? `Rule ${selected.id} selected - ${data.total} rules (${active} active, ${collected} collected)`
-            : `${data.total} rules (${active} active, ${collected} collected)`,
+            ? t("governance.rules.context.selectedHeadline", {
+                id: selected.id,
+                total: data.total,
+                active,
+                collected,
+              })
+            : t("governance.rules.context.headline", {
+                total: data.total,
+                active,
+                collected,
+              }),
         capturedAt: new Date().toISOString(),
         facts: [
           { key: "total_rules", value: data.total, group: "catalog" },
@@ -130,14 +135,14 @@ export function RuleCatalogBody({
           { key: "resource_types", value: data.resource_type_count, group: "catalog" },
           {
             key: "categories_available",
-            value: Object.keys(data.facets.by_category).join(", ") || "(none)",
+            value: Object.keys(data.facets.by_category).join(", ") || t("governance.common.parentheticalNone"),
             group: "catalog",
           },
-          { key: "search_query", value: filters.q || "(none)", group: "filter" },
-          { key: "filter_origin", value: filters.origin || "(all)", group: "filter" },
-          { key: "filter_category", value: filters.category || "(all)", group: "filter" },
-          { key: "filter_severity", value: filters.severity || "(all)", group: "filter" },
-          { key: "filter_source", value: filters.source || "(all)", group: "filter" },
+          { key: "search_query", value: filters.q || t("governance.common.parentheticalNone"), group: "filter" },
+          { key: "filter_origin", value: filters.origin || t("governance.common.parentheticalAll"), group: "filter" },
+          { key: "filter_category", value: filters.category || t("governance.common.parentheticalAll"), group: "filter" },
+          { key: "filter_severity", value: filters.severity || t("governance.common.parentheticalAll"), group: "filter" },
+          { key: "filter_source", value: filters.source || t("governance.common.parentheticalAll"), group: "filter" },
           ...selectionFacts,
         ],
         records: {
@@ -162,44 +167,44 @@ export function RuleCatalogBody({
     () => [
       {
         key: "id",
-        header: "Rule",
+        header: t("governance.rules.column.rule"),
         render: (rule) => (
           <span class="rule-table-identity">
             <code>{rule.id}</code>
-            <small>provenance: {rule.provenance.source_url || rule.source}</small>
+            <small>{t("governance.rules.column.provenance")}: {rule.provenance.source_url || rule.source}</small>
           </span>
         ),
       },
       {
         key: "origin",
-        header: "Origin",
+        header: t("governance.rules.column.origin"),
         render: (rule) => (
-          <StatusPill kind={rule.origin === "active" ? "enforce" : "neutral"} label={rule.origin} />
+          <StatusPill kind={rule.origin === "active" ? "enforce" : "neutral"} label={displayValue("origin", rule.origin)} />
         ),
       },
       {
         key: "severity",
-        header: "Severity",
+        header: t("governance.rules.column.severity"),
         render: (rule) => (
-          <StatusPill kind={SEVERITY_PILL[rule.severity] ?? "neutral"} label={rule.severity} />
+          <StatusPill kind={SEVERITY_PILL[rule.severity] ?? "neutral"} label={displayValue("severity", rule.severity)} />
         ),
       },
       {
         key: "category",
-        header: "Category",
-        render: (rule) => <span class={`rule-category-pill is-${rule.category}`}>{rule.category}</span>,
+        header: t("governance.rules.column.category"),
+        render: (rule) => <span class={`rule-category-pill is-${rule.category}`}>{displayValue("category", rule.category)}</span>,
       },
       {
         key: "resource_type",
-        header: "Resource",
+        header: t("governance.rules.column.resource"),
         render: (rule) => rule.resource_type,
         cellClass: "mono",
       },
-      { key: "source", header: "Source", render: (rule) => rule.source },
-      { key: "version", header: "Version", render: (rule) => rule.version, cellClass: "mono" },
+      { key: "source", header: t("governance.rules.column.source"), render: (rule) => rule.source },
+      { key: "version", header: t("governance.common.version"), render: (rule) => rule.version, cellClass: "mono" },
       {
         key: "affected",
-        header: "Affected",
+        header: t("governance.rules.column.affected"),
         headerClass: "num",
         cellClass: "num",
         render: (rule) => {
@@ -230,28 +235,28 @@ export function RuleCatalogBody({
   return (
     <div class="stack">
       <div class="governance-readonly-banner">
-        <strong>Catalog-as-code.</strong>
-        <span>Every rule is a versioned artifact. This page renders active and collected entries; changes land through the catalog PR pipeline.</span>
+        <strong>{t("governance.rules.banner.title")}</strong>
+        <span>{t("governance.rules.banner.body")}</span>
       </div>
       <KpiGrid>
-        <KpiCard label="Total rules" value={data.total} />
-        <KpiCard label="Active catalog" value={active} hint="Curated - T0 evaluates these" />
-        <KpiCard label="Collected corpus" value={collected} hint="Imported upstream sources" />
-        <KpiCard label="Resource types" value={data.resource_type_count} />
+        <KpiCard label={t("governance.rules.kpi.total")} value={data.total} />
+        <KpiCard label={t("governance.rules.kpi.active")} value={active} hint={t("governance.rules.kpi.activeHint")} />
+        <KpiCard label={t("governance.rules.kpi.collected")} value={collected} hint={t("governance.rules.kpi.collectedHint")} />
+        <KpiCard label={t("governance.rules.kpi.resourceTypes")} value={data.resource_type_count} />
       </KpiGrid>
 
       <section class="stack-section">
         <div class="rule-facet-toolbar">
-          <FacetChips label="Origin" value={filters.origin} counts={data.facets.by_origin} onChange={(value) => onFilter({ origin: value })} />
-          <FacetChips label="Category" value={filters.category} counts={data.facets.by_category} onChange={(value) => onFilter({ category: value })} />
-          <FacetChips label="Severity" value={filters.severity} counts={data.facets.by_severity} onChange={(value) => onFilter({ severity: value })} />
-          <FacetChips label="Source" value={filters.source} counts={data.facets.by_source} onChange={(value) => onFilter({ source: value })} />
+          <FacetChips label={t("governance.rules.filter.origin")} value={filters.origin} counts={data.facets.by_origin} displayGroup="origin" onChange={(value) => onFilter({ origin: value })} />
+          <FacetChips label={t("governance.rules.filter.category")} value={filters.category} counts={data.facets.by_category} displayGroup="category" onChange={(value) => onFilter({ category: value })} />
+          <FacetChips label={t("governance.rules.filter.severity")} value={filters.severity} counts={data.facets.by_severity} displayGroup="severity" onChange={(value) => onFilter({ severity: value })} />
+          <FacetChips label={t("governance.rules.filter.source")} value={filters.source} counts={data.facets.by_source} onChange={(value) => onFilter({ source: value })} />
           <label class="rule-facet-search">
-            <span class="sr-only">Search id or resource</span>
+            <span class="sr-only">{t("governance.rules.filter.searchAria")}</span>
             <input
               type="search"
               value={searchInput}
-              placeholder="e.g. disk.unattached"
+              placeholder={t("governance.rules.filter.searchPlaceholder")}
               onInput={(event) => onSearch((event.target as HTMLInputElement).value)}
             />
           </label>
@@ -260,16 +265,21 @@ export function RuleCatalogBody({
         <div class="table-toolbar">
           <p class="muted">
             {data.filtered_total === 0
-              ? "No rules match the current filters."
-              : `Showing ${pageStart}-${pageEnd} of ${data.filtered_total} filtered (${data.total} total)`}
-            {loading ? <span class="muted"> - updating...</span> : null}
+              ? t("governance.rules.result.empty")
+              : t("governance.rules.result.showing", {
+                  start: pageStart,
+                  end: pageEnd,
+                  filtered: data.filtered_total,
+                  total: data.total,
+                })}
+            {loading ? <span class="muted">{t("governance.rules.result.updating")}</span> : null}
           </p>
           <div class="pager">
             <button type="button" class="btn" disabled={loading || !hasPrev} onClick={() => onPage(Math.max(0, data.offset - data.limit))}>
-              Prev
+              {t("governance.rules.result.previous")}
             </button>
             <button type="button" class="btn" disabled={loading || !hasNext} onClick={() => onPage(data.offset + data.limit)}>
-              Next
+              {t("governance.rules.result.next")}
             </button>
           </div>
         </div>
@@ -279,7 +289,7 @@ export function RuleCatalogBody({
             columns={columns}
             rows={data.rules}
             keyOf={(rule) => `${rule.origin}:${rule.id}`}
-            empty="No rules match the current filters."
+            empty={t("governance.rules.result.empty")}
             onRowClick={(rule) => onSelect({ id: rule.id, origin: rule.origin })}
             isRowActive={(rule) => selected !== null && selected.id === rule.id && selected.origin === rule.origin}
           />

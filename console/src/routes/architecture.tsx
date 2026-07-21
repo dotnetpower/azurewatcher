@@ -23,19 +23,19 @@ import {
 import { AsyncBoundary, PageHeader, type AsyncState } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
 import { navigate, replaceRouteState } from "../router";
+import { t } from "./i18n/architecture";
 
 interface Props { readonly client: ReadApiClient }
 
 const LAYER_LABELS: Readonly<Record<ArchitectureLayer, string>> = {
-  scope: "Scope",
-  network: "Network",
-  security: "Security",
-  runtime: "Runtime",
-  data: "Data",
-  messaging: "Messaging",
-  observability: "Observability",
+  scope: "layer.scope",
+  network: "layer.network",
+  security: "layer.security",
+  runtime: "layer.runtime",
+  data: "layer.data",
+  messaging: "layer.messaging",
+  observability: "layer.observability",
 };
 
 export function architectureResourceExists(
@@ -55,8 +55,8 @@ export function architectureViewExists(
 }
 
 export function architectureSourceLabel(source?: string): string {
-  if (!source) return "Source unavailable";
-  if (source === "azure-cli-local") return "Azure CLI inventory";
+  if (!source) return t("sourceUnavailable");
+  if (source === "azure-cli-local") return t("azureCliInventory");
   return source.replaceAll(/[._-]+/g, " ").replace(/^./, (character) => character.toUpperCase());
 }
 
@@ -118,7 +118,7 @@ export function ArchitectureRoute({ client }: Props) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : String(error);
         setState(isOptionalReadApiUnavailable(error)
-          ? { status: "unavailable", message: "The inventory graph is not wired on this deployment." }
+          ? { status: "unavailable", message: t("graphUnavailable") }
           : { status: "error", message });
       },
     );
@@ -151,9 +151,9 @@ export function ArchitectureRoute({ client }: Props) {
     <div class="stack architecture-route">
       <PageHeader
         title={t("route.architecture")}
-        subtitle="Deployed resources, containment boundaries, and runtime dependencies from the read-only inventory projection."
+        subtitle={t("subtitle")}
       />
-      <AsyncBoundary state={state} resourceLabel="inventory graph">
+      <AsyncBoundary state={state} resourceLabel={t("loadingLabel")}>
         {(data) => (
           <ArchitectureBody
             graph={data}
@@ -255,10 +255,14 @@ function ArchitectureBody({
   usePublishViewContext(
     () => ({
       routeId: "architecture",
-      routeLabel: "Architecture",
-      purpose: "The deployed resource inventory, scope containment, and runtime dependency graph. Read-only.",
+      routeLabel: t("route.architecture"),
+      purpose: t("contextPurpose"),
       glossary: composeGlossary([TERMS.blastRadius]),
-      headline: `${graph.resources.length} resources - ${graph.links.length} links - ${graph.freshness}`,
+      headline: t("contextHeadline", {
+        resources: graph.resources.length,
+        links: graph.links.length,
+        freshness: graph.freshness,
+      }),
       capturedAt: graph.snapshot_at,
       facts: [
         { key: "snapshot_freshness", value: graph.freshness, group: "inventory" },
@@ -288,16 +292,16 @@ function ArchitectureBody({
       <div class="state-block state-unavailable" role="alert">
         <span class="state-icon" aria-hidden="true">?</span>
         <div>
-          <strong>Architecture view unavailable</strong>
-          <p><code>{requestedView}</code> is not registered in this inventory projection.</p>
+          <strong>{t("viewUnavailable")}</strong>
+          <p>{t("viewNotRegistered", { view: requestedView })}</p>
           {(graph.views ?? []).length > 0 ? (
-            <nav class="analytics-links" aria-label="Available architecture views">
+            <nav class="analytics-links" aria-label={t("availableViews")}>
               {(graph.views ?? []).map((view) => (
                 <a key={view.id} href={architectureHref(undefined, view.id)}>{view.label}</a>
               ))}
             </nav>
           ) : (
-            <a href={architectureHref()}>Open default architecture</a>
+            <a href={architectureHref()}>{t("openDefault")}</a>
           )}
         </div>
       </div>
@@ -308,9 +312,9 @@ function ArchitectureBody({
       <div class="state-block state-unavailable" role="alert">
         <span class="state-icon" aria-hidden="true">?</span>
         <div>
-          <strong>Resource unavailable</strong>
-          <p><code>{selectedId}</code> is not present in this architecture view.</p>
-          <a href={architectureHref(undefined, graph.active_view)}>Open current architecture</a>
+          <strong>{t("resourceUnavailable")}</strong>
+          <p>{t("resourceNotPresent", { resource: selectedId })}</p>
+          <a href={architectureHref(undefined, graph.active_view)}>{t("openCurrent")}</a>
         </div>
       </div>
     );
@@ -319,7 +323,7 @@ function ArchitectureBody({
     <div class="architecture-workspace">
       <div class="architecture-toolbar">
         <label class="architecture-view-picker">
-          <span>Scope</span>
+          <span>{t("scope")}</span>
           <select
             value={graph.active_view ?? graph.views?.[0]?.id ?? ""}
             aria-describedby="architecture-view-description"
@@ -329,7 +333,7 @@ function ArchitectureBody({
               const views = (graph.views ?? []).filter((view) => view.kind === kind);
               if (views.length === 0) return null;
               return (
-                <optgroup label={kind === "fdai" ? "FDAI control planes" : kind === "service" ? "Services" : "Resource groups"}>
+                <optgroup label={t(kind === "fdai" ? "viewGroup.fdai" : kind === "service" ? "viewGroup.service" : "viewGroup.resourceGroup")}>
                   {views.map((view) => <option value={view.id}>{view.label}</option>)}
                 </optgroup>
               );
@@ -339,32 +343,32 @@ function ArchitectureBody({
             {graph.views?.find((view) => view.id === graph.active_view)?.description}
           </small>
         </label>
-        <div class="architecture-provenance" aria-label="Inventory provenance">
+        <div class="architecture-provenance" aria-label={t("inventoryProvenance")}>
           <div class={`inventory-freshness is-${graph.freshness}`}>
-            <span aria-hidden="true" />Snapshot {graph.freshness} <small>{formatAge(graph.snapshot_at, now)}</small>
+            <span aria-hidden="true" />{t("snapshot", { freshness: graph.freshness })} <small>{formatAge(graph.snapshot_at, now)}</small>
           </div>
           <dl>
-            <div><dt>Source</dt><dd>{architectureSourceLabel(graph.source)}</dd></div>
-            <div><dt>Pending changes</dt><dd>{graph.realtime?.pending_changes ?? 0}</dd></div>
+            <div><dt>{t("source")}</dt><dd>{architectureSourceLabel(graph.source)}</dd></div>
+            <div><dt>{t("pendingChanges")}</dt><dd>{graph.realtime?.pending_changes ?? 0}</dd></div>
           </dl>
           {(graph.realtime?.pending_changes ?? 0) > 0 ? (
-            <span class="architecture-pending-note">Inventory refresh in progress</span>
+            <span class="architecture-pending-note">{t("refreshInProgress")}</span>
           ) : null}
         </div>
       </div>
       {graph.truncated ? (
         <div class="architecture-partial-notice" role="status">
-          <strong>Partial inventory graph</strong>
-          <span>The server limited this snapshot. Counts and relationships describe only the returned records.</span>
+          <strong>{t("partialTitle")}</strong>
+          <span>{t("partialDescription")}</span>
         </div>
       ) : null}
-      <section class="architecture-summary" aria-label="Architecture summary">
-        <div><strong>{graph.resources.length}</strong><span>Resources</span></div>
-        <div><strong>{dependencyCount}</strong><span>Dependencies</span></div>
-        <div><strong>{boundaryCount}</strong><span>Boundaries</span></div>
-        <div><strong>{unavailableStatusCount}</strong><span>Status unavailable</span></div>
+      <section class="architecture-summary" aria-label={t("summary")}>
+        <div><strong>{graph.resources.length}</strong><span>{t("resources")}</span></div>
+        <div><strong>{dependencyCount}</strong><span>{t("dependencies")}</span></div>
+        <div><strong>{boundaryCount}</strong><span>{t("boundaries")}</span></div>
+        <div><strong>{unavailableStatusCount}</strong><span>{t("statusUnavailable")}</span></div>
       </section>
-      <div class="architecture-layer-bar" role="group" aria-label="Visible architecture layers">
+      <div class="architecture-layer-bar" role="group" aria-label={t("visibleLayers")}>
         {populatedLayers.map((layer) => (
           <button
             type="button"
@@ -372,18 +376,26 @@ function ArchitectureBody({
             aria-pressed={visibleLayers.has(layer)}
             onClick={() => onToggleLayer(layer)}
           >
-            <span>{LAYER_LABELS[layer]}</span>
+            <span>{t(LAYER_LABELS[layer])}</span>
             <small>{layerCounts.get(layer)}</small>
           </button>
         ))}
         <output class="architecture-filter-summary" aria-live="polite">
-          Showing {filtered.resources.length} of {graph.resources.length} resources and {filtered.links.length} of {graph.links.length} relationships
+          {t("filterSummary", {
+            visibleResources: filtered.resources.length,
+            totalResources: graph.resources.length,
+            visibleLinks: filtered.links.length,
+            totalLinks: graph.links.length,
+          })}
         </output>
       </div>
       <div class={`architecture-stage${selected ? " has-selection" : ""}`}>
         <div class="architecture-canvas-shell">
           <p id="architecture-map-description" class="sr-only">
-            Read-only map of {filtered.resources.length} visible resources and {filtered.links.length} reported relationships. Use the resource selector or the resource and relationship index for keyboard navigation.
+            {t("mapDescription", {
+              resources: filtered.resources.length,
+              links: filtered.links.length,
+            })}
           </p>
           <ArchitectureMap
             ref={mapRef}
@@ -395,16 +407,16 @@ function ArchitectureBody({
             onZoomChange={onZoomChange}
             descriptionId="architecture-map-description"
           />
-          <div class="architecture-zoom-controls" role="group" aria-label="Map zoom controls">
-            <button type="button" onClick={() => mapRef.current?.zoomIn()} aria-label="Zoom in">+</button>
-            <output aria-label="Zoom level" aria-live="polite">{zoomPercent}%</output>
-            <button type="button" onClick={() => mapRef.current?.zoomOut()} aria-label="Zoom out">-</button>
-            <button type="button" onClick={() => mapRef.current?.fit()} aria-label="Fit map">Fit</button>
+          <div class="architecture-zoom-controls" role="group" aria-label={t("zoomControls")}>
+            <button type="button" onClick={() => mapRef.current?.zoomIn()} aria-label={t("zoomIn")}>+</button>
+            <output aria-label={t("zoomLevel")} aria-live="polite">{zoomPercent}%</output>
+            <button type="button" onClick={() => mapRef.current?.zoomOut()} aria-label={t("zoomOut")}>-</button>
+            <button type="button" onClick={() => mapRef.current?.fit()} aria-label={t("fitMap")}>{t("fit")}</button>
           </div>
-          <div class="architecture-edge-legend" aria-label="Relationship legend">
-            <span><i class="is-dependency" aria-hidden="true" />Depends on</span>
-            <span><i class="is-attachment" aria-hidden="true" />Attached to</span>
-            <span><i class="is-boundary" aria-hidden="true" />Boundary</span>
+          <div class="architecture-edge-legend" aria-label={t("relationshipLegend")}>
+            <span><i class="is-dependency" aria-hidden="true" />{t("relationship.dependsOn")}</span>
+            <span><i class="is-attachment" aria-hidden="true" />{t("relationship.attachedTo")}</span>
+            <span><i class="is-boundary" aria-hidden="true" />{t("relationship.boundary")}</span>
           </div>
         </div>
         <ArchitectureInspector
@@ -424,7 +436,7 @@ function ArchitectureBody({
 
 export function formatAge(timestamp: string, now = Date.now()): string {
   const seconds = Math.max(0, Math.round((now - Date.parse(timestamp)) / 1000));
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
-  return `${Math.round(seconds / 3600)}h ago`;
+  if (seconds < 60) return t("age.seconds", { count: seconds });
+  if (seconds < 3600) return t("age.minutes", { count: Math.round(seconds / 60) });
+  return t("age.hours", { count: Math.round(seconds / 3600) });
 }

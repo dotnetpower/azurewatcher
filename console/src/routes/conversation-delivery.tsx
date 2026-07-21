@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import type { ReadApiClient } from "../api";
+import { isOptionalReadApiUnavailable, type ReadApiClient } from "../api";
 import {
   AsyncBoundary,
   KpiCard,
@@ -10,7 +10,7 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
+import { presentationLabel, t } from "./i18n/evidence";
 import {
   panelBoolean,
   panelNonEmptyString,
@@ -48,13 +48,13 @@ export function ConversationDeliveryRoute({ client }: { readonly client: ReadApi
       })
       .catch((error: unknown) => {
         if (!cancelled) setState({
-          status: "error",
+          status: isOptionalReadApiUnavailable(error) ? "unavailable" : "error",
           message: error instanceof Error ? error.message : String(error),
         });
       });
     return () => { cancelled = true; };
   }, [client]);
-  return <div class="stack"><PageHeader title={t("route.conversationDelivery")} subtitle={t("nav.panelSub.conversationDelivery")} /><AsyncBoundary state={state} resourceLabel="conversation delivery">{(data) => <DeliveryBody data={data} />}</AsyncBoundary></div>;
+  return <div class="stack"><PageHeader title={t("route.conversationDelivery")} subtitle={t("nav.panelSub.conversationDelivery")} /><AsyncBoundary state={state} resourceLabel={t("evidence.delivery.resource")}>{(data) => <DeliveryBody data={data} />}</AsyncBoundary></div>;
 }
 
 export function decodeConversationDelivery(value: unknown): ConversationDeliveryResponse {
@@ -104,10 +104,10 @@ function DeliveryBody({ data }: { readonly data: ConversationDeliveryResponse })
   usePublishViewContext(
     () => ({
       routeId: "conversation-delivery",
-      routeLabel: "Conversation delivery",
-      purpose: "Read-only reliability metrics for durable operator-channel replies.",
-      glossary: composeGlossary([], [{ term: "ambiguous delivery", plain: "a reply that may have reached the provider without a confirmed acknowledgement", tech: "OutboundDeliveryState.AMBIGUOUS" }]),
-      headline: `${data.delivery_count} deliveries; ${data.duplicate_risk_count} duplicate risks`,
+      routeLabel: t("route.conversationDelivery"),
+      purpose: t("evidence.delivery.viewPurpose"),
+      glossary: composeGlossary([], [{ term: t("evidence.delivery.glossaryTerm"), plain: t("evidence.delivery.glossaryPlain"), tech: "OutboundDeliveryState.AMBIGUOUS" }]),
+      headline: t("evidence.delivery.headline", { deliveries: data.delivery_count, risks: data.duplicate_risk_count }),
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "source", value: data.source, group: "provenance" },
@@ -127,5 +127,5 @@ function DeliveryBody({ data }: { readonly data: ConversationDeliveryResponse })
     [data],
   );
   const breakerEntries = Object.entries(data.breaker_states);
-  return <div class="stack"><div class="governance-readonly-banner"><strong>Delivery evidence only.</strong><span>Pause, resume, retry, and resend remain authenticated channel commands.</span></div><KpiGrid><KpiCard label="Deliveries" value={data.delivery_count.toLocaleString()} /><KpiCard label="p95 latency" value={data.delivery_latency_ms.p95 === null ? "Unavailable" : `${data.delivery_latency_ms.p95.toLocaleString()} ms`} /><KpiCard label="Duplicate risk" value={data.duplicate_risk_count.toLocaleString()} /><KpiCard label="Retries" value={data.retry_count.toLocaleString()} /><KpiCard label="Abandoned" value={data.abandonment_count.toLocaleString()} /><KpiCard label="Acknowledged" value={data.acknowledgement_count.toLocaleString()} /></KpiGrid><section class="stack"><h2>Delivery states</h2><div class="status-list">{Object.entries(data.states).map(([name, count]) => <div key={name}><StatusPill kind={name === "delivered" ? "success" : name === "ambiguous" || name === "abandoned" ? "warning" : "neutral"} label={name} /><strong>{count.toLocaleString()}</strong></div>)}</div></section><section class="stack"><h2>Adapter breakers</h2>{breakerEntries.length === 0 ? <p>No adapter breaker records.</p> : <div class="status-list">{breakerEntries.map(([name, count]) => <div key={name}><StatusPill kind={name === "closed" ? "success" : "warning"} label={name} /><strong>{count.toLocaleString()}</strong></div>)}</div>}</section></div>;
+  return <div class="stack"><div class="governance-readonly-banner"><strong>{t("evidence.delivery.bannerTitle")}</strong><span>{t("evidence.delivery.bannerBody")}</span></div><KpiGrid><KpiCard label={t("evidence.delivery.deliveries")} value={data.delivery_count.toLocaleString()} /><KpiCard label={t("evidence.delivery.p95Latency")} value={data.delivery_latency_ms.p95 === null ? t("evidence.common.unavailable") : `${data.delivery_latency_ms.p95.toLocaleString()} ms`} /><KpiCard label={t("evidence.delivery.duplicateRisk")} value={data.duplicate_risk_count.toLocaleString()} /><KpiCard label={t("evidence.delivery.retries")} value={data.retry_count.toLocaleString()} /><KpiCard label={t("evidence.delivery.abandoned")} value={data.abandonment_count.toLocaleString()} /><KpiCard label={t("evidence.delivery.acknowledged")} value={data.acknowledgement_count.toLocaleString()} /></KpiGrid><section class="stack"><h2>{t("evidence.delivery.states")}</h2><div class="status-list">{Object.entries(data.states).map(([name, count]) => <div key={name}><StatusPill kind={name === "delivered" ? "success" : name === "ambiguous" || name === "abandoned" ? "warning" : "neutral"} label={presentationLabel("status", name)} /><strong>{count.toLocaleString()}</strong></div>)}</div></section><section class="stack"><h2>{t("evidence.delivery.breakers")}</h2>{breakerEntries.length === 0 ? <p>{t("evidence.delivery.noBreakers")}</p> : <div class="status-list">{breakerEntries.map(([name, count]) => <div key={name}><StatusPill kind={name === "closed" ? "success" : "warning"} label={presentationLabel("status", name)} /><strong>{count.toLocaleString()}</strong></div>)}</div>}</section></div>;
 }

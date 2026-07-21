@@ -8,6 +8,7 @@ import { SUMMARY_WIDGET_TYPES, SummaryWidget } from "./process-view-widgets.summ
 import { CONTENT_WIDGET_TYPES, ContentWidget } from "./process-view-widgets.content";
 import { BLOCKED_REPORT_WIDGET_TYPES } from "./process-view-widget-contract";
 import { WORKFLOW_WIDGET_TYPES, WorkflowPresentationWidget } from "./process-view-widgets.workflow";
+import { formatDateTimeValue, formatNumber, statusLabel, t } from "./i18n/workflow";
 
 export const SUPPORTED_REPORT_WIDGET_TYPES = new Set([
   "query_value", "bar_chart", "timeseries", "top_list", "table",
@@ -25,9 +26,9 @@ export const MAX_WIDGET_RENDER_DEPTH = 8;
 
 export function ProcessWidget({ widget, depth = 0 }: { readonly widget: RenderedWidget; readonly depth?: number }) {
   if (depth > MAX_WIDGET_RENDER_DEPTH) {
-    return <ErrorState message={`${widget.title}: nested widget depth exceeds ${MAX_WIDGET_RENDER_DEPTH}`} />;
+    return <ErrorState message={t("workflow.process.depthExceeded", { title: widget.title, depth: MAX_WIDGET_RENDER_DEPTH })} />;
   }
-  if (widget.error) return <ErrorState message={`${widget.title}: ${widget.error}`} />;
+  if (widget.error) return <ErrorState message={t("workflow.process.widgetError", { title: widget.title, error: widget.error })} />;
   if (BLOCKED_REPORT_WIDGET_TYPES.has(widget.type)) {
     return <BlockedWidget widget={widget} />;
   }
@@ -86,7 +87,7 @@ function BarChartWidget({ widget }: { readonly widget: RenderedWidget }) {
           );
         })}
       </div>
-      {bars.length === 0 ? <p class="muted small">No data in this window.</p> : null}
+      {bars.length === 0 ? <p class="muted small">{t("workflow.process.noData")}</p> : null}
     </section>
   );
 }
@@ -102,15 +103,15 @@ function TimeseriesWidget({ widget }: { readonly widget: RenderedWidget }) {
           <div class="report-series" key={`${widget.id}-${index}`}>
             <span class="muted small">{displayValue(item["label"])}</span>
             {points.length > 0 ? (
-              <svg viewBox="0 0 320 96" role="img" aria-label={`${displayValue(item["label"])} trend`}>
+              <svg viewBox="0 0 320 96" role="img" aria-label={t("workflow.process.trendAria", { label: displayValue(item["label"]) })}>
                 <polyline points={sparkline(points, 320, 96)} fill="none" stroke="currentColor" stroke-width="2" />
               </svg>
-            ) : <p class="muted small">No points.</p>}
-            {points.length > 0 ? <details><summary>Data points</summary><div class="scroll"><table class="data-table"><caption class="sr-only">{displayValue(item["label"])} points</caption><thead><tr><th scope="col">Timestamp</th><th scope="col">Value</th></tr></thead><tbody>{points.map(([timestamp, value], pointIndex) => <tr key={`${timestamp}-${pointIndex}`}><td>{timestamp}</td><td>{value}</td></tr>)}</tbody></table></div></details> : null}
+            ) : <p class="muted small">{t("workflow.process.noPoints")}</p>}
+            {points.length > 0 ? <details><summary>{t("workflow.process.dataPoints")}</summary><div class="scroll"><table class="data-table"><caption class="sr-only">{t("workflow.process.pointsCaption", { label: displayValue(item["label"]) })}</caption><thead><tr><th scope="col">{t("workflow.process.timestamp")}</th><th scope="col">{t("workflow.process.value")}</th></tr></thead><tbody>{points.map(([timestamp, value], pointIndex) => <tr key={`${timestamp}-${pointIndex}`}><td>{formatDateTimeValue(timestamp)}</td><td>{formatNumber(value)}</td></tr>)}</tbody></table></div></details> : null}
           </div>
         );
       })}
-      {series.length === 0 ? <p class="muted small">No data in this window.</p> : null}
+      {series.length === 0 ? <p class="muted small">{t("workflow.process.noData")}</p> : null}
     </section>
   );
 }
@@ -154,7 +155,7 @@ function TabsWidget({ widget, depth }: { readonly widget: RenderedWidget; readon
         <div id={`${widget.id}-panel-${active}`} role="tabpanel" aria-labelledby={`${widget.id}-tab-${active}`}>
           <ProcessWidget widget={selected} depth={depth + 1} />
         </div>
-      ) : <p class="muted small">No tabs configured.</p>}
+      ) : <p class="muted small">{t("workflow.process.noTabs")}</p>}
     </section>
   );
 }
@@ -198,7 +199,7 @@ function CheckStatusWidget({ widget }: { readonly widget: RenderedWidget }) {
         {(["ok", "warn", "fail", "unknown"] as const).map((status) => (
           <KpiCard
             key={status}
-            label={status}
+            label={statusLabel(status)}
             value={displayValue(summary[status])}
             tone={status === "ok" ? "positive" : status === "fail" ? "danger" : status === "warn" ? "warning" : "default"}
           />
@@ -207,7 +208,7 @@ function CheckStatusWidget({ widget }: { readonly widget: RenderedWidget }) {
       <div class="process-check-list">
         {checks.map((check, index) => (
           <div class="process-check-row" key={`${displayValue(check["name"])}-${index}`}>
-            <StatusPill kind={pillForCheck(displayValue(check["status"]))} label={displayValue(check["status"])} />
+            <StatusPill kind={pillForCheck(displayValue(check["status"]))} label={statusLabel(displayValue(check["status"]))} />
             <strong>{displayValue(check["name"])}</strong>
             <span class="muted">{displayValue(check["message"])}</span>
           </div>
@@ -229,18 +230,18 @@ function TableWidget({ widget }: { readonly widget: RenderedWidget }) {
       <div class="scroll">
         <table class="data-table process-data-table">
           <caption class="sr-only">{widget.title}</caption>
-          <thead><tr>{widget.type === "top_list" ? <th scope="col">Rank</th> : null}{columns.map((column) => <th scope="col" key={column}>{column}</th>)}</tr></thead>
+          <thead><tr>{widget.type === "top_list" ? <th scope="col">{t("workflow.process.rank")}</th> : null}{columns.map((column) => <th scope="col" key={column}>{column}</th>)}</tr></thead>
           <tbody>
             {rows.map((row, index) => (
               <tr key={`${widget.id}-${index}`}>
-                {widget.type === "top_list" ? <th scope="row">{index + 1}</th> : null}
+                {widget.type === "top_list" ? <th scope="row">{formatNumber(index + 1)}</th> : null}
                 {columns.map((column) => <td key={column}>{displayValue(row[column])}</td>)}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {rows.length === 0 ? <p class="muted small">No rows.</p> : null}
+      {rows.length === 0 ? <p class="muted small">{t("workflow.process.noRows")}</p> : null}
     </section>
   );
 }
@@ -256,8 +257,8 @@ function StreamWidget({ widget }: { readonly widget: RenderedWidget }) {
             <span class="process-timeline-marker" />
             <div>
               <strong>{displayValue(item["kind"] ?? item["action_kind"])}</strong>
-              <p class="muted small">{displayValue(item["step_id"])} · {displayValue(item["at"])}</p>
-              {streamDetails(item).length > 0 ? <details><summary>Recorded fields</summary><dl class="process-fallback">{streamDetails(item).map(([key, value]) => <Fragment key={key}><dt>{key}</dt><dd>{displayValue(value)}</dd></Fragment>)}</dl></details> : null}
+              <p class="muted small">{displayValue(item["step_id"])} · {formatDateTimeValue(item["at"])}</p>
+              {streamDetails(item).length > 0 ? <details><summary>{t("workflow.process.recordedFields")}</summary><dl class="process-fallback">{streamDetails(item).map(([key, value]) => <Fragment key={key}><dt>{key}</dt><dd>{displayValue(value)}</dd></Fragment>)}</dl></details> : null}
             </div>
           </li>
         ))}
@@ -281,7 +282,7 @@ function TopologyWidget({ widget }: { readonly widget: RenderedWidget }) {
           </div>
         ))}
       </div>
-      <ul class="process-edge-list muted small" aria-label={`${widget.title} relationships`}>
+      <ul class="process-edge-list muted small" aria-label={t("workflow.process.relationshipsAria", { title: widget.title })}>
         {edges.map((edge, index) => (
           <li key={`${widget.id}-edge-${index}`}>
             {displayValue(edge["source"])} → {displayValue(edge["target"])} · {displayValue(edge["value"])}
@@ -296,7 +297,7 @@ function UnavailableWidget({ widget }: { readonly widget: RenderedWidget }) {
   return (
     <section class="process-widget-section state-unavailable" role="status">
       <h3>{widget.title}</h3>
-      <p class="muted">Widget type <code>{widget.type}</code> is not available in this console build.</p>
+      <p class="muted">{t("workflow.process.unavailableWidget", { type: widget.type })}</p>
     </section>
   );
 }
@@ -305,10 +306,7 @@ function BlockedWidget({ widget }: { readonly widget: RenderedWidget }) {
   return (
     <section class="process-widget-section state-unavailable" role="status">
       <h3>{widget.title}</h3>
-      <p>
-        Widget type <code>{widget.type}</code> is intentionally blocked on generated workflow
-        surfaces because it can load executable or independently navigable remote content.
-      </p>
+      <p>{t("workflow.process.blockedWidget", { type: widget.type })}</p>
     </section>
   );
 }

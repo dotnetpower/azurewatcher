@@ -13,7 +13,7 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
+import { displayValue, formatNumber, t } from "./i18n/governance";
 import {
   panelArray,
   panelBoolean,
@@ -117,7 +117,7 @@ export function SkillsRoute({ client }: { readonly client: ReadApiClient }) {
   return (
     <div class="stack skills-route">
       <PageHeader title={t("route.skills")} subtitle={t("nav.panelSub.skills")} />
-      <AsyncBoundary state={state} resourceLabel="runtime skills">
+      <AsyncBoundary state={state} resourceLabel={t("governance.skills.resourceLabel")}>
         {(data) => <SkillsBody data={data} />}
       </AsyncBoundary>
     </div>
@@ -135,24 +135,24 @@ export function decodeRuntimeSkills(value: unknown): RuntimeSkillsResponse {
   const installedBundleCount = panelNonNegativeInteger(root, "installed_bundle_count", "skills");
   const eligibleBundleCount = panelNonNegativeInteger(root, "eligible_bundle_count", "skills");
   if (installedCount !== skills.length) {
-    throw new Error("invalid read API response: skills.installed_count MUST match items");
+    throw new Error(t("governance.skills.error.installedCount"));
   }
   if (eligibleCount !== skills.filter((item) => item.eligible).length) {
-    throw new Error("invalid read API response: skills.eligible_count MUST match eligible items");
+    throw new Error(t("governance.skills.error.eligibleCount"));
   }
   const names = skills.map((item) => item.name);
   if (new Set(names).size !== names.length) {
-    throw new Error("invalid read API response: skill names MUST be unique");
+    throw new Error(t("governance.skills.error.uniqueNames"));
   }
   if (installedBundleCount !== bundles.length) {
-    throw new Error("invalid read API response: skills.installed_bundle_count MUST match bundles");
+    throw new Error(t("governance.skills.error.installedBundleCount"));
   }
   if (eligibleBundleCount !== bundles.filter((item) => item.eligible).length) {
-    throw new Error("invalid read API response: skills.eligible_bundle_count MUST match eligible bundles");
+    throw new Error(t("governance.skills.error.eligibleBundleCount"));
   }
   const bundleNames = bundles.map((item) => item.name);
   if (new Set(bundleNames).size !== bundleNames.length) {
-    throw new Error("invalid read API response: skill bundle names MUST be unique");
+    throw new Error(t("governance.skills.error.uniqueBundleNames"));
   }
   return {
     source: panelNonEmptyString(root, "source", "skills"),
@@ -239,7 +239,7 @@ function decodeDiagnostic(value: unknown, index: number): SkillDiagnostic {
   const item = panelRecord(value, label);
   const digests = panelRecord(item["digests"], `${label}.digests`);
   if (!Object.values(digests).every((digest) => typeof digest === "string")) {
-    throw new Error(`invalid read API response: ${label}.digests MUST contain strings`);
+    throw new Error(t("governance.skills.error.digestStrings", { label }));
   }
   return {
     operation: panelNonEmptyString(item, "operation", label),
@@ -254,68 +254,78 @@ function decodeDiagnostic(value: unknown, index: number): SkillDiagnostic {
 function nullableString(value: unknown, label: string): string | null {
   if (value === null) return null;
   if (typeof value !== "string") {
-    throw new Error(`invalid read API response: ${label} MUST be a string or null`);
+    throw new Error(t("governance.skills.error.nullableString", { label }));
   }
   return value;
 }
 
-const skillColumns: readonly Column<RuntimeSkillItem>[] = [
-  { key: "name", header: "Skill", render: (item) => <div><strong>{item.name}</strong><small>{item.description}</small></div> },
-  { key: "version", header: "Version", render: (item) => <code>{item.version}</code> },
-  { key: "source", header: "Publisher", render: (item) => item.source },
-  { key: "dependencies", header: "Required tools", render: (item) => item.required_tools.join(", ") || "None" },
-  { key: "agents", header: "Allowed agents", render: (item) => item.allowed_agents.join(", ") || "All" },
-  { key: "references", header: "References", render: (item) => item.references.length },
+function skillColumns(): readonly Column<RuntimeSkillItem>[] {
+  return [
+  { key: "name", header: t("governance.skills.column.skill"), render: (item) => <div><strong>{item.name}</strong><small>{item.description}</small></div> },
+  { key: "version", header: t("governance.common.version"), render: (item) => <code>{item.version}</code> },
+  { key: "source", header: t("governance.skills.column.publisher"), render: (item) => item.source },
+  { key: "dependencies", header: t("governance.skills.column.requiredTools"), render: (item) => item.required_tools.join(", ") || t("governance.common.none") },
+  { key: "agents", header: t("governance.skills.column.allowedAgents"), render: (item) => item.allowed_agents.join(", ") || t("governance.common.all") },
+  { key: "references", header: t("governance.skills.column.references"), render: (item) => item.references.length },
   {
     key: "eligibility",
-    header: "Load eligibility",
+    header: t("governance.skills.column.loadEligibility"),
     render: (item) => (
       <StatusPill
         kind={item.eligible ? "success" : item.enabled ? "warning" : "shadow"}
-        label={item.eligible ? "Eligible" : item.eligibility_reason}
+        label={item.eligible ? t("governance.common.eligible") : displayValue("eligibility", item.eligibility_reason)}
       />
     ),
   },
 ];
+}
 
-const diagnosticColumns: readonly Column<SkillDiagnostic>[] = [
-  { key: "operation", header: "Operation", render: (item) => item.operation },
-  { key: "skill", header: "Skill / reference", render: (item) => [item.name, item.reference].filter(Boolean).join(" / ") || "-" },
-  { key: "status", header: "Status", render: (item) => <StatusPill kind={item.status === "selected" ? "success" : "warning"} label={item.status} /> },
-  { key: "reason", header: "Reason", render: (item) => item.reason },
-  { key: "digests", header: "Verified digests", render: (item) => Object.keys(item.digests).length },
+function diagnosticColumns(): readonly Column<SkillDiagnostic>[] {
+  return [
+  { key: "operation", header: t("governance.skills.column.operation"), render: (item) => item.operation },
+  { key: "skill", header: t("governance.skills.column.skillReference"), render: (item) => [item.name, item.reference].filter(Boolean).join(" / ") || "-" },
+  { key: "status", header: t("governance.common.status"), render: (item) => <StatusPill kind={item.status === "selected" ? "success" : "warning"} label={displayValue("status", item.status)} /> },
+  { key: "reason", header: t("governance.skills.column.reason"), render: (item) => item.reason },
+  { key: "digests", header: t("governance.skills.column.verifiedDigests"), render: (item) => Object.keys(item.digests).length },
 ];
+}
 
-const bundleColumns: readonly Column<RuntimeSkillBundleItem>[] = [
-  { key: "name", header: "Bundle", render: (item) => <div><strong>{item.name}</strong><small>{item.description}</small></div> },
-  { key: "version", header: "Version", render: (item) => <code>{item.version}</code> },
-  { key: "members", header: "Ordered members", render: (item) => item.members.map((member) => `${member.name} ${member.version}`).join(", ") },
-  { key: "tools", header: "Required tools", render: (item) => item.required_tools.join(", ") || "None" },
-  { key: "trust", header: "Trust", render: (item) => item.trust_status },
+function bundleColumns(): readonly Column<RuntimeSkillBundleItem>[] {
+  return [
+  { key: "name", header: t("governance.skills.column.bundle"), render: (item) => <div><strong>{item.name}</strong><small>{item.description}</small></div> },
+  { key: "version", header: t("governance.common.version"), render: (item) => <code>{item.version}</code> },
+  { key: "members", header: t("governance.skills.column.orderedMembers"), render: (item) => item.members.map((member) => `${member.name} ${member.version}`).join(", ") },
+  { key: "tools", header: t("governance.skills.column.requiredTools"), render: (item) => item.required_tools.join(", ") || t("governance.common.none") },
+  { key: "trust", header: t("governance.skills.column.trust"), render: (item) => displayValue("trust", item.trust_status) },
   {
     key: "compatibility",
-    header: "Compatibility",
-    render: (item) => <StatusPill kind={item.compatible ? "success" : "warning"} label={item.compatible ? "Compatible" : "Blocked"} />,
+    header: t("governance.skills.column.compatibility"),
+    render: (item) => <StatusPill kind={item.compatible ? "success" : "warning"} label={displayValue("compatibility", item.compatible ? "compatible" : "blocked")} />,
   },
   {
     key: "eligibility",
-    header: "Load eligibility",
-    render: (item) => <StatusPill kind={item.eligible ? "success" : item.enabled ? "warning" : "shadow"} label={item.eligible ? "Eligible" : item.enabled ? "Blocked" : "Disabled"} />,
+    header: t("governance.skills.column.loadEligibility"),
+    render: (item) => <StatusPill kind={item.eligible ? "success" : item.enabled ? "warning" : "shadow"} label={item.eligible ? t("governance.common.eligible") : displayValue("status", item.enabled ? "blocked" : "disabled")} />,
   },
 ];
+}
 
 function SkillsBody({ data }: { readonly data: RuntimeSkillsResponse }) {
   usePublishViewContext(
     () => ({
       routeId: "skills",
-      routeLabel: "Skills",
-      purpose: "Read-only inspection of installed runtime skill metadata, dependencies, eligibility, and bounded load diagnostics.",
+      routeLabel: t("governance.skills.context.routeLabel"),
+      purpose: t("governance.skills.context.purpose"),
       glossary: composeGlossary([], [{
-        term: "runtime skill",
-        plain: "reviewed instructions for using tools that are already registered",
+        term: t("governance.skills.context.runtimeSkillTerm"),
+        plain: t("governance.skills.context.runtimeSkillPlain"),
         tech: "RuntimeSkill",
       }]),
-      headline: `${data.installed_count} skills and ${data.installed_bundle_count} bundles installed for ${data.agent}`,
+      headline: t("governance.skills.context.headline", {
+        skills: data.installed_count,
+        bundles: data.installed_bundle_count,
+        agent: data.agent,
+      }),
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "source", value: data.source, group: "provenance" },
@@ -337,27 +347,27 @@ function SkillsBody({ data }: { readonly data: RuntimeSkillsResponse }) {
   return (
     <div class="stack">
       <div class="governance-readonly-banner">
-        <strong>Inspection only.</strong>
-        <span>Loading rechecks trust and returns complete artifacts. This console cannot install, enable, approve, or execute a skill.</span>
+        <strong>{t("governance.skills.banner.title")}</strong>
+        <span>{t("governance.skills.banner.body")}</span>
       </div>
       <KpiGrid>
-        <KpiCard label="Installed" value={data.installed_count.toLocaleString()} />
-        <KpiCard label="Eligible" value={data.eligible_count.toLocaleString()} />
-        <KpiCard label="Bundles" value={data.installed_bundle_count.toLocaleString()} />
-        <KpiCard label="Eligible bundles" value={data.eligible_bundle_count.toLocaleString()} />
-        <KpiCard label="Diagnostics" value={data.diagnostics.length.toLocaleString()} />
+        <KpiCard label={t("governance.skills.kpi.installed")} value={formatNumber(data.installed_count)} />
+        <KpiCard label={t("governance.skills.kpi.eligible")} value={formatNumber(data.eligible_count)} />
+        <KpiCard label={t("governance.skills.kpi.bundles")} value={formatNumber(data.installed_bundle_count)} />
+        <KpiCard label={t("governance.skills.kpi.eligibleBundles")} value={formatNumber(data.eligible_bundle_count)} />
+        <KpiCard label={t("governance.skills.kpi.diagnostics")} value={formatNumber(data.diagnostics.length)} />
       </KpiGrid>
-      <section class="stack-section" aria-label="Installed skill index">
-        <header class="section-header"><div><h3>Installed index</h3><p>Metadata and dependency checks for {data.agent}</p></div></header>
-        <DataTable rows={data.skills} columns={skillColumns} keyOf={(item) => item.name} empty={<EmptyState title="No runtime skills installed" />} />
+      <section class="stack-section" aria-label={t("governance.skills.section.installedAria")}>
+        <header class="section-header"><div><h3>{t("governance.skills.section.installedTitle")}</h3><p>{t("governance.skills.section.installedDescription", { agent: data.agent })}</p></div></header>
+        <DataTable rows={data.skills} columns={skillColumns()} keyOf={(item) => item.name} empty={<EmptyState title={t("governance.skills.empty.skills")} />} />
       </section>
-      <section class="stack-section" aria-label="Governed skill bundle index">
-        <header class="section-header"><div><h3>Governed bundles</h3><p>Ordered reviewed skill sets with exact versions and effective compatibility</p></div></header>
-        <DataTable rows={data.bundles} columns={bundleColumns} keyOf={(item) => item.name} empty={<EmptyState title="No governed skill bundles installed" />} />
+      <section class="stack-section" aria-label={t("governance.skills.section.bundlesAria")}>
+        <header class="section-header"><div><h3>{t("governance.skills.section.bundlesTitle")}</h3><p>{t("governance.skills.section.bundlesDescription")}</p></div></header>
+        <DataTable rows={data.bundles} columns={bundleColumns()} keyOf={(item) => item.name} empty={<EmptyState title={t("governance.skills.empty.bundles")} />} />
       </section>
-      <section class="stack-section" aria-label="Skill load diagnostics">
-        <header class="section-header"><div><h3>Load diagnostics</h3><p>Bounded outcomes only. Skill bodies and reference content are never retained here.</p></div></header>
-        <DataTable rows={data.diagnostics} columns={diagnosticColumns} keyOf={(item, index) => `${index}:${item.operation}:${item.name ?? "none"}`} empty={<EmptyState title="No skill reads recorded" />} />
+      <section class="stack-section" aria-label={t("governance.skills.section.diagnosticsAria")}>
+        <header class="section-header"><div><h3>{t("governance.skills.section.diagnosticsTitle")}</h3><p>{t("governance.skills.section.diagnosticsDescription")}</p></div></header>
+        <DataTable rows={data.diagnostics} columns={diagnosticColumns()} keyOf={(item, index) => `${index}:${item.operation}:${item.name ?? "none"}`} empty={<EmptyState title={t("governance.skills.empty.diagnostics")} />} />
       </section>
     </div>
   );

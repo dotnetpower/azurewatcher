@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useState } from "preact/hooks";
+import { getLocale, t } from "../i18n";
 import type { PanelProps } from "../panels";
 
 interface FinOpsPayload {
@@ -60,30 +61,33 @@ export function ExampleFinOpsPanel({ client }: PanelProps) {
     };
   }, [client]);
 
-  if (state.status === "loading") return <div class="empty">Loading...</div>;
+  if (state.status === "loading") return <div class="empty">{t("shared.loading")}</div>;
   if (state.status === "error")
-    return <div class="empty error">Failed to load FinOps panel: {state.message}</div>;
+    return <div class="empty error">{t("finops.loadFailed", { message: state.message })}</div>;
 
   const { data } = state;
   return (
     <div class="stack">
       <section class="grid">
         <div class="card kpi">
-          <span class="label">Cost actions</span>
-          <span class="value">{data.total_actions}</span>
+          <span class="label">{t("finops.costActions")}</span>
+          <span class="value">{data.total_actions.toLocaleString(getLocale() === "ko" ? "ko-KR" : "en-US")}</span>
         </div>
         <div class="card kpi">
-          <span class="label">Est. monthly savings</span>
-          <span class="value">${data.estimated_monthly_savings.toFixed(2)}</span>
+          <span class="label">{t("finops.monthlySavings")}</span>
+          <span class="value">{new Intl.NumberFormat(getLocale() === "ko" ? "ko-KR" : "en-US", {
+            style: "currency",
+            currency: "USD",
+          }).format(data.estimated_monthly_savings)}</span>
         </div>
         <div class="card kpi">
-          <span class="label">Sampled events</span>
-          <span class="value">{data.sampled_events}</span>
+          <span class="label">{t("finops.sampledEvents")}</span>
+          <span class="value">{data.sampled_events.toLocaleString(getLocale() === "ko" ? "ko-KR" : "en-US")}</span>
         </div>
       </section>
 
       <section class="card">
-        <h2>Actions by kind</h2>
+        <h2>{t("finops.actionsByKind")}</h2>
         <table>
           <tbody>
             {Object.entries(data.by_kind).map(([kind, count]) => (

@@ -1,4 +1,5 @@
 import { observationSourceLabel } from "../hooks/observation-source";
+import { t } from "../i18n";
 import { formatConsoleTimestamp } from "../time-format";
 import { routeHref } from "../router";
 import {
@@ -16,27 +17,27 @@ interface Props {
 export function LiveActivityJournal({ events, selectedAgent }: Props) {
   const visible = events.slice(0, DISPLAY_LIMIT);
   const workCount = events.filter(isLiveWorkActivity).length;
-  const subject = selectedAgent ?? "the Pantheon";
+  const subject = selectedAgent ?? t("agentActivity.live.pantheon");
 
   return (
     <section class="aa-live-journal" aria-labelledby="aa-live-journal-title">
       <header>
         <div>
-          <span>THIS BROWSER SESSION</span>
-          <h3 id="aa-live-journal-title">Observed live activity</h3>
+          <span>{t("agentActivity.live.session")}</span>
+          <h3 id="aa-live-journal-title">{t("agentActivity.live.title")}</h3>
         </div>
-        <span>{events.length} frame{events.length === 1 ? "" : "s"} · {workCount} work event{workCount === 1 ? "" : "s"}</span>
+        <span>{t("agentActivity.live.counts", { frames: events.length, events: workCount })}</span>
       </header>
 
       {workCount === 0 ? (
         <p class="aa-live-waiting">
-          <strong>No work event observed yet</strong>
-          <span>{subject} is connected and waiting for an ingress event. Runtime heartbeats below prove connectivity but are not operational work.</span>
+          <strong>{t("agentActivity.live.noWork")}</strong>
+          <span>{t("agentActivity.live.waiting", { subject })}</span>
         </p>
       ) : null}
 
       {visible.length === 0 ? (
-        <p class="aa-live-empty">No runtime frame has arrived during this browser session.</p>
+        <p class="aa-live-empty">{t("agentActivity.live.noFrames")}</p>
       ) : (
         <ol class="aa-live-events">
           {visible.map((event, index) => (
@@ -56,21 +57,21 @@ export function LiveActivityJournal({ events, selectedAgent }: Props) {
                   <a href={routeHref("trace", { params: { correlation: event.correlationId } })}>
                     {event.correlationId}
                   </a>
-                ) : <span>No correlation</span>}
+                ) : <span>{t("agentActivity.live.noCorrelation")}</span>}
               </div>
             </li>
           ))}
         </ol>
       )}
       {events.length > DISPLAY_LIMIT ? (
-        <p class="aa-live-retention">Showing the newest {DISPLAY_LIMIT} of {events.length} in-memory frames.</p>
+        <p class="aa-live-retention">{t("agentActivity.live.retention", { count: DISPLAY_LIMIT, total: events.length })}</p>
       ) : null}
     </section>
   );
 }
 
 function eventKindLabel(event: LiveAgentActivityEvent): string {
-  if (event.kind === "incident.ticket") return "Incident";
-  if (event.kind === "conversation.turn") return "Handoff";
-  return event.state ?? "State";
+  if (event.kind === "incident.ticket") return t("agentActivity.live.incident");
+  if (event.kind === "conversation.turn") return t("agentActivity.live.handoff");
+  return event.state ? t(`agents.state.${event.state}`) : t("agentActivity.live.state");
 }

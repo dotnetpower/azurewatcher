@@ -1,0 +1,342 @@
+{
+  "common": {
+    "all": "All",
+    "blocked": "Blocked",
+    "clear": "Clear",
+    "clearFilter": "Clear filter",
+    "close": "Close",
+    "copyId": "Copy id",
+    "copyLink": "Copy link",
+    "eligible": "Eligible",
+    "none": "None",
+    "notEvaluated": "not evaluated",
+    "parentheticalAll": "(all)",
+    "parentheticalNone": "(none)",
+    "ready": "Ready",
+    "status": "Status",
+    "version": "Version"
+  },
+  "skills": {
+    "resourceLabel": "runtime skills",
+    "column": {
+      "skill": "Skill",
+      "publisher": "Publisher",
+      "requiredTools": "Required tools",
+      "allowedAgents": "Allowed agents",
+      "references": "References",
+      "loadEligibility": "Load eligibility",
+      "operation": "Operation",
+      "skillReference": "Skill / reference",
+      "reason": "Reason",
+      "verifiedDigests": "Verified digests",
+      "bundle": "Bundle",
+      "orderedMembers": "Ordered members",
+      "trust": "Trust",
+      "compatibility": "Compatibility"
+    },
+    "context": {
+      "routeLabel": "Skills",
+      "purpose": "Read-only inspection of installed runtime skill metadata, dependencies, eligibility, and bounded load diagnostics.",
+      "runtimeSkillTerm": "runtime skill",
+      "runtimeSkillPlain": "reviewed instructions for using tools that are already registered",
+      "headline": "{skills} skills and {bundles} bundles installed for {agent}"
+    },
+    "banner": {
+      "title": "Inspection only.",
+      "body": "Loading rechecks trust and returns complete artifacts. This console cannot install, enable, approve, or execute a skill."
+    },
+    "kpi": {
+      "installed": "Installed",
+      "eligible": "Eligible",
+      "bundles": "Bundles",
+      "eligibleBundles": "Eligible bundles",
+      "diagnostics": "Diagnostics"
+    },
+    "section": {
+      "installedAria": "Installed skill index",
+      "installedTitle": "Installed index",
+      "installedDescription": "Metadata and dependency checks for {agent}",
+      "bundlesAria": "Governed skill bundle index",
+      "bundlesTitle": "Governed bundles",
+      "bundlesDescription": "Ordered reviewed skill sets with exact versions and effective compatibility",
+      "diagnosticsAria": "Skill load diagnostics",
+      "diagnosticsTitle": "Load diagnostics",
+      "diagnosticsDescription": "Bounded outcomes only. Skill bodies and reference content are never retained here."
+    },
+    "empty": {
+      "skills": "No runtime skills installed",
+      "bundles": "No governed skill bundles installed",
+      "diagnostics": "No skill reads recorded"
+    },
+    "error": {
+      "installedCount": "invalid read API response: skills.installed_count MUST match items",
+      "eligibleCount": "invalid read API response: skills.eligible_count MUST match eligible items",
+      "uniqueNames": "invalid read API response: skill names MUST be unique",
+      "installedBundleCount": "invalid read API response: skills.installed_bundle_count MUST match bundles",
+      "eligibleBundleCount": "invalid read API response: skills.eligible_bundle_count MUST match eligible bundles",
+      "uniqueBundleNames": "invalid read API response: skill bundle names MUST be unique",
+      "digestStrings": "invalid read API response: {label}.digests MUST contain strings",
+      "nullableString": "invalid read API response: {label} MUST be a string or null"
+    }
+  },
+  "capabilities": {
+    "resourceLabel": "capabilities",
+    "column": {
+      "id": "Capability id",
+      "name": "Name",
+      "category": "Category",
+      "sideEffectClass": "Side-effect class",
+      "defaultMode": "Default mode",
+      "requiredRole": "Required role",
+      "summary": "Summary"
+    },
+    "context": {
+      "routeLabel": "Capabilities",
+      "purpose": "Directory of declared operator capability contracts, required roles, side-effect classes, and default safety modes. Catalog presence does not grant execution eligibility.",
+      "headline": "{count} declarations across {categories} categories; {mutating} declare a mutating side-effect class"
+    },
+    "banner": {
+      "title": "Catalog declarations only.",
+      "body": "Source: {source}. Entries describe governed contracts; they do not prove provider binding, runtime health, or execution eligibility."
+    },
+    "kpi": {
+      "declarations": "Declarations",
+      "categories": "Categories",
+      "mutating": "Mutating declarations",
+      "shown": "Shown"
+    },
+    "filter": {
+      "aria": "Capability filters",
+      "searchAria": "Filter capabilities",
+      "searchPlaceholder": "Filter capability id, name, tag, or summary",
+      "category": "Category",
+      "sideEffect": "Side effect",
+      "role": "Role"
+    },
+    "empty": "No capabilities match these filters",
+    "openRow": "Open {name}",
+    "unregistered": "Capability {id} is not registered.",
+    "detail": {
+      "category": "Category",
+      "sideEffect": "Side effect",
+      "defaultMode": "Default mode",
+      "requiredRole": "Required role",
+      "tags": "Tags",
+      "openRelated": "Open related surface"
+    },
+    "error": {
+      "count": "invalid read API response: capabilities.count MUST match items",
+      "uniqueIds": "invalid read API response: capability ids MUST be unique"
+    }
+  },
+  "promotion": {
+    "unavailable": "Promotion-gate dashboard route is not wired on this deployment. Set ReadApiConfig.promotion_gate_source in the composition root to enable it.",
+    "subtitle": "Per-ActionType readiness against each shipped promotion_gate. Actions promote from shadow to enforce only when every gap is closed.",
+    "resourceLabel": "promotion gates",
+    "context": {
+      "routeLabel": "Promotion gates",
+      "purpose": "Which ActionTypes running in shadow mode have met their promotion gate (measured accuracy with zero policy escapes) and are ready to enforce, and which are still blocked and why. Read-only: promotion itself is a separately reviewed change.",
+      "headline": "{ready} ready - {blocked} blocked{window}",
+      "window": " (window {days}d)"
+    },
+    "column": {
+      "actionType": "ActionType",
+      "shadowDays": "Shadow days",
+      "samples": "Samples",
+      "reviewedAgreed": "Reviewed / agreed",
+      "accuracy": "Accuracy",
+      "policyEscapes": "Policy escapes",
+      "gaps": "Gaps",
+      "gate": "Gate"
+    },
+    "gate": {
+      "green": "gate green",
+      "promote": "promote via reviewed PR",
+      "addressGaps": "address recorded gaps"
+    },
+    "banner": {
+      "title": "Shadow before enforce.",
+      "body": "Promotion is a separately reviewed catalog PR. This screen only renders measured readiness."
+    },
+    "kpi": {
+      "inShadow": "In shadow",
+      "inShadowHint": "ActionTypes measured in this window",
+      "ready": "Ready for promotion",
+      "readyHint": "every gate cleared",
+      "blockedHint": "still in shadow",
+      "window": "Measurement window",
+      "windowValue": "{days}d"
+    },
+    "filter": {
+      "aria": "Promotion gate filters",
+      "searchAria": "Search promotion gates",
+      "searchPlaceholder": "ActionType or recorded gap",
+      "activeAria": "active promotion filters",
+      "reason": "reason",
+      "policyEscape": "policy escape",
+      "invalid": "Promotion reason {reason} is not registered."
+    },
+    "section": "ActionTypes ({count})",
+    "empty": "No ActionTypes declared a promotion gate."
+    ,
+    "error": {
+      "windowDays": "invalid read API response: promotion gates.window_days MUST be a non-negative number or null",
+      "agreedCount": "invalid read API response: promotion gate row.agreed_count MUST NOT exceed reviewed_count",
+      "summaryCounts": "invalid read API response: promotion gate summary counts MUST match rows"
+    }
+  },
+  "rules": {
+    "lifecycleInvalid": "The requested rule lifecycle status is not registered.",
+    "lifecycleUnavailable": "Rule {status} lifecycle evidence is not exposed by this deployment.",
+    "routeUnavailable": "The rule-catalog route is not wired on this deployment. Set ReadApiConfig.rule_catalog_rules / rule_catalog_collected_rules in the composition root to enable it.",
+    "subtitle": "Every policy the system knows: the active catalog T0 evaluates plus the imported collected corpus. Read-only - rule changes flow through the catalog pipeline as PRs.",
+    "loadFailed": "Failed to load rule catalog: {message}",
+    "refreshFailed": "Failed to refresh rule catalog: {message}",
+    "loading": "Loading rule catalog...",
+    "context": {
+      "routeLabel": "Rules",
+      "purpose": "The versioned rule catalog the deterministic engine (T0) evaluates - each rule normalized to id/severity/category/resource-type/check/remediation with provenance. Filter by origin, category, severity, or source. Read-only reference.",
+      "selectedHeadline": "Rule {id} selected - {total} rules ({active} active, {collected} collected)",
+      "headline": "{total} rules ({active} active, {collected} collected)"
+    },
+    "column": {
+      "rule": "Rule",
+      "provenance": "provenance",
+      "origin": "Origin",
+      "severity": "Severity",
+      "category": "Category",
+      "resource": "Resource",
+      "source": "Source",
+      "affected": "Affected"
+    },
+    "banner": {
+      "title": "Catalog-as-code.",
+      "body": "Every rule is a versioned artifact. This page renders active and collected entries; changes land through the catalog PR pipeline."
+    },
+    "kpi": {
+      "total": "Total rules",
+      "active": "Active catalog",
+      "activeHint": "Curated - T0 evaluates these",
+      "collected": "Collected corpus",
+      "collectedHint": "Imported upstream sources",
+      "resourceTypes": "Resource types"
+    },
+    "filter": {
+      "origin": "Origin",
+      "category": "Category",
+      "severity": "Severity",
+      "source": "Source",
+      "searchAria": "Search id or resource",
+      "searchPlaceholder": "e.g. disk.unattached"
+    },
+    "result": {
+      "empty": "No rules match the current filters.",
+      "showing": "Showing {start}-{end} of {filtered} filtered ({total} total)",
+      "updating": " - updating...",
+      "previous": "Prev",
+      "next": "Next"
+    },
+    "detail": {
+      "aria": "Rule detail",
+      "title": "Rule detail",
+      "loading": "Loading rule detail...",
+      "historicalUnavailable": "Historical rule citation unavailable",
+      "historicalBody": "{id} is not in the current rule catalog. It may have been retired, renamed, or excluded from this deployment.",
+      "searchCurrent": "Search current catalog",
+      "loadFailed": "Failed to load rule detail: {message}",
+      "source": "Source",
+      "resourceType": "Resource type",
+      "remediates": "Remediates",
+      "alternatives": "Alternatives",
+      "costImpact": "Cost impact / mo",
+      "checkLogic": "Check logic",
+      "noCheckBody": "No inline body - this check is an external reference ({kind}).",
+      "fix": "Fix",
+      "noFixBody": "No inline remediation template body available.",
+      "parameters": "Parameters",
+      "provenance": "Provenance",
+      "sourceUrl": "Source URL",
+      "license": "License",
+      "redistribution": "Redistribution",
+      "contentHash": "Content hash",
+      "resolvedRef": "Resolved ref",
+      "retrievedAt": "Retrieved at",
+      "severityFallback": "Severity: {severity}",
+      "noDescription": "No authored description for this rule. See the check logic and remediation below for what it enforces and how to fix it.",
+      "affected": "Affected resources",
+      "affectedCount": "Affected resources ({count})",
+      "evaluatingAffected": "Evaluating affected resources...",
+      "affectedFailed": "Failed to load affected resources: {message}",
+      "inventoryUnavailable": "No inventory evaluation is wired on this deployment. When this rule runs against your inventory, each affected resource and the exact attribute at fault (the deny reason) appears here.",
+      "noViolations": "No resources currently violate this rule.",
+      "viewArchitecture": "View on architecture"
+    },
+    "severityRisk": {
+      "critical": "Critical - a violation is an immediate, high-impact exposure.",
+      "high": "High - a violation is a serious risk that should be fixed promptly.",
+      "medium": "Medium - a violation weakens posture and should be scheduled.",
+      "low": "Low - a violation is a minor or best-practice gap."
+    }
+  },
+  "display": {
+    "status": {
+      "selected": "Selected",
+      "ready": "Ready",
+      "blocked": "Blocked",
+      "disabled": "Disabled"
+    },
+    "compatibility": {
+      "compatible": "Compatible",
+      "blocked": "Blocked"
+    },
+    "origin": {
+      "active": "Active",
+      "collected": "Collected"
+    },
+    "severity": {
+      "critical": "Critical",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "category": {
+      "cost": "Cost",
+      "incident": "Incident",
+      "investigation": "Investigation",
+      "knowledge": "Knowledge",
+      "reporting": "Reporting",
+      "resilience": "Resilience",
+      "change-safety": "Change safety",
+      "security": "Security",
+      "governance": "Governance",
+      "operations": "Operations"
+    },
+    "sideEffect": {
+      "read": "Read",
+      "simulate": "Simulate",
+      "approve": "Approve",
+      "execute": "Execute",
+      "breakglass": "Break glass"
+    },
+    "mode": {
+      "shadow": "Shadow",
+      "enforce": "Enforce"
+    },
+    "role": {
+      "reader": "Reader",
+      "contributor": "Contributor",
+      "approver": "Approver",
+      "owner": "Owner",
+      "Reader": "Reader",
+      "Contributor": "Contributor",
+      "Approver": "Approver",
+      "Owner": "Owner"
+    },
+    "trust": {
+      "rechecked_on_load": "Rechecked on load"
+    },
+    "eligibility": {
+      "eligible_pending_trust_recheck": "Pending trust recheck"
+    }
+  }
+}

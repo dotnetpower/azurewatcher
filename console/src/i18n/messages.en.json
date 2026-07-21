@@ -144,7 +144,7 @@
       "pantheon": "15 named autonomous agents (Pantheon)",
       "handover": "Who owns each of the 15 agents: stewards + maintainers",
       "blastRadius": "Simulate reachable subgraph before a change",
-      "promotionGates": "Per-ActionType readiness for shadow → enforce",
+      "promotionGates": "Per-ActionType readiness to move from observation to enforcement (shadow → enforce)",
       "contextSelectionComparisons": "Baseline and shadow context-selection evidence",
       "browserEvidence": "Immutable redacted evidence from allowlisted browser captures",
       "dashboard": "Healthy, risk, and cost, sourced from the audit log",
@@ -174,7 +174,7 @@
       "settingsIntegrations": "Identity, delivery, and operator-channel connections",
       "settingsDiagnostics": "Read-only runtime and authentication diagnostics",
       "incidents": "Incident status, disposition, and remediation history",
-      "rca": "Root cause: grounded hypothesis, citations, and response plan",
+      "rca": "Root cause: evidence-backed hypothesis, citations, and response plan",
       "scope": "Effective monitoring and automated-action scope by subscription and RG",
       "labs": "Development-only design and UI tools"
     }
@@ -292,10 +292,19 @@
     "subtitle": "Authorized prior turns with source and lineage",
     "query": "Query",
     "mode": "Match",
-    "modes": { "terms": "All terms", "phrase": "Exact phrase", "prefix": "Word prefix" },
+    "modes": {
+      "terms": "All terms",
+      "phrase": "Exact phrase",
+      "prefix": "Word prefix"
+    },
     "channel": "Channel",
     "role": "Role",
-    "roles": { "operator": "Operator", "assistant": "Assistant", "tool": "Tool", "system": "System" },
+    "roles": {
+      "operator": "Operator",
+      "assistant": "Assistant",
+      "tool": "Tool",
+      "system": "System"
+    },
     "session": "Session",
     "incident": "Incident",
     "after": "After",
@@ -407,14 +416,29 @@
     "notServed": "The effective-scope view is not served by this deployment.",
     "viewPurpose": "Effective monitoring scope (what FDAI observes) and automated-action scope (what an autonomous action may touch) by subscription and resource group, plus the hard RG-scoped executor identity boundary. Read-only; scope changes ship as policy-as-code PRs.",
     "viewHeadline": "{monitoring} monitoring, {action} action scope entries",
-    "axis": {"monitoring": "Monitoring scope", "action": "Automated-action scope"},
+    "axis": {
+      "monitoring": "Monitoring scope",
+      "action": "Automated-action scope"
+    },
     "axisHint": {
       "monitoring": "Which subscriptions and resource groups FDAI observes.",
       "action": "Which subscriptions and resource groups an autonomous (non-approval) action may touch."
     },
-    "column": {"state": "State", "level": "Level", "subscription": "Subscription", "resourceGroup": "Resource group", "axis": "Axis"},
-    "state": {"included": "Included", "excluded": "Excluded"},
-    "level": {"subscription": "Subscription", "resource_group": "Resource group"},
+    "column": {
+      "state": "State",
+      "level": "Level",
+      "subscription": "Subscription",
+      "resourceGroup": "Resource group",
+      "axis": "Axis"
+    },
+    "state": {
+      "included": "Included",
+      "excluded": "Excluded"
+    },
+    "level": {
+      "subscription": "Subscription",
+      "resource_group": "Resource group"
+    },
     "allRgs": "All resource groups",
     "emptyAxis": "No scope entries for this axis.",
     "executor": "Executor identity boundary",
@@ -438,12 +462,48 @@
   },
   "incidents": {
     "subtitle": "Incident-centric status and remediation history from the append-only audit log. Read-only; actions and approvals stay in Git and ChatOps.",
-    "filter": {"active": "Active", "resolved": "Resolved", "all": "All"},
-    "column": {"title": "Incident", "severity": "Severity", "status": "Status", "disposition": "Disposition", "vertical": "Vertical", "updated": "Updated"},
-    "status": {"open": "Open", "in_progress": "In progress", "resolved": "Resolved"},
-    "disposition": {"pending": "Pending", "awaiting_hil": "Awaiting approval", "action_delivered": "Action delivered", "no_action": "No action", "failed": "Failed", "rolled_back": "Rolled back", "resolved": "Resolved", "unknown": "Unknown"},
-    "severity": {"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low", "info": "Info", "unknown": "Unknown"},
-    "vertical": {"resilience": "Resilience", "change_safety": "Change Safety", "cost_governance": "Cost Governance", "unknown": "Unknown"},
+    "filter": {
+      "active": "Active",
+      "resolved": "Resolved",
+      "all": "All"
+    },
+    "column": {
+      "title": "Incident",
+      "severity": "Severity",
+      "status": "Status",
+      "disposition": "Disposition",
+      "vertical": "Vertical",
+      "updated": "Updated"
+    },
+    "status": {
+      "open": "Open",
+      "in_progress": "In progress",
+      "resolved": "Resolved"
+    },
+    "disposition": {
+      "pending": "Pending",
+      "awaiting_hil": "Awaiting approval",
+      "action_delivered": "Action delivered",
+      "no_action": "No action",
+      "failed": "Failed",
+      "rolled_back": "Rolled back",
+      "resolved": "Resolved",
+      "unknown": "Unknown"
+    },
+    "severity": {
+      "critical": "Critical",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "info": "Info",
+      "unknown": "Unknown"
+    },
+    "vertical": {
+      "resilience": "Resilience",
+      "change_safety": "Change Safety",
+      "cost_governance": "Cost Governance",
+      "unknown": "Unknown"
+    },
     "empty": "No incidents match this filter.",
     "detail": "Incident detail",
     "select": "Select an incident to inspect its remediation history.",
@@ -923,9 +983,32 @@
   },
   "deck": {
     "answerPlan": {
-      "intent": {"definition": "Definition", "why": "Why", "procedure": "Procedure", "comparison": "Comparison", "diagnosis": "Diagnosis", "status": "Status", "list": "List", "summary": "Summary", "proposal": "Proposal", "open_question": "Open question", "greeting": "Greeting"},
-      "detail": {"brief": "Brief", "standard": "Standard", "deep": "Deep"},
-      "format": {"prose": "Prose", "bullets": "Bullets", "numbered_steps": "Numbered steps", "table": "Table", "checklist": "Checklist", "mixed": "Mixed"},
+      "intent": {
+        "definition": "Definition",
+        "why": "Why",
+        "procedure": "Procedure",
+        "comparison": "Comparison",
+        "diagnosis": "Diagnosis",
+        "status": "Status",
+        "list": "List",
+        "summary": "Summary",
+        "proposal": "Proposal",
+        "open_question": "Open question",
+        "greeting": "Greeting"
+      },
+      "detail": {
+        "brief": "Brief",
+        "standard": "Standard",
+        "deep": "Deep"
+      },
+      "format": {
+        "prose": "Prose",
+        "bullets": "Bullets",
+        "numbered_steps": "Numbered steps",
+        "table": "Table",
+        "checklist": "Checklist",
+        "mixed": "Mixed"
+      },
       "preferenceApplied": "Saved preference"
     },
     "answerPlanning": {
@@ -1228,5 +1311,456 @@
     "openTrace": "Open trace",
     "openAudit": "Open audit",
     "openRca": "Open RCA"
+  },
+  "agentActivity": {
+    "toolbar": {
+      "label": "Agent activity filters",
+      "engaged": "{count} engaged",
+      "refreshing": "Refreshing audit...",
+      "lastSignal": "Last signal {time}",
+      "waiting": "Waiting for signal",
+      "window": "Window",
+      "layer": "Layer",
+      "verb": "Verb",
+      "searchLabel": "Search agent activity",
+      "searchPlaceholder": "event, resource, correlation, or summary",
+      "filterLabel": "{label} filter"
+    },
+    "filter": {
+      "15m": "15m",
+      "1h": "1h",
+      "24h": "24h",
+      "7d": "7d",
+      "all": "All",
+      "governance": "Governance",
+      "pipeline": "Pipeline",
+      "domain": "Domain",
+      "execute": "Execute",
+      "approve": "Approve",
+      "reject": "Reject",
+      "rollback": "Rollback",
+      "abstain": "Abstain",
+      "audit": "Audit"
+    },
+    "waterfall": {
+      "emptyTitle": "No matching correlation groups",
+      "emptyBody": "No correlated activity for this agent yet. Clear the filter to see the full waterfall.",
+      "label": "Agent activity waterfall",
+      "expand": "Expand correlation group",
+      "collapse": "Collapse correlation group",
+      "selectTitle": "Select a step",
+      "selectBody": "Pick any agent step on the left to see its full lifecycle - when the event was sent and received, how long it queued and worked, what it consumed and produced, and the recorded decision."
+    },
+    "detail": {
+      "label": "Step detail",
+      "close": "Close detail",
+      "lifecycle": "Lifecycle",
+      "worked": "Worked",
+      "queued": "queued",
+      "whatItDid": "What it did",
+      "agentConversation": "Agent conversation",
+      "inputs": "Inputs",
+      "outputs": "Outputs",
+      "record": "Record",
+      "otherFields": "Other recorded fields",
+      "evidenceSource": "Evidence source",
+      "localSample": "Local sample",
+      "operationalAudit": "Operational audit",
+      "tier": "Tier",
+      "mode": "Mode",
+      "outcome": "Outcome",
+      "decision": "Decision",
+      "pipelineStage": "Pipeline stage",
+      "reason": "Reason",
+      "correlation": "Correlation",
+      "sequence": "Seq",
+      "eventId": "Event id",
+      "entryHash": "Entry hash",
+      "previousHash": "Prev hash"
+    },
+    "live": {
+      "pantheon": "the Pantheon",
+      "session": "THIS BROWSER SESSION",
+      "title": "Observed live activity",
+      "counts": "{frames} frame(s) - {events} work event(s)",
+      "noWork": "No work event observed yet",
+      "waiting": "{subject} is connected and waiting for an ingress event. Runtime heartbeats below prove connectivity but are not operational work.",
+      "noFrames": "No runtime frame has arrived during this browser session.",
+      "noCorrelation": "No correlation",
+      "retention": "Showing the newest {count} of {total} in-memory frames.",
+      "incident": "Incident",
+      "handoff": "Handoff",
+      "state": "State"
+    },
+    "main": {
+      "auditUnavailable": "Durable audit unavailable",
+      "runtimeStillConnected": "Live runtime activity remains connected below.",
+      "sampleTitle": "Local sample audit data",
+      "sampleBody": "{count} visible row(s) are synthetic UI evidence. They remain available in Audit and Trace, but do not represent live observation and do not create Incident roster entries.",
+      "unknownAgent": "Agent {agent} is not in the fixed pantheon or the loaded audit activity.",
+      "latestRows": "Showing the latest {count} audit rows; older activity is available in the Audit log.",
+      "agentFilterLabel": "Filter by agent",
+      "viewLabel": "Activity view",
+      "waterfall": "Waterfall",
+      "noSelectedAudit": "No recorded audit activity for {agent}",
+      "noAudit": "No durable agent audit activity yet",
+      "noMatches": "No activity matches these filters",
+      "noAuditBody": "Live runtime state remains available for a selected agent. Audit events appear here only after the control loop records them.",
+      "noMatchesBody": "Widen the window or clear the layer, verb, agent, and search filters.",
+      "liveActivityLabel": "{agent} live activity",
+      "liveEvidence": "Live runtime evidence",
+      "runtimeUnobserved": "Runtime not observed",
+      "stream": "Stream",
+      "activeCorrelation": "Active correlation",
+      "liveIncidents": "Live incidents",
+      "operationalAudit": "Operational audit",
+      "localSamples": "Local samples",
+      "evidenceLinks": "{agent} evidence links",
+      "openDetail": "Open live detail",
+      "recentIncidents": "Recent live incidents",
+      "noSelectionEvidence": "No live runtime node or attributed audit row is available for this selection.",
+      "liveState": "{agent} is {state} from {source} live runtime evidence.",
+      "noRuntimeFrame": "No runtime state frame has been observed for {agent}.",
+      "noActiveCorrelation": "There is no active correlation or incident.",
+      "noCorrelationAudit": "Correlation {correlation} has no attributed audit row in the current window.",
+      "noDurableAudit": "No durable audit row has been attributed to this agent in the current window."
+    }
+  },
+  "agents": {
+    "workspace": {
+      "label": "Agent workspace",
+      "roster": "Roster",
+      "organization": "Organization",
+      "activity": "Activity",
+      "handover": "Handover"
+    },
+    "common": {
+      "none": "None",
+      "staff": "staff",
+      "incident": "incident",
+      "unknown": "unknown",
+      "noSignalYet": "No signal yet",
+      "notConfigured": "Not configured",
+      "notEngaged": "Not engaged on any incident."
+    },
+    "header": {
+      "eyebrow": "Read-only live status",
+      "title": "Agent fleet",
+      "descriptionLead": "Live work across the fixed 15-agent pantheon. Inspect current tasks, open each agent's evidence timeline, or ask about its grounded context. State combines the durable",
+      "descriptionMiddle": " snapshot with live deltas from",
+      "descriptionTail": ".",
+      "engaged": "{count} engaged"
+    },
+    "layout": {
+      "label": "Layout mode",
+      "roster": "Roster",
+      "constellation": "Constellation",
+      "organization": "Org chart",
+      "pantheonLabel": "Agent pantheon",
+      "staffToOdin": "Staff to Odin"
+    },
+    "connection": {
+      "idle": "Idle",
+      "connecting": "Connecting",
+      "open": "Open",
+      "closed": "Closed",
+      "unsupported": "Unsupported"
+    },
+    "state": {
+      "idle": "idle",
+      "watching": "watching",
+      "collecting": "collecting",
+      "analyzing": "analyzing",
+      "deciding": "deciding",
+      "executing": "executing",
+      "approving": "approving",
+      "auditing": "auditing",
+      "unobserved": "unobserved"
+    },
+    "task": {
+      "idle": "Resting - no active work",
+      "watching": "On standby watch, sensing signals",
+      "collecting": "Ingesting and correlating signals for an event",
+      "analyzing": "Root-cause reasoning on the incident",
+      "deciding": "Issuing a verdict at the risk gate",
+      "executing": "Applying an approved remediation",
+      "approving": "Reviewing a human-in-the-loop approval",
+      "auditing": "Writing the append-only audit record",
+      "unobserved": "No runtime signal observed",
+      "subscribed": "Subscribed and waiting for events",
+      "awaitingApproval": "Awaiting human approval"
+    },
+    "role": {
+      "odin": {
+        "title": "Master Planner",
+        "summary": "Cross-vertical arbitration; final tie-breaker before a verdict is finalized."
+      },
+      "thor": {
+        "title": "Responder",
+        "summary": "Dispatches verdicts and is the sole privileged executor; never judges."
+      },
+      "forseti": {
+        "title": "Judge",
+        "summary": "Issues the verdict (auto / hil / deny) after cross-check, verifier, and grounding."
+      },
+      "vidar": {
+        "title": "Recovery",
+        "summary": "Rollback and disaster-recovery failover principal."
+      },
+      "bragi": {
+        "title": "Narrator",
+        "summary": "Conversational-port translator only; never calls an executor directly."
+      },
+      "var": {
+        "title": "Approver",
+        "summary": "Human-in-the-loop approval principal; stays distinct from Thor."
+      },
+      "huginn": {
+        "title": "Event Collector",
+        "summary": "Owns real-time resource discovery ingress and normalizes events; cloud I/O stays in adapters."
+      },
+      "heimdall": {
+        "title": "Observer",
+        "summary": "Monitors discovery freshness and coverage, then correlates signals into findings."
+      },
+      "njord": {
+        "title": "Cost",
+        "summary": "Cost / FinOps domain specialist; advises Forseti and does not execute."
+      },
+      "freyr": {
+        "title": "Capacity",
+        "summary": "Capacity / forecast domain specialist; advises Forseti and does not execute."
+      },
+      "loki": {
+        "title": "Chaos",
+        "summary": "Chaos / resilience specialist; schedules experiments and advises Forseti."
+      },
+      "mimir": {
+        "title": "Rule Steward",
+        "summary": "Owns the rule catalog; grounds Forseti's judgments in current rules."
+      },
+      "muninn": {
+        "title": "Memory",
+        "summary": "Memory / context store; supplies prior-incident context to Forseti and Bragi."
+      },
+      "saga": {
+        "title": "Auditor",
+        "summary": "Append-only audit of every terminal state; materializes handoffs."
+      },
+      "norns": {
+        "title": "Learner",
+        "summary": "Learns from audited outcomes and proposes rule revisions to Mimir."
+      }
+    },
+    "binding": {
+      "eventBusSubscriber": "event-bus subscriber",
+      "rawIngressSubscriber": "raw ingress subscriber",
+      "externalAdapter": "external adapter",
+      "scheduledTrigger": "scheduled trigger"
+    },
+    "layer": {
+      "governance": "Governance",
+      "pipeline": "Pipeline",
+      "domain": "Domain"
+    },
+    "authority": {
+      "execute": "Execute",
+      "approve": "Approve",
+      "advise": "Observe / advise"
+    },
+    "roster": {
+      "interpretationLabel": "Roster interpretation",
+      "interpretationTitle": "State is descriptive, not prescriptive.",
+      "interpretationBody": "Engaged counts agents handling a pipeline stage now, not every subscribed runtime loop. Idle agents wake on their topics. This console observes work; it does not approve or execute actions. Live delta source: {source}. Incident history comes from the durable audit projection.",
+      "discoveryLabel": "Resource discovery ownership",
+      "discoveryTitle": "Resource discovery",
+      "discoverySource": "Huginn real-time ingress",
+      "discoveryBody": "Azure resource writes and deletes enter through Event Hubs and Huginn continuously. The Inventory sync job still runs Azure Resource Graph with ARM fallback every 6 hours to reconcile missed signals. Heimdall monitors freshness and coverage. The local harness uses read-only Azure CLI discovery by default.",
+      "summaryLabel": "Fleet summary",
+      "metric": {
+        "bindings": "Subscriber bindings",
+        "bindingsDetail": "configured runtime roles",
+        "engaged": "Engaged",
+        "workingNow": "working now",
+        "streamUnavailable": "live stream unavailable",
+        "watching": "Watching",
+        "sensingSignals": "sensing signals",
+        "lastStateRetained": "last state retained",
+        "idle": "Idle",
+        "readyToWake": "ready to wake",
+        "unobserved": "Unobserved",
+        "noRuntimeSignal": "no runtime signal",
+        "incidents": "Incidents",
+        "retainedCollaborations": "retained collaborations",
+        "recentTouches": "Recent touches",
+        "lastSignal": "last signal {time}"
+      }
+    },
+    "filter": {
+      "toolbarLabel": "Roster filters",
+      "layer": "Layer",
+      "state": "State",
+      "searchLabel": "Filter agents",
+      "searchPlaceholder": "Agent, role, or current work",
+      "empty": "No agents match these filters.",
+      "clear": "Clear filters",
+      "groupLabel": "{label} filter",
+      "option": {
+        "all": "All",
+        "governance": "Governance",
+        "pipeline": "Pipeline",
+        "domain": "Domain",
+        "engaged": "Engaged",
+        "watching": "Watching",
+        "idle": "Idle",
+        "unobserved": "Unobserved"
+      }
+    },
+    "card": {
+      "currentWork": "Current work",
+      "activeIncident": "Active incident",
+      "stateSince": "State since",
+      "recentEvents": "Recent events",
+      "reportsTo": "Reports to",
+      "runtimeBinding": "Runtime binding",
+      "authority": "Authority"
+    },
+    "action": {
+      "open": "Open",
+      "ask": "Ask {agent}"
+    },
+    "focus": {
+      "closeLabel": "Close agent focus",
+      "chat": "Chat with {agent}",
+      "events": "Events",
+      "noIncidents": "No incidents involve {agent} yet."
+    },
+    "workflow": {
+      "selectIncident": "Select an incident to watch the agents collaborate.",
+      "ask": "Ask the deck about this incident",
+      "askHint": "Questions are read-only; a command opens a proposal (judged, never executed here).",
+      "evidenceLabel": "Incident evidence",
+      "conversationLabel": "Agent conversation",
+      "noConversation": "No conversation yet.",
+      "rootCause": "Root cause",
+      "step": {
+        "detect": "Detect",
+        "ticket": "Ticket",
+        "rca": "RCA",
+        "resolve": "Resolve"
+      }
+    },
+    "incidents": {
+      "label": "Incidents",
+      "title": "Incidents",
+      "recent": "Recent",
+      "all": "All ({count})",
+      "empty": "No incidents - autonomy holding."
+    },
+    "context": {
+      "purpose": "The live 15-agent pantheon. Each incident is one collaboration. This read-only view explains selected work and opens governed proposals without executing them here.",
+      "selectedHeadline": "{title} ({status}) - {agents} agent(s), {turns} turn(s)",
+      "headline": "{incidents} incident(s) - {agents} agent(s) engaged"
+    },
+    "error": {
+      "historyUnavailable": "Durable incident history is unavailable: {error}",
+      "unknownAgent": "Agent {agent} is not in the fixed pantheon.",
+      "unknownIncident": "Incident {incident} is not present in the retained agent stream."
+    }
+  },
+  "finops": {
+    "loadFailed": "Failed to load FinOps panel: {message}",
+    "costActions": "Cost actions",
+    "monthlySavings": "Est. monthly savings",
+    "sampledEvents": "Sampled events",
+    "actionsByKind": "Actions by kind"
+  },
+  "handover": {
+    "subtitle": "Who owns each of the 15 agents now that FDAI runs the control plane - accountable owners, FDAI maintainers, and ownership handover coverage. Read-only.",
+    "unavailable": "The stewardship endpoint is not wired on this deployment. Set ReadApiConfig.stewardship_map in the composition root to enable it.",
+    "noMaintainer": "No maintainer configured - at least 1 is required.",
+    "oneMaintainer": "Only 1 maintainer - 2 are recommended for succession safety.",
+    "agents": "Agents",
+    "maintainers": "Maintainers",
+    "autonomous": "Autonomous",
+    "coverage": "Coverage",
+    "clean": "clean",
+    "review": "review",
+    "proposeTitle": "Propose a change",
+    "proposeLead": "editing the handover map is a governance draft PR (Owner-gated). Edit",
+    "proposeTail": "and open a PR; the console never writes it directly. On merge, the affected agents' owners and the maintainer are notified and the change is recorded in the audit log.",
+    "mapTitle": "Handover map",
+    "agent": "Agent",
+    "owners": "Owners",
+    "backupCoverage": "Backup coverage",
+    "mode": "Mode",
+    "noReason": "no reason",
+    "mapped": "mapped",
+    "findingsTitle": "Coverage findings",
+    "severity": "Severity",
+    "code": "Code",
+    "message": "Message"
+  },
+  "observationSource": {
+    "syntheticDev": "Generated sample",
+    "replay": "Scenario replay",
+    "runtimeObserved": "Runtime observed",
+    "mixed": "Mixed sources",
+    "unavailable": "Source unavailable"
+  },
+  "pantheon": {
+    "subtitle": "The fixed 15-agent organization, enriched with each agent's current runtime state.",
+    "sourceLabel": "Pantheon data source",
+    "sourceTitle": "Read-only organization",
+    "sourceLead": "Cards come from the fork-locked pantheon registry. Runtime state comes from",
+    "sourceTail": " and never grants execution authority.",
+    "engaged": "{count} engaged",
+    "directoryTitle": "Agent directory",
+    "organizationTitle": "Reporting organization",
+    "directoryHint": "Compare ownership, dependencies, and runtime work by layer.",
+    "organizationHint": "Follow reporting lines, inspect live state, and open an agent for detail.",
+    "viewLabel": "Pantheon view",
+    "directory": "Directory",
+    "organization": "Org chart",
+    "flagsLabel": "Pantheon flags",
+    "hotPathLlm": "hot-path LLM",
+    "offPathLlm": "off-path LLM",
+    "hardDependency": "hard dependency",
+    "layer": {
+      "governance": "Direction, memory, learning, and audit",
+      "pipeline": "Sense, judge, approve, execute, and recover",
+      "domain": "Advisory specialists that never execute"
+    },
+    "layerTitle": "{layer} layer",
+    "agentCount": "{count} agents",
+    "reportingTree": "Reporting tree",
+    "reportingTreeHint": "Every reporting line is projected from the registry.",
+    "workflows": "Cross-agent workflows",
+    "registered": "{count} registered",
+    "column": {
+      "id": "Id",
+      "name": "Name",
+      "primary": "Primary",
+      "participants": "Participants",
+      "mode": "Mode"
+    },
+    "owns": "Owns",
+    "reportsTo": "Reports to",
+    "root": "- (root)",
+    "openAgent": "Open {name}, {role}",
+    "organizationChartLabel": "Pantheon organization chart"
+  },
+  "shared": {
+    "loading": "Loading...",
+    "loadingResource": "Loading {resource}...",
+    "loadFailed": "Failed to load {resource}: {message}",
+    "noRows": "No rows to display.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "panelFailed": "Panel failed to load.",
+    "reloadConsole": "Reload console",
+    "diagramRendering": "Rendering diagram...",
+    "diagramFailed": "Diagram render failed",
+    "mermaidDiagram": "Mermaid diagram"
   }
 }

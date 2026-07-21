@@ -10,6 +10,7 @@
  */
 
 import { shortCard, type OntologyEdge, type OntologyNode } from "./ontology-graph.types";
+import { formatNumber, t } from "../routes/i18n/ontology";
 
 export function FocusCard({
   name,
@@ -30,7 +31,7 @@ export function FocusCard({
     <aside class="ontology-focus" aria-live="polite">
       <header class="ontology-focus-head">
         <span class="ontology-focus-name">{node.name}</span>
-        <span class="ontology-focus-key muted">key: {node.key}</span>
+        <span class="ontology-focus-key muted">{t("ontology.graph.key", { key: node.key })}</span>
       </header>
       {node.description ? (
         <p class="ontology-focus-desc muted">{node.description}</p>
@@ -38,7 +39,7 @@ export function FocusCard({
       {node.properties.length > 0 ? (
         <section>
           <h4 class="ontology-focus-h">
-            Properties ({node.properties.length})
+            {t("ontology.graph.propertiesCount", { count: formatNumber(node.properties.length) })}
           </h4>
           <ul class="ontology-focus-list">
             {node.properties.map((p) => (
@@ -49,7 +50,7 @@ export function FocusCard({
       ) : null}
       {outgoing.length > 0 ? (
         <section>
-          <h4 class="ontology-focus-h">Outgoing ({outgoing.length})</h4>
+          <h4 class="ontology-focus-h">{t("ontology.graph.outgoingCount", { count: formatNumber(outgoing.length) })}</h4>
           <ul class="ontology-focus-list">
             {outgoing.map((e, i) => (
               <li key={i}>
@@ -64,7 +65,7 @@ export function FocusCard({
       ) : null}
       {incoming.length > 0 ? (
         <section>
-          <h4 class="ontology-focus-h">Incoming ({incoming.length})</h4>
+          <h4 class="ontology-focus-h">{t("ontology.graph.incomingCount", { count: formatNumber(incoming.length) })}</h4>
           <ul class="ontology-focus-list">
             {incoming.map((e, i) => (
               <li key={i}>
@@ -78,7 +79,7 @@ export function FocusCard({
         </section>
       ) : null}
       <div class="ontology-focus-neighbours">
-        {neighbourhood.size - 1} direct neighbour(s)
+        {t("ontology.graph.directNeighbors", { count: formatNumber(neighbourhood.size - 1) })}
       </div>
     </aside>
   );

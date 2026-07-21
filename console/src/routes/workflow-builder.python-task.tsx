@@ -21,6 +21,7 @@ import {
   identityForMutationIntent,
   type MutationIntentIdentity,
 } from "../mutation-intent";
+import { formatNumber, t } from "./i18n/workflow";
 
 const CAPABILITIES: readonly PythonTaskCapability[] = [
   "gpu",
@@ -151,7 +152,7 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
         allowedModules: modules.split(",").map((value) => value.trim()).filter(Boolean),
       });
       if (!pythonTaskGenerationCanApply(draftRevision.current, submittedRevision)) {
-        setError("Generated draft was discarded because the task changed while authoring.");
+        setError(t("workflow.pythonTask.discardedDraft"));
         return;
       }
       const task = generated.task;
@@ -177,14 +178,14 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
     <section class="python-task-workbench">
       <header class="python-task-head">
         <div>
-          <span class="eyebrow">Ontology action / tool.run-python-on-vm</span>
-          <h3>Python VM task</h3>
+          <span class="eyebrow">{t("workflow.pythonTask.ontologyAction")}</span>
+          <h3>{t("workflow.pythonTask.heading")}</h3>
         </div>
-        <button type="button" class="btn btn-small" onClick={onBack}>Back to workflows</button>
+        <button type="button" class="btn btn-small" onClick={onBack}>{t("workflow.pythonTask.back")}</button>
       </header>
 
       <div class="python-task-layout">
-        <section class="python-task-editor" aria-label="Task source files">
+        <section class="python-task-editor" aria-label={t("workflow.pythonTask.sourceFiles")}>
           <div class="python-task-filebar">
             <div class="python-task-tabs">
               {files.map((file) => (
@@ -198,48 +199,48 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
                 </button>
               ))}
             </div>
-            <button type="button" class="btn btn-small" onClick={removeSelected} disabled={files.length === 1} aria-label="Remove selected file">Remove</button>
+            <button type="button" class="btn btn-small" onClick={removeSelected} disabled={files.length === 1} aria-label={t("workflow.pythonTask.removeSelectedAria")}>{t("workflow.pythonTask.remove")}</button>
           </div>
           <textarea
             class="python-task-code mono"
-            aria-label={`Source for ${selected?.path ?? "task file"}`}
+            aria-label={t("workflow.pythonTask.sourceFor", { path: selected?.path ?? t("workflow.pythonTask.taskFile") })}
             value={selected?.content ?? ""}
             spellcheck={false}
             onInput={(event) => updateSelected((event.target as HTMLTextAreaElement).value)}
           />
           <div class="python-task-add-file">
-            <input value={newPath} placeholder="helpers.py" aria-label="New file path" onInput={(event) => setNewPath((event.target as HTMLInputElement).value)} />
-            <button type="button" class="btn btn-small" onClick={addFile}>Add file</button>
+            <input value={newPath} placeholder="helpers.py" aria-label={t("workflow.pythonTask.newFilePath")} onInput={(event) => setNewPath((event.target as HTMLInputElement).value)} />
+            <button type="button" class="btn btn-small" onClick={addFile}>{t("workflow.pythonTask.addFile")}</button>
           </div>
         </section>
 
-        <aside class="python-task-manifest" aria-label="Task manifest">
-          <label><span>Task id</span><input value={taskId} onInput={(event) => { draftRevision.current += 1; setTaskId((event.target as HTMLInputElement).value); setStagedArtifact(null); }} /></label>
-          <label><span>Version</span><input value={version} onInput={(event) => { draftRevision.current += 1; setVersion((event.target as HTMLInputElement).value); setStagedArtifact(null); }} /></label>
-          <label><span>Entrypoint</span><select value={entrypoint} onChange={(event) => { draftRevision.current += 1; setEntrypoint((event.target as HTMLSelectElement).value); }}>{files.filter((file) => file.path.endsWith(".py")).map((file) => <option key={file.path} value={file.path}>{file.path}</option>)}</select></label>
-          <label><span>Required modules</span><input value={modules} placeholder="torch,numpy" onInput={(event) => { draftRevision.current += 1; setModules((event.target as HTMLInputElement).value); }} /></label>
-          <label><span>Timeout seconds</span><input type="number" min="1" max="86400" value={timeoutSeconds} onInput={(event) => { draftRevision.current += 1; setTimeoutSeconds(Number((event.target as HTMLInputElement).value)); }} /></label>
+        <aside class="python-task-manifest" aria-label={t("workflow.pythonTask.manifest")}>
+          <label><span>{t("workflow.pythonTask.field.taskId")}</span><input value={taskId} onInput={(event) => { draftRevision.current += 1; setTaskId((event.target as HTMLInputElement).value); setStagedArtifact(null); }} /></label>
+          <label><span>{t("workflow.pythonTask.field.version")}</span><input value={version} onInput={(event) => { draftRevision.current += 1; setVersion((event.target as HTMLInputElement).value); setStagedArtifact(null); }} /></label>
+          <label><span>{t("workflow.pythonTask.field.entrypoint")}</span><select value={entrypoint} onChange={(event) => { draftRevision.current += 1; setEntrypoint((event.target as HTMLSelectElement).value); }}>{files.filter((file) => file.path.endsWith(".py")).map((file) => <option key={file.path} value={file.path}>{file.path}</option>)}</select></label>
+          <label><span>{t("workflow.pythonTask.field.requiredModules")}</span><input value={modules} placeholder="torch,numpy" onInput={(event) => { draftRevision.current += 1; setModules((event.target as HTMLInputElement).value); }} /></label>
+          <label><span>{t("workflow.pythonTask.field.timeoutSeconds")}</span><input type="number" min="1" max="86400" value={timeoutSeconds} onInput={(event) => { draftRevision.current += 1; setTimeoutSeconds(Number((event.target as HTMLInputElement).value)); }} /></label>
           <fieldset>
-            <legend>Capabilities</legend>
+            <legend>{t("workflow.pythonTask.field.capabilities")}</legend>
             {CAPABILITIES.map((capability) => <label key={capability} class="python-task-check"><input type="checkbox" checked={capabilities.includes(capability)} onChange={() => { draftRevision.current += 1; setCapabilities(capabilities.includes(capability) ? capabilities.filter((value) => value !== capability) : [...capabilities, capability]); }} /><span>{capability.replaceAll("_", " ")}</span></label>)}
           </fieldset>
-          <label><span>Target Resource</span><input value={target} onInput={(event) => setTarget((event.target as HTMLInputElement).value)} /></label>
-          <label><span>Run reason</span><textarea value={reason} rows={3} onInput={(event) => setReason((event.target as HTMLTextAreaElement).value)} /></label>
-          <label><span>Cron schedule</span><input value={cronExpression} onInput={(event) => setCronExpression((event.target as HTMLInputElement).value)} /></label>
+          <label><span>{t("workflow.pythonTask.field.targetResource")}</span><input value={target} onInput={(event) => setTarget((event.target as HTMLInputElement).value)} /></label>
+          <label><span>{t("workflow.pythonTask.field.runReason")}</span><textarea value={reason} rows={3} onInput={(event) => setReason((event.target as HTMLTextAreaElement).value)} /></label>
+          <label><span>{t("workflow.pythonTask.field.cronSchedule")}</span><input value={cronExpression} onInput={(event) => setCronExpression((event.target as HTMLInputElement).value)} /></label>
         </aside>
       </div>
 
       <div class="python-task-intent">
-        <label><span>Task intent</span><textarea value={intent} rows={2} onInput={(event) => setIntent((event.target as HTMLTextAreaElement).value)} /></label>
-        <button type="button" class="btn" disabled={busy !== null || !intent.trim()} onClick={() => void generate()}>{busy === "generate" ? "Authoring..." : "Generate editable draft"}</button>
+        <label><span>{t("workflow.pythonTask.field.intent")}</span><textarea value={intent} rows={2} onInput={(event) => setIntent((event.target as HTMLTextAreaElement).value)} /></label>
+        <button type="button" class="btn" disabled={busy !== null || !intent.trim()} onClick={() => void generate()}>{t(busy === "generate" ? "workflow.pythonTask.authoring" : "workflow.pythonTask.generate")}</button>
       </div>
 
       <div class="python-task-actions">
-        <button type="button" class="btn" disabled={busy !== null} onClick={() => void run("validate", () => validatePythonTask(draft()))}>{busy === "validate" ? "Validating..." : "Validate"}</button>
-        <button type="button" class="btn" disabled={busy !== null} onClick={() => { const task = draft(); void run("stage", () => stagePythonTask(task), pythonTaskDraftKey(task)); }}>{busy === "stage" ? "Staging..." : "Stage artifact"}</button>
-        <button type="button" class="btn" disabled={busy !== null || !target.trim()} onClick={() => void run("test", () => testPythonTask(draft(), target.trim()))}>{busy === "test" ? "Testing..." : "Test shadow plan"}</button>
-        <button type="button" class="btn primary" disabled={busy !== null || artifactRef === null || reason.trim().length < 10} onClick={() => { const request = { artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), reason: reason.trim() }; const identity = identityForMutationIntent(governedRunIntent.current, JSON.stringify(request)); governedRunIntent.current = identity; void run("request", () => requestPythonTaskRun({ ...request, idempotencyKey: identity.idempotencyKey })); }}>{busy === "request" ? "Submitting..." : "Request governed run"}</button>
-        <button type="button" class="btn" disabled={busy !== null || artifactRef === null || !cronExpression.trim()} onClick={() => void run("schedule", () => schedulePythonTask({ artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), workflowRef: "scheduled-gpu-python-task", cronExpression: cronExpression.trim() }))}>{busy === "schedule" ? "Scheduling..." : "Create schedule"}</button>
+        <button type="button" class="btn" disabled={busy !== null} onClick={() => void run("validate", () => validatePythonTask(draft()))}>{t(busy === "validate" ? "workflow.pythonTask.validating" : "workflow.pythonTask.validate")}</button>
+        <button type="button" class="btn" disabled={busy !== null} onClick={() => { const task = draft(); void run("stage", () => stagePythonTask(task), pythonTaskDraftKey(task)); }}>{t(busy === "stage" ? "workflow.pythonTask.staging" : "workflow.pythonTask.stage")}</button>
+        <button type="button" class="btn" disabled={busy !== null || !target.trim()} onClick={() => void run("test", () => testPythonTask(draft(), target.trim()))}>{t(busy === "test" ? "workflow.pythonTask.testing" : "workflow.pythonTask.test")}</button>
+        <button type="button" class="btn primary" disabled={busy !== null || artifactRef === null || reason.trim().length < 10} onClick={() => { const request = { artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), reason: reason.trim() }; const identity = identityForMutationIntent(governedRunIntent.current, JSON.stringify(request)); governedRunIntent.current = identity; void run("request", () => requestPythonTaskRun({ ...request, idempotencyKey: identity.idempotencyKey })); }}>{t(busy === "request" ? "workflow.pythonTask.submitting" : "workflow.pythonTask.request")}</button>
+        <button type="button" class="btn" disabled={busy !== null || artifactRef === null || !cronExpression.trim()} onClick={() => void run("schedule", () => schedulePythonTask({ artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), workflowRef: "scheduled-gpu-python-task", cronExpression: cronExpression.trim() }))}>{t(busy === "schedule" ? "workflow.pythonTask.scheduling" : "workflow.pythonTask.createSchedule")}</button>
       </div>
 
       <PythonTaskResult result={result} error={error} artifactRef={artifactRef} />
@@ -249,13 +250,13 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
 
 function PythonTaskResult({ result, error, artifactRef }: { readonly result: Result | null; readonly error: string | null; readonly artifactRef: string | null }) {
   if (error) return <div class="state-block state-error" role="alert"><span class="state-icon">!</span><span>{error}</span></div>;
-  if (!result) return <div class="python-task-result muted">No validation or run result yet.</div>;
+  if (!result) return <div class="python-task-result muted">{t("workflow.pythonTask.noResult")}</div>;
   if ("submitted" in result) {
-    return <div class="python-task-result"><div><StatusPill kind="hil" label="submitted for judgment" /><strong>{result.action_type}</strong></div><dl><div><dt>Correlation</dt><dd class="mono">{result.correlation_id}</dd></div><div><dt>Target</dt><dd class="mono">{result.target_resource_ref}</dd></div></dl></div>;
+    return <div class="python-task-result"><div><StatusPill kind="hil" label={t("workflow.pythonTask.submitted")} /><strong>{result.action_type}</strong></div><dl><div><dt>{t("workflow.pythonTask.field.correlation")}</dt><dd class="mono">{result.correlation_id}</dd></div><div><dt>{t("workflow.pythonTask.field.target")}</dt><dd class="mono">{result.target_resource_ref}</dd></div></dl></div>;
   }
   if ("scheduled" in result) {
-    return <div class="python-task-result"><div><StatusPill kind="success" label="scheduled" /><strong>{result.workflow_ref}</strong></div><dl><div><dt>Task</dt><dd class="mono">{result.task_id}</dd></div><div><dt>Cron</dt><dd class="mono">{result.cron_expression}</dd></div><div><dt>Event</dt><dd class="mono">{result.event_type}</dd></div><div><dt>Target</dt><dd class="mono">{result.target_resource_ref}</dd></div></dl></div>;
+    return <div class="python-task-result"><div><StatusPill kind="success" label={t("workflow.pythonTask.scheduled")} /><strong>{result.workflow_ref}</strong></div><dl><div><dt>{t("workflow.pythonTask.field.task")}</dt><dd class="mono">{result.task_id}</dd></div><div><dt>{t("workflow.pythonTask.field.cron")}</dt><dd class="mono">{result.cron_expression}</dd></div><div><dt>{t("workflow.pythonTask.field.event")}</dt><dd class="mono">{result.event_type}</dd></div><div><dt>{t("workflow.pythonTask.field.target")}</dt><dd class="mono">{result.target_resource_ref}</dd></div></dl></div>;
   }
   const plan = "plan" in result ? result.plan : null;
-  return <div class="python-task-result"><div><StatusPill kind={result.valid ? "success" : "danger"} label={result.valid ? "valid" : "blocked"} />{artifactRef ? <CopyButton text={artifactRef} label="Copy artifact ref" /> : null}</div>{result.issues.length > 0 ? <ul>{result.issues.map((issue) => <li key={`${issue.code}:${issue.path}`}><strong>{issue.code}</strong> <span class="mono">{issue.path}</span> - {issue.message}</li>)}</ul> : null}{plan ? <dl><div><dt>Status</dt><dd>{plan.status}</dd></div><div><dt>Files</dt><dd>{plan.files_would_copy}</dd></div><div><dt>Bytes</dt><dd>{plan.bytes_would_copy}</dd></div><div><dt>Target capabilities</dt><dd>{plan.target_capabilities.join(", ")}</dd></div></dl> : null}</div>;
+  return <div class="python-task-result"><div><StatusPill kind={result.valid ? "success" : "danger"} label={t(result.valid ? "workflow.pythonTask.valid" : "workflow.pythonTask.blocked")} />{artifactRef ? <CopyButton text={artifactRef} label={t("workflow.pythonTask.copyArtifact")} /> : null}</div>{result.issues.length > 0 ? <ul>{result.issues.map((issue) => <li key={`${issue.code}:${issue.path}`}><strong>{issue.code}</strong> <span class="mono">{issue.path}</span> - {issue.message}</li>)}</ul> : null}{plan ? <dl><div><dt>{t("workflow.pythonTask.field.status")}</dt><dd>{plan.status}</dd></div><div><dt>{t("workflow.pythonTask.field.files")}</dt><dd>{formatNumber(plan.files_would_copy)}</dd></div><div><dt>{t("workflow.pythonTask.field.bytes")}</dt><dd>{formatNumber(plan.bytes_would_copy)}</dd></div><div><dt>{t("workflow.pythonTask.field.targetCapabilities")}</dt><dd>{plan.target_capabilities.join(", ")}</dd></div></dl> : null}</div>;
 }

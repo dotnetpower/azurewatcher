@@ -13,9 +13,9 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
 import { currentRoute, navigate, routeHref } from "../router";
 import { isRfc3339Timestamp } from "../time-format";
+import { presentationLabel, t } from "./i18n/evidence";
 import {
   panelArray,
   panelNonEmptyString,
@@ -121,11 +121,11 @@ export function RuleTraceRoute({ client }: Props) {
     <div class="stack">
       <PageHeader
         title={t("route.ruleTrace")}
-        subtitle='Reconstruct the pipeline path for one correlation id. Read-only projection over the audit log; the trace is never re-executed.'
+        subtitle={t("evidence.trace.subtitle")}
       />
 
       <section class="stack-section">
-        <h3 class="section-title">Look up a correlation id</h3>
+        <h3 class="section-title">{t("evidence.trace.lookupTitle")}</h3>
         <form
           class="form-grid inline"
           onSubmit={(e) => {
@@ -134,7 +134,7 @@ export function RuleTraceRoute({ client }: Props) {
           }}
         >
           <label>
-            Correlation id
+            {t("evidence.trace.correlationId")}
             <input
               type="text"
               value={correlationId}
@@ -151,15 +151,15 @@ export function RuleTraceRoute({ client }: Props) {
             class="btn primary"
             disabled={state.status === "loading" || !correlationId}
           >
-            Fetch trace
+            {t("evidence.trace.fetch")}
           </button>
         </form>
       </section>
 
       <AsyncBoundary
         state={state}
-        resourceLabel="trace"
-        idle={<p class="muted footnote">Enter a correlation id and click Fetch.</p>}
+        resourceLabel={t("evidence.trace.resource")}
+        idle={<p class="muted footnote">{t("evidence.trace.idle")}</p>}
       >
         {(data) => <TraceView data={data} />}
       </AsyncBoundary>
@@ -225,12 +225,8 @@ function TraceView({ data }: { readonly data: TraceResponse }) {
   usePublishViewContext(
     () => ({
       routeId: "trace",
-      routeLabel: "Trace",
-      purpose:
-        "Reconstructs one incident end-to-end from the audit log: every " +
-        "pipeline stage for a single correlation id, in order, with the " +
-        "decision and recorded reason at each step. Answers 'what happened to " +
-        "this event and why'. Read-only.",
+      routeLabel: t("route.ruleTrace"),
+      purpose: t("evidence.trace.viewPurpose"),
       glossary: composeGlossary([
         TERMS.correlationId,
         TERMS.actionKind,
@@ -239,7 +235,14 @@ function TraceView({ data }: { readonly data: TraceResponse }) {
         TERMS.mode,
         TERMS.outcome,
       ]),
-      headline: `${data.step_count} step(s) for ${data.correlation_id}${data.terminal_stage ? ` - terminal ${data.terminal_stage}` : ""}`,
+      headline: t(
+        data.terminal_stage ? "evidence.trace.headlineTerminal" : "evidence.trace.headline",
+        {
+          count: data.step_count,
+          correlation: data.correlation_id,
+          ...(data.terminal_stage ? { stage: data.terminal_stage } : {}),
+        },
+      ),
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "correlation_id", value: data.correlation_id, group: "trace" },
@@ -277,50 +280,50 @@ function TraceView({ data }: { readonly data: TraceResponse }) {
       cellClass: "num",
       headerClass: "num",
     },
-    { key: "at", header: "Recorded at", render: (s) => s.recorded_at, cellClass: "mono" },
-    { key: "stage", header: "Stage", render: (s) => s.stage || <span class="muted">(unnamed)</span>, cellClass: "mono" },
-    { key: "kind", header: "Action kind", render: (s) => s.action_kind, cellClass: "mono" },
+    { key: "at", header: t("evidence.trace.column.recordedAt"), render: (s) => s.recorded_at, cellClass: "mono" },
+    { key: "stage", header: t("evidence.trace.column.stage"), render: (s) => s.stage || <span class="muted">{t("evidence.trace.unnamed")}</span>, cellClass: "mono" },
+    { key: "kind", header: t("evidence.trace.column.actionKind"), render: (s) => s.action_kind, cellClass: "mono" },
     {
       key: "dec",
-      header: "Decision",
+      header: t("evidence.trace.column.decision"),
       render: (s) =>
         s.decision === null
           ? <span class="muted">-</span>
-          : <StatusPill kind={decisionPill(s.decision)} label={s.decision} />,
+              : <StatusPill kind={decisionPill(s.decision)} label={presentationLabel("status", s.decision)} />,
     },
-    { key: "reason", header: "Reason", render: (s) => s.reason ?? <span class="muted">-</span> },
+            { key: "reason", header: t("evidence.trace.column.reason"), render: (s) => s.reason ?? <span class="muted">-</span> },
     {
       key: "mode",
-      header: "Mode",
-      render: (s) => <StatusPill kind={modePill(s.mode)} label={s.mode} />,
+      header: t("evidence.trace.column.mode"),
+      render: (s) => <StatusPill kind={modePill(s.mode)} label={presentationLabel("status", s.mode)} />,
     },
   ];
 
   return (
     <div class="stack">
       <KpiGrid>
-        <KpiCard label="Steps" value={data.step_count} />
+        <KpiCard label={t("evidence.trace.steps")} value={data.step_count} />
         <KpiCard
-          label="Terminal stage"
+          label={t("evidence.trace.terminalStage")}
           value={<span class="mono">{data.terminal_stage ?? "-"}</span>}
         />
         <KpiCard
-          label="Correlation id"
+          label={t("evidence.trace.correlationId")}
           value={<span class="mono small">{data.correlation_id}</span>}
         />
       </KpiGrid>
-      <nav class="trace-evidence-links" aria-label="Correlation evidence">
-        <a href={routeHref("incidents", { params: { status: "all", correlation: data.correlation_id } })}>Incident</a>
-        <a href={routeHref("audit", { params: { correlation: data.correlation_id } })}>Audit</a>
-        <a href={routeHref("rca", { params: { correlation: data.correlation_id } })}>RCA</a>
+      <nav class="trace-evidence-links" aria-label={t("evidence.trace.evidence")}>
+        <a href={routeHref("incidents", { params: { status: "all", correlation: data.correlation_id } })}>{t("evidence.trace.incident")}</a>
+        <a href={routeHref("audit", { params: { correlation: data.correlation_id } })}>{t("evidence.trace.audit")}</a>
+        <a href={routeHref("rca", { params: { correlation: data.correlation_id } })}>{t("evidence.trace.rca")}</a>
       </nav>
       <section class="stack-section">
-        <h3 class="section-title">Timeline</h3>
+        <h3 class="section-title">{t("evidence.trace.timeline")}</h3>
         <DataTable
           columns={columns}
           rows={data.steps}
           keyOf={(s) => s.seq}
-          empty="No audit steps for this correlation id."
+          empty={t("evidence.trace.empty")}
         />
       </section>
     </div>

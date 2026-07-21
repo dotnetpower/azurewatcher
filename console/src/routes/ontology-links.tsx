@@ -1,5 +1,6 @@
 import type { OntologyEdge, OntologyNode } from "../components/ontology-graph";
 import { routeHref } from "../router";
+import { formatNumber, t } from "./i18n/ontology";
 
 export function OntologyLinksView({
   names,
@@ -21,8 +22,8 @@ export function OntologyLinksView({
     <div class="ontology-browser-layout ontology-links-view">
       <aside class="ontology-type-sidebar">
         <section>
-          <h3>LinkTypes <span>{names.length}</span></h3>
-          {names.length === 0 ? <p class="muted">None registered.</p> : (
+          <h3>{t("ontology.links.directoryTitle")} <span>{formatNumber(names.length)}</span></h3>
+          {names.length === 0 ? <p class="muted">{t("ontology.common.noneRegistered")}</p> : (
             <ul>
               {names.map((name) => (
                 <li key={name}>
@@ -46,24 +47,26 @@ export function OntologyLinksView({
           <>
             <header class="ontology-view-head">
               <div>
-                <span class="eyebrow">LinkType</span>
+                <span class="eyebrow">{t("ontology.links.kind")}</span>
                 <h3><code>{selected.name}</code></h3>
-                <p>{selected.description ?? "No description is recorded for this LinkType."}</p>
+                <p>{selected.description ?? t("ontology.links.noDescription")}</p>
               </div>
-              <span class="badge">{selectedEdges.length} usage{selectedEdges.length === 1 ? "" : "s"}</span>
+              <span class="badge">{t(selectedEdges.length === 1
+                ? "ontology.links.usageCount"
+                : "ontology.links.usageCountPlural", { count: formatNumber(selectedEdges.length) })}</span>
             </header>
 
             <div class="ontology-link-workspace">
-              <div class="ontology-link-usages" aria-label={`${selected.name} endpoint usages`}>
+              <div class="ontology-link-usages" aria-label={t("ontology.links.endpointUsages", { name: selected.name })}>
                 {selectedEdges.map((edge, index) => (
                   <article class="ontology-link-usage" key={`${edge.from_type}-${edge.to_type}-${index}`}>
                     <a
                       class="ontology-endpoint"
                       href={routeHref("ontology", { params: { view: "objects", type: edge.from_type } })}
                     >
-                      <span>From ObjectType</span>
+                      <span>{t("ontology.links.fromObject")}</span>
                       <strong>{edge.from_type}</strong>
-                      <small>{nodesByName.get(edge.from_type)?.description ?? "Open object neighborhood"}</small>
+                      <small>{nodesByName.get(edge.from_type)?.description ?? t("ontology.links.openNeighborhood")}</small>
                     </a>
                     <div class="ontology-link-signature" aria-label={`${edge.name} ${edge.cardinality}`}>
                       <span>{edge.cardinality}</span>
@@ -74,24 +77,24 @@ export function OntologyLinksView({
                       class="ontology-endpoint"
                       href={routeHref("ontology", { params: { view: "objects", type: edge.to_type } })}
                     >
-                      <span>To ObjectType</span>
+                      <span>{t("ontology.links.toObject")}</span>
                       <strong>{edge.to_type}</strong>
-                      <small>{nodesByName.get(edge.to_type)?.description ?? "Open object neighborhood"}</small>
+                      <small>{nodesByName.get(edge.to_type)?.description ?? t("ontology.links.openNeighborhood")}</small>
                     </a>
                   </article>
                 ))}
               </div>
 
-              <aside class="ontology-link-inspector" aria-label="LinkType properties">
-                <h4>Relationship contract</h4>
+              <aside class="ontology-link-inspector" aria-label={t("ontology.links.propertiesLabel")}>
+                <h4>{t("ontology.links.contract")}</h4>
                 <dl>
-                  <dt>Cardinality</dt><dd><code>{selected.cardinality}</code></dd>
-                  <dt>Causal</dt><dd>{selected.is_causal ? "Yes" : "No"}</dd>
-                  <dt>Transitive</dt><dd>{selected.is_transitive ? "Yes" : "No"}</dd>
-                  <dt>Temporal order</dt><dd>{selected.temporal_order ? "Yes" : "No"}</dd>
-                  <dt>Endpoint pairs</dt><dd>{selectedEdges.length}</dd>
+                  <dt>{t("ontology.links.cardinality")}</dt><dd><code>{selected.cardinality}</code></dd>
+                  <dt>{t("ontology.links.causal")}</dt><dd>{selected.is_causal ? t("ontology.common.yes") : t("ontology.common.no")}</dd>
+                  <dt>{t("ontology.links.transitive")}</dt><dd>{selected.is_transitive ? t("ontology.common.yes") : t("ontology.common.no")}</dd>
+                  <dt>{t("ontology.links.temporalOrder")}</dt><dd>{selected.temporal_order ? t("ontology.common.yes") : t("ontology.common.no")}</dd>
+                  <dt>{t("ontology.links.endpointPairs")}</dt><dd>{formatNumber(selectedEdges.length)}</dd>
                 </dl>
-                <h4>Used by</h4>
+                <h4>{t("ontology.links.usedBy")}</h4>
                 <ul>
                   {selectedEdges.map((edge, index) => (
                     <li key={`${edge.from_type}-${edge.to_type}-${index}`}>
@@ -106,10 +109,10 @@ export function OntologyLinksView({
           </>
         ) : invalidSelection ? (
           <div class="state-block state-unavailable" role="alert">
-            LinkType <code>{selectedName}</code> is not registered. Choose a LinkType from the directory.
+            {t("ontology.links.invalid", { name: selectedName ?? "" })}
           </div>
         ) : (
-          <div class="empty-state">Choose a LinkType to inspect its endpoint contract.</div>
+          <div class="empty-state">{t("ontology.links.choose")}</div>
         )}
       </section>
     </div>

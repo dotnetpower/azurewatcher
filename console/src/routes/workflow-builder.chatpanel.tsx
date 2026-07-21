@@ -29,6 +29,7 @@ import type { FormState } from "./workflow-builder.model";
 import { validateWorkflowDraft } from "../workflow/validate";
 import { parseBlocks, type InlineToken } from "./workflow-builder.richtext";
 import { buildVizModel } from "./workflow-builder.viz";
+import { formatNumber, t } from "./i18n/workflow";
 import {
   respondToChat,
   startChat,
@@ -115,11 +116,10 @@ export function WorkflowChat({ palette, onBack }: Props) {
     <div class="stack wf-chat">
       <div class="section-header">
         <button type="button" class="btn btn-small" onClick={onBack}>
-          ← Back to workflows
+          &larr; {t("workflow.chat.back")}
         </button>
         <span class="muted small">
-          Conversational designer - saves private drafts only. Publishing and execution require
-          separate reviewed paths.
+          {t("workflow.chat.disclaimer")}
         </span>
       </div>
 
@@ -150,10 +150,10 @@ export function WorkflowChat({ palette, onBack }: Props) {
           disabled={!paletteReady}
           placeholder={
             paletteReady
-              ? "Describe what should happen, or answer the question above..."
-              : "Workflow authoring is not enabled on this deployment."
+              ? t("workflow.chat.placeholderReady")
+              : t("workflow.chat.placeholderDisabled")
           }
-          aria-label="Message the workflow designer"
+          aria-label={t("workflow.chat.composerAria")}
           onInput={(e) => setInput((e.target as HTMLTextAreaElement).value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -163,7 +163,7 @@ export function WorkflowChat({ palette, onBack }: Props) {
           }}
         />
         <button type="submit" class="btn" disabled={!paletteReady || input.trim().length === 0}>
-          Send
+          {t("workflow.chat.send")}
         </button>
       </form>
     </div>
@@ -220,7 +220,7 @@ function MessageBubble({
   return (
     <div class={isBot ? "wf-msg wf-msg-bot" : "wf-msg wf-msg-op"}>
       <div class="wf-msg-body">
-        <span class="sr-only">{isBot ? "Assistant:" : "You:"} </span>
+        <span class="sr-only">{t(isBot ? "workflow.chat.assistant" : "workflow.chat.you")} </span>
         {isBot ? (
           <RichText text={message.text} />
         ) : (
@@ -233,7 +233,7 @@ function MessageBubble({
           <div
             class={interactive ? "wf-chip-row" : "wf-chip-row is-inert"}
             role="group"
-            aria-label="Suggested replies"
+            aria-label={t("workflow.chat.suggestedReplies")}
           >
             {message.options.map((o) => (
               <Tooltip key={o.value} content={o.hint}>
@@ -364,40 +364,39 @@ function WorkflowPreview({
       <WorkflowViz form={form} palette={palette} />
 
       <div class="wf-preview-section">
-        <h4 class="wf-preview-title">Generated workflow</h4>
+        <h4 class="wf-preview-title">{t("workflow.chat.generatedWorkflow")}</h4>
         {yaml ? (
           <>
             <div class="code-actions">
-              <CopyButton text={yaml} label="Copy YAML" />
+              <CopyButton text={yaml} label={t("workflow.chat.copyYaml")} />
             </div>
             <pre class="mono scroll code-block">{yaml}</pre>
           </>
         ) : (
           <p class="muted small">
-            {validating ? "Generating YAML..." : "YAML is available once the draft validates."}
+            {t(validating ? "workflow.chat.generatingYaml" : "workflow.chat.yamlReady")}
           </p>
         )}
       </div>
 
       <div class="wf-preview-section">
-        <h4 class="wf-preview-title">Structural validation</h4>
+        <h4 class="wf-preview-title">{t("workflow.chat.structuralValidation")}</h4>
         {validating ? (
           <p class="muted small" aria-busy="true">
-            Validating the draft against the server-side schema and catalog references...
+            {t("workflow.chat.validating")}
           </p>
         ) : error ? (
           <div class="wf-test-fail" role="alert">
-            <p>Could not reach the validator: {error}</p>
+            <p>{t("workflow.chat.validationError", { error })}</p>
             <p class="muted small">
-              Nothing was lost - your answers are still captured. Retry when the connection is
-              back, and the YAML and test will render.
+              {t("workflow.chat.retryHint")}
             </p>
             <button
               type="button"
               class="btn btn-small"
               onClick={() => setRetryKey((k) => k + 1)}
             >
-              Retry test
+              {t("workflow.chat.retryTest")}
             </button>
           </div>
         ) : result ? (
@@ -413,24 +412,28 @@ function WorkflowPreview({
             disabled={!result?.valid || saving || saved !== null}
             onClick={() => void saveDraft()}
           >
-            {saving ? "Saving private draft..." : saved ? "Private draft saved" : "Save private draft"}
+            {t(saving ? "workflow.chat.saving" : saved ? "workflow.chat.saved" : "workflow.chat.save")}
           </button>
           {prUrl ? (
             <a class="btn secondary" href={prUrl} target="_blank" rel="noopener noreferrer">
-              Propose catalog file on GitHub →
+              {t("workflow.chat.propose")} &rarr;
             </a>
           ) : null}
           <span class="muted small">
-            Saving creates a principal-owned private <strong>DRAFT</strong>. It cannot run or appear
-            in Operations. The GitHub path proposes <code>rule-catalog/workflows/{form.name}.yaml</code>
-            {" "}for separate catalog review; promotion remains a later governance change.
+            {t("workflow.chat.saveHintBeforePath")} {" "}
+            <code>rule-catalog/workflows/{form.name}.yaml</code>{" "}
+            {t("workflow.chat.saveHintAfterPath")}
           </span>
           {saved ? (
             <p class="wf-test-pass" role="status">
-              Saved <code>{saved.workflowName}</code> as {saved.lifecycle} ({saved.definitionId}).
+              {t("workflow.chat.saveSuccess", {
+                name: saved.workflowName,
+                lifecycle: saved.lifecycle,
+                definitionId: saved.definitionId,
+              })}
             </p>
           ) : null}
-          {saveError ? <p class="wf-test-fail" role="alert">Could not save draft: {saveError}</p> : null}
+          {saveError ? <p class="wf-test-fail" role="alert">{t("workflow.chat.saveError", { error: saveError })}</p> : null}
         </div>
       ) : null}
     </div>
@@ -441,17 +444,16 @@ function TestResult({ result }: { readonly result: ValidateResponse }) {
   if (result.valid) {
     return (
       <p class="wf-test-pass">
-        Passed - the draft is structurally valid, every step resolves to a real ActionType, and it
-        loads cleanly. This check does not execute or simulate the workflow. A published draft
-        still starts in shadow mode.
+        {t("workflow.chat.validationPassed")}
       </p>
     );
   }
   return (
     <div class="wf-test-fail">
       <p>
-        {result.issues.length} issue{result.issues.length === 1 ? "" : "s"} to fix before this can
-        be published:
+        {t(result.issues.length === 1 ? "workflow.chat.issueOne" : "workflow.chat.issueMany", {
+          count: formatNumber(result.issues.length),
+        })}
       </p>
       <ul class="wf-issue-list">
         {result.issues.map((iss, i) => (
@@ -480,16 +482,16 @@ function WorkflowViz({
   const steps = nodes.filter((n) => n.kind === "do" || n.kind === "notify");
 
   return (
-    <div class="wf-viz" role="list" aria-label="Workflow visualization">
+    <div class="wf-viz" role="list" aria-label={t("workflow.chat.visualization")}>
       <div class="wf-viz-node wf-viz-trigger" role="listitem">
-        <span class="wf-viz-kind">when</span>
+        <span class="wf-viz-kind">{t("workflow.chat.when")}</span>
         <span class="wf-viz-name">{trigger?.name}</span>
         <span class="wf-viz-ref mono">{trigger?.ref}</span>
       </div>
       {steps.map((n, i) => (
         <Fragment key={`${n.ref}-${i}`}>
           <div class="wf-viz-edge" aria-hidden="true">
-            <span class="wf-viz-edge-label">{i === 0 ? "then do" : "then"}</span>
+            <span class="wf-viz-edge-label">{t(i === 0 ? "workflow.chat.thenDo" : "workflow.chat.then")}</span>
           </div>
           <div class={`wf-viz-node wf-viz-action is-${n.category}`} role="listitem">
             <span class="wf-viz-kind">{n.kind}</span>
@@ -500,7 +502,7 @@ function WorkflowViz({
       ))}
       <div class="wf-viz-edge" aria-hidden="true"></div>
       <div class="wf-viz-node wf-viz-end" role="listitem">
-        <span class="wf-viz-name">done</span>
+        <span class="wf-viz-name">{t("workflow.chat.done")}</span>
       </div>
     </div>
   );

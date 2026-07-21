@@ -8,6 +8,7 @@ import {
   percent,
   sparkline,
 } from "./process-view-widget-utils";
+import { formatNumber, t } from "./i18n/workflow";
 
 export const GRAPH_WIDGET_TYPES = new Set([
   "change",
@@ -42,7 +43,7 @@ function ChangeWidget({ widget }: { readonly widget: RenderedWidget }) {
         <strong>{displayValue(widget.data["current"])}</strong>
         <span>{displayValue(delta)} ({ratio === null ? "-" : `${(ratio * 100).toFixed(1)}%`})</span>
       </div>
-      <dl class="process-fallback"><dt>Previous</dt><dd>{displayValue(widget.data["previous"])}</dd></dl>
+      <dl class="process-fallback"><dt>{t("workflow.process.previous")}</dt><dd>{displayValue(widget.data["previous"])}</dd></dl>
     </section>
   );
 }
@@ -57,13 +58,13 @@ function DistributionWidget({ widget }: { readonly widget: RenderedWidget }) {
         {buckets.map((bucket, index) => {
           const count = finiteNumber(bucket["count"]) ?? 0;
           return <div class="report-bar-row" key={`${displayValue(bucket["le"])}-${index}`}>
-            <span>&le; {displayValue(bucket["le"])}</span>
+            <span>{t("workflow.process.bucketLimit", { value: displayValue(bucket["le"]) })}</span>
             <span class="report-bar-track" aria-hidden="true"><span style={{ width: `${Math.max(0, count / maximum) * 100}%` }} /></span>
             <strong>{displayValue(bucket["count"])}</strong>
           </div>;
         })}
       </div>
-      {buckets.length === 0 ? <p class="muted small">No distribution buckets.</p> : null}
+      {buckets.length === 0 ? <p class="muted small">{t("workflow.process.noDistributionBuckets")}</p> : null}
     </section>
   );
 }
@@ -75,7 +76,7 @@ function HeatmapWidget({ widget }: { readonly widget: RenderedWidget }) {
   return (
     <section class="process-widget-section" aria-labelledby={`${widget.id}-title`}>
       <h3 id={`${widget.id}-title`}>{widget.title}</h3>
-      <div class="scroll"><table class="report-matrix"><caption class="sr-only">{widget.title} values</caption><tbody>
+      <div class="scroll"><table class="report-matrix"><caption class="sr-only">{t("workflow.process.valuesCaption", { title: widget.title })}</caption><tbody>
         {series.map((item, rowIndex) => <tr key={`${displayValue(item["label"])}-${rowIndex}`}>
           <th scope="row">{displayValue(item["label"])}</th>
           {numericPoints(item["points"]).map(([timestamp, value], columnIndex) => (
@@ -83,7 +84,7 @@ function HeatmapWidget({ widget }: { readonly widget: RenderedWidget }) {
           ))}
         </tr>)}
       </tbody></table></div>
-      {series.length === 0 ? <p class="muted small">No heatmap series.</p> : null}
+      {series.length === 0 ? <p class="muted small">{t("workflow.process.noHeatmapSeries")}</p> : null}
     </section>
   );
 }
@@ -93,13 +94,13 @@ function PieWidget({ widget }: { readonly widget: RenderedWidget }) {
   return (
     <section class="process-widget-section" aria-labelledby={`${widget.id}-title`}>
       <h3 id={`${widget.id}-title`}>{widget.title}</h3>
-      <div class="report-segments" role="img" aria-label={`${widget.title} distribution`}>
+      <div class="report-segments" role="img" aria-label={t("workflow.process.distributionAria", { title: widget.title })}>
         {slices.map((slice, index) => <span key={`${displayValue(slice["label"])}-${index}`} style={{ flexGrow: boundedRatio(slice["percent"]) ?? 0 }} />)}
       </div>
       <dl class="report-legend">
         {slices.map((slice, index) => <div key={`${displayValue(slice["label"])}-${index}`}><dt>{displayValue(slice["label"])}</dt><dd>{displayValue(slice["value"])} ({percent(slice["percent"])})</dd></div>)}
       </dl>
-      {slices.length === 0 ? <p class="muted small">No slices.</p> : null}
+      {slices.length === 0 ? <p class="muted small">{t("workflow.process.noSlices")}</p> : null}
     </section>
   );
 }
@@ -109,11 +110,11 @@ function ScatterWidget({ widget }: { readonly widget: RenderedWidget }) {
   return (
     <section class="process-widget-section" aria-labelledby={`${widget.id}-title`}>
       <h3 id={`${widget.id}-title`}>{widget.title}</h3>
-      {points.length > 0 ? <svg class="report-xyplot" viewBox="0 0 320 96" role="img" aria-label={`${widget.title}, ${points.length} points`}>
+      {points.length > 0 ? <svg class="report-xyplot" viewBox="0 0 320 96" role="img" aria-label={t("workflow.process.scatterAria", { title: widget.title, count: formatNumber(points.length) })}>
         <path d="M8 8 V88 H312" fill="none" stroke="currentColor" opacity=".35" />
-        {points.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r="4"><title>{`x ${displayValue(point.row["x"])}, y ${displayValue(point.row["y"])}, group ${displayValue(point.row["group"])}`}</title></circle>)}
-      </svg> : <p class="muted small">No scatter points.</p>}
-      <details><summary>Data points</summary><ul class="report-compact-list">{points.map((point, index) => <li key={index}>x {displayValue(point.row["x"])}, y {displayValue(point.row["y"])}{point.row["group"] === undefined ? "" : `, ${displayValue(point.row["group"])}`}</li>)}</ul></details>
+        {points.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r="4"><title>{t("workflow.process.scatterTooltip", { x: displayValue(point.row["x"]), y: displayValue(point.row["y"]), group: displayValue(point.row["group"]) })}</title></circle>)}
+      </svg> : <p class="muted small">{t("workflow.process.noScatterPoints")}</p>}
+      <details><summary>{t("workflow.process.dataPoints")}</summary><ul class="report-compact-list">{points.map((point, index) => <li key={index}>{t(point.row["group"] === undefined ? "workflow.process.scatterPoint" : "workflow.process.scatterPointGroup", { x: displayValue(point.row["x"]), y: displayValue(point.row["y"]), group: displayValue(point.row["group"]) })}</li>)}</ul></details>
     </section>
   );
 }
@@ -128,19 +129,19 @@ function SparklineWidget({ widget }: { readonly widget: RenderedWidget }) {
           ? item["values"].flatMap((value) => finiteNumber(value) ?? [])
           : [];
         const points = values.map((value, pointIndex) => [pointIndex, value] as const);
-        return <article key={`${displayValue(item["label"])}-${index}`}><strong>{displayValue(item["label"])}</strong><svg viewBox="0 0 160 48" role="img" aria-label={`${displayValue(item["label"])} trend`}><polyline points={sparkline(points, 160, 48)} fill="none" stroke="currentColor" stroke-width="2" /></svg><span class="muted small">min {displayValue(item["min"])} / max {displayValue(item["max"])} / last {displayValue(item["last"])}</span></article>;
+        return <article key={`${displayValue(item["label"])}-${index}`}><strong>{displayValue(item["label"])}</strong><svg viewBox="0 0 160 48" role="img" aria-label={t("workflow.process.trendAria", { label: displayValue(item["label"]) })}><polyline points={sparkline(points, 160, 48)} fill="none" stroke="currentColor" stroke-width="2" /></svg><span class="muted small">{t("workflow.process.sparklineStats", { min: displayValue(item["min"]), max: displayValue(item["max"]), last: displayValue(item["last"]) })}</span></article>;
       })}</div>
-      {series.length === 0 ? <p class="muted small">No sparkline series.</p> : null}
+      {series.length === 0 ? <p class="muted small">{t("workflow.process.noSparklineSeries")}</p> : null}
     </section>
   );
 }
 
 function GaugeWidget({ widget }: { readonly widget: RenderedWidget }) {
   const ratio = boundedRatio(widget.data["ratio"]);
-  return <section class="process-widget-section" aria-labelledby={`${widget.id}-title`}><h3 id={`${widget.id}-title`}>{widget.title}</h3><div class="report-gauge" role="meter" aria-valuemin={finiteNumber(widget.data["min"]) ?? 0} aria-valuemax={finiteNumber(widget.data["max"]) ?? 100} aria-valuenow={finiteNumber(widget.data["value"]) ?? undefined}><span style={{ "--gauge-ratio": ratio ?? 0 }} /><strong>{displayValue(widget.data["value"])} {displayValue(widget.data["unit"])}</strong><small>{displayValue(widget.data["min"])} to {displayValue(widget.data["max"])}</small></div></section>;
+  return <section class="process-widget-section" aria-labelledby={`${widget.id}-title`}><h3 id={`${widget.id}-title`}>{widget.title}</h3><div class="report-gauge" role="meter" aria-valuemin={finiteNumber(widget.data["min"]) ?? 0} aria-valuemax={finiteNumber(widget.data["max"]) ?? 100} aria-valuenow={finiteNumber(widget.data["value"]) ?? undefined}><span style={{ "--gauge-ratio": ratio ?? 0 }} /><strong>{displayValue(widget.data["value"])} {displayValue(widget.data["unit"])}</strong><small>{t("workflow.process.gaugeRange", { min: displayValue(widget.data["min"]), max: displayValue(widget.data["max"]) })}</small></div></section>;
 }
 
 function ProgressWidget({ widget }: { readonly widget: RenderedWidget }) {
   const ratio = boundedRatio(widget.data["ratio"]);
-  return <section class="process-widget-section" aria-labelledby={`${widget.id}-title`}><h3 id={`${widget.id}-title`}>{widget.title}</h3><div class="report-progress-head"><strong>{displayValue(widget.data["current"])} / {displayValue(widget.data["target"])} {displayValue(widget.data["unit"])}</strong><span>{percent(ratio)}</span></div><progress max={1} value={ratio ?? 0}>{percent(ratio)}</progress>{ratio === null ? <p class="muted small">A ratio is unavailable because the target is zero or missing.</p> : null}</section>;
+  return <section class="process-widget-section" aria-labelledby={`${widget.id}-title`}><h3 id={`${widget.id}-title`}>{widget.title}</h3><div class="report-progress-head"><strong>{displayValue(widget.data["current"])} / {displayValue(widget.data["target"])} {displayValue(widget.data["unit"])}</strong><span>{percent(ratio)}</span></div><progress max={1} value={ratio ?? 0}>{percent(ratio)}</progress>{ratio === null ? <p class="muted small">{t("workflow.process.ratioUnavailable")}</p> : null}</section>;
 }

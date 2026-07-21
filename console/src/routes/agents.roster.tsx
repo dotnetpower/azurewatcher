@@ -1,10 +1,10 @@
 import type { ObservationSource } from "../hooks/observation-source";
 import { observationSourceLabel } from "../hooks/observation-source";
+import { t } from "../i18n";
 import { routeHref } from "../router";
 import { openDeckWithContext } from "../deck/open-deck";
 import {
   AGENT_ROLE,
-  AGENT_RUNTIME_BINDING,
   agentChatContext,
   incidentsForAgent,
   runtimeConsumerCount,
@@ -12,8 +12,10 @@ import {
   type AgentsState,
 } from "./agents.model";
 import {
-  STATE_LABEL,
   agentIconUrl,
+  agentRoleTitle,
+  agentRuntimeBindingLabel,
+  agentStateLabel,
   currentTask,
   rosterLayerOf,
   stateTime,
@@ -62,76 +64,72 @@ export function AgentRoster({
     ...Object.values(state.agents).map((agent) => new Date(agent.since).getTime()),
     ...Object.values(state.incidents).map((incident) => new Date(incident.updatedAt).getTime()),
   ].reduce((latest, value) => Number.isFinite(value) ? Math.max(latest, value) : latest, 0);
-  const latestSignal = latestSignalMs > 0 ? stateTime(new Date(latestSignalMs).toISOString()) : "No signal yet";
+  const latestSignal = latestSignalMs > 0
+    ? stateTime(new Date(latestSignalMs).toISOString())
+    : t("agents.common.noSignalYet");
   return (
     <div class="agent-roster">
-      <section class="agent-roster-note" aria-label="Roster interpretation">
-        <strong>State is descriptive, not prescriptive.</strong>
+      <section class="agent-roster-note" aria-label={t("agents.roster.interpretationLabel")}>
+        <strong>{t("agents.roster.interpretationTitle")}</strong>
         <span>
-          Engaged counts agents handling a pipeline stage now, not every subscribed runtime
-          loop. Idle agents wake on their topics. This console observes work; it does not
-          approve or execute actions.
-          {` Live delta source: ${observationSourceLabel(streamSource)}. Incident history comes from the durable audit projection.`}
+          {t("agents.roster.interpretationBody", {
+            source: observationSourceLabel(streamSource),
+          })}
         </span>
       </section>
 
-      <section class="agent-discovery-note" aria-label="Resource discovery ownership">
+      <section class="agent-discovery-note" aria-label={t("agents.roster.discoveryLabel")}>
         <div>
-          <strong>Resource discovery</strong>
-          <span>Huginn real-time ingress</span>
+          <strong>{t("agents.roster.discoveryTitle")}</strong>
+          <span>{t("agents.roster.discoverySource")}</span>
         </div>
-        <p>
-          Azure resource writes and deletes enter through Event Hubs and Huginn continuously.
-          The Inventory sync job still runs Azure Resource Graph with ARM fallback every 6 hours
-          to reconcile missed signals. Heimdall monitors freshness and coverage. The local harness
-           uses read-only Azure CLI discovery by default.
-        </p>
+        <p>{t("agents.roster.discoveryBody")}</p>
       </section>
 
-      <section class="agent-roster-summary" aria-label="Fleet summary">
+      <section class="agent-roster-summary" aria-label={t("agents.roster.summaryLabel")}>
         <RosterSummary
-          label="Subscriber bindings"
+          label={t("agents.roster.metric.bindings")}
           value={runtimeConsumerCount()}
-           detail="configured runtime roles"
+          detail={t("agents.roster.metric.bindingsDetail")}
           kind="consumers"
         />
-        <RosterSummary label="Engaged" value={active ?? "-"} detail={runtimeCurrent ? "working now" : "live stream unavailable"} kind="engaged" />
-        <RosterSummary label="Watching" value={watching ?? "-"} detail={runtimeCurrent ? "sensing signals" : "last state retained"} kind="watching" />
-        <RosterSummary label="Idle" value={idle ?? "-"} detail={runtimeCurrent ? "ready to wake" : "last state retained"} kind="idle" />
-        <RosterSummary label="Unobserved" value={unobserved} detail="no runtime signal" kind="idle" />
+        <RosterSummary label={t("agents.roster.metric.engaged")} value={active ?? "-"} detail={runtimeCurrent ? t("agents.roster.metric.workingNow") : t("agents.roster.metric.streamUnavailable")} kind="engaged" />
+        <RosterSummary label={t("agents.roster.metric.watching")} value={watching ?? "-"} detail={runtimeCurrent ? t("agents.roster.metric.sensingSignals") : t("agents.roster.metric.lastStateRetained")} kind="watching" />
+        <RosterSummary label={t("agents.roster.metric.idle")} value={idle ?? "-"} detail={runtimeCurrent ? t("agents.roster.metric.readyToWake") : t("agents.roster.metric.lastStateRetained")} kind="idle" />
+        <RosterSummary label={t("agents.roster.metric.unobserved")} value={unobserved} detail={t("agents.roster.metric.noRuntimeSignal")} kind="idle" />
         <RosterSummary
-          label="Incidents"
+          label={t("agents.roster.metric.incidents")}
           value={state.incidentOrder.length}
-          detail="retained collaborations"
+          detail={t("agents.roster.metric.retainedCollaborations")}
           kind="incidents"
         />
         <RosterSummary
-          label="Recent touches"
+          label={t("agents.roster.metric.recentTouches")}
           value={recentTouches}
-          detail={`last signal ${latestSignal}`}
+          detail={t("agents.roster.metric.lastSignal", { time: latestSignal })}
           kind="activity"
         />
       </section>
 
-      <section class="agent-roster-toolbar" aria-label="Roster filters">
+      <section class="agent-roster-toolbar" aria-label={t("agents.filter.toolbarLabel")}>
         <RosterFilter
-          label="Layer"
+          label={t("agents.filter.layer")}
           values={["all", "governance", "pipeline", "domain"]}
           selected={layer}
           onSelect={(value) => onLayerChange(value as RosterLayer)}
         />
         <RosterFilter
-          label="State"
+          label={t("agents.filter.state")}
           values={["all", "engaged", "watching", "idle", "unobserved"]}
           selected={stateFilter}
           onSelect={(value) => onStateChange(value as RosterState)}
         />
         <label class="agent-roster-search">
-          <span class="sr-only">Filter agents</span>
+          <span class="sr-only">{t("agents.filter.searchLabel")}</span>
           <input
             type="search"
             value={query}
-            placeholder="Agent, role, or current work"
+            placeholder={t("agents.filter.searchPlaceholder")}
             onInput={(event) => onQueryChange(event.currentTarget.value)}
           />
         </label>
@@ -139,7 +137,7 @@ export function AgentRoster({
 
       {agents.length === 0 ? (
         <div class="agent-roster-empty">
-          <strong>No agents match these filters.</strong>
+          <strong>{t("agents.filter.empty")}</strong>
           <button
             type="button"
             onClick={() => {
@@ -148,7 +146,7 @@ export function AgentRoster({
               onQueryChange("");
             }}
           >
-            Clear filters
+            {t("agents.filter.clear")}
           </button>
         </div>
       ) : (
@@ -169,46 +167,46 @@ export function AgentRoster({
                   </span>
                   <div>
                     <h3>{node.name}</h3>
-                    <p>{role?.title ?? node.layer} · {rosterLayerOf(node.name)}</p>
+                    <p>{agentRoleTitle(node.name) ?? node.layer} - {t(`agents.layer.${rosterLayerOf(node.name)}`)}</p>
                   </div>
                   <span class={`agent-roster-state state-${node.state}`}>
-                    {STATE_LABEL[node.state] ?? node.state}
+                    {agentStateLabel(node)}
                   </span>
                 </header>
                 <p class="agent-roster-task">
-                  <span>Current work</span>
+                  <span>{t("agents.card.currentWork")}</span>
                   <strong>{currentTask(node)}</strong>
                 </p>
                 <dl>
                   <div>
-                    <dt>Active incident</dt>
-                    <dd>{incident?.ticketId || "None"}</dd>
+                    <dt>{t("agents.card.activeIncident")}</dt>
+                    <dd>{incident?.ticketId || t("agents.common.none")}</dd>
                   </div>
                   <div>
-                    <dt>State since</dt>
+                    <dt>{t("agents.card.stateSince")}</dt>
                     <dd>{stateTime(node.since)}</dd>
                   </div>
                   <div>
-                    <dt>Recent events</dt>
+                    <dt>{t("agents.card.recentEvents")}</dt>
                     <dd>{agentIncidents.length}</dd>
                   </div>
                   <div>
-                    <dt>Reports to</dt>
-                    <dd>{role?.reportsTo ?? "-"}{role?.staff ? " (staff)" : ""}</dd>
+                    <dt>{t("agents.card.reportsTo")}</dt>
+                    <dd>{role?.reportsTo ?? "-"}{role?.staff ? ` (${t("agents.common.staff")})` : ""}</dd>
                   </div>
                   <div>
-                    <dt>Runtime binding</dt>
-                    <dd>{AGENT_RUNTIME_BINDING[node.name] ?? "not configured"}</dd>
+                    <dt>{t("agents.card.runtimeBinding")}</dt>
+                    <dd>{agentRuntimeBindingLabel(node.name)}</dd>
                   </div>
                   <div>
-                    <dt>Authority</dt>
-                    <dd>{node.name === "Thor" ? "Execute" : node.name === "Var" ? "Approve" : "Observe / advise"}</dd>
+                    <dt>{t("agents.card.authority")}</dt>
+                    <dd>{node.name === "Thor" ? t("agents.authority.execute") : node.name === "Var" ? t("agents.authority.approve") : t("agents.authority.advise")}</dd>
                   </div>
                 </dl>
                 <footer>
-                  <button type="button" onClick={() => onOpen(node.name)}>Open</button>
+                  <button type="button" onClick={() => onOpen(node.name)}>{t("agents.action.open")}</button>
                   <a href={routeHref("agent-activity", { params: { agent: node.name } })}>
-                    Activity
+                    {t("agents.workspace.activity")}
                   </a>
                   <button
                     type="button"
@@ -222,7 +220,7 @@ export function AgentRoster({
                       })
                     }
                   >
-                    Ask {node.name}
+                    {t("agents.action.ask", { agent: node.name })}
                   </button>
                 </footer>
               </article>
@@ -268,7 +266,7 @@ function RosterFilter({
   return (
     <div class="agent-roster-filter">
       <span>{label}</span>
-      <div role="group" aria-label={`${label} filter`}>
+      <div role="group" aria-label={t("agents.filter.groupLabel", { label })}>
         {values.map((value) => (
           <button
             type="button"
@@ -277,7 +275,7 @@ function RosterFilter({
             aria-pressed={selected === value}
             onClick={() => onSelect(value)}
           >
-            {value === "all" ? "All" : value[0]?.toUpperCase() + value.slice(1)}
+            {t(`agents.filter.option.${value}`)}
           </button>
         ))}
       </div>

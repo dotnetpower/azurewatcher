@@ -16,13 +16,17 @@ import { t } from "../i18n";
 import { currentRoute, navigate, routeHref } from "../router";
 import {
   activeAgentCount,
-  AGENT_ROLE,
   makeInitialState,
   PANTHEON,
   reducer,
-  STATE_TASK,
   type AgentsState,
 } from "./agents.model";
+import {
+  agentRoleSummary,
+  agentRoleTitle,
+  agentStateLabel,
+  stateTaskLabel,
+} from "./agents.view-model";
 import { panelArray, panelBoolean, panelContractError, panelNullableString, panelNumber, panelRecord, panelString, panelStringArray } from "./panel-decode";
 
 /**
@@ -136,7 +140,7 @@ export function PantheonRoute({ client }: Props) {
       <AgentWorkspaceNav />
       <PageHeader
         title={t("route.pantheon")}
-        subtitle="The fixed 15-agent organization, enriched with each agent's current runtime state."
+        subtitle={t("pantheon.subtitle")}
       />
       <AsyncBoundary state={state} resourceLabel="pantheon">
         {(data) => (
@@ -257,12 +261,6 @@ export function decodePantheonWorkflows(value: unknown): PantheonWorkflowsRespon
 }
 
 const LAYER_ORDER = ["governance", "pipeline", "domain"] as const;
-const LAYER_COPY: Readonly<Record<string, string>> = {
-  governance: "Direction, memory, learning, and audit",
-  pipeline: "Sense, judge, approve, execute, and recover",
-  domain: "Advisory specialists that never execute",
-};
-
 type PantheonView = "directory" | "org";
 
 export function pantheonViewFromSearch(search: URLSearchParams): PantheonView {
@@ -346,40 +344,40 @@ function PantheonBody({
 
   return (
     <div class="stack pantheon-directory">
-      <section class="pantheon-source-banner" aria-label="Pantheon data source">
+      <section class="pantheon-source-banner" aria-label={t("pantheon.sourceLabel")}>
         <div>
-          <strong>Read-only organization</strong>
+          <strong>{t("pantheon.sourceTitle")}</strong>
           <span>
-            Cards come from the fork-locked pantheon registry. Runtime state comes from
-            <code> GET /agents/stream</code> and never grants execution authority.
+            {t("pantheon.sourceLead")} <code>GET /agents/stream</code>
+            {t("pantheon.sourceTail")}
           </span>
         </div>
         <div class="pantheon-source-state">
-          <span class={`agents-conn conn-${streamStatus}`}>{streamStatus}</span>
+          <span class={`agents-conn conn-${streamStatus}`}>{t(`agents.connection.${streamStatus}`)}</span>
           <span class="status-pill status-pill-neutral">
             {observationSourceLabel(streamSource)}
           </span>
-          <span><strong>{active}</strong> engaged</span>
+          <span>{t("pantheon.engaged", { count: active })}</span>
         </div>
       </section>
 
       <div class="pantheon-view-bar">
         <div>
-          <strong>{view === "directory" ? "Agent directory" : "Reporting organization"}</strong>
+          <strong>{view === "directory" ? t("pantheon.directoryTitle") : t("pantheon.organizationTitle")}</strong>
           <span>
             {view === "directory"
-              ? "Compare ownership, dependencies, and runtime work by layer."
-              : "Follow reporting lines, inspect live state, and open an agent for detail."}
+              ? t("pantheon.directoryHint")
+              : t("pantheon.organizationHint")}
           </span>
         </div>
-        <div class="agents-layout-toggle" role="group" aria-label="Pantheon view">
+        <div class="agents-layout-toggle" role="group" aria-label={t("pantheon.viewLabel")}>
           <button
             type="button"
             class={view === "directory" ? "is-active" : ""}
             aria-pressed={view === "directory"}
             onClick={() => openView("directory")}
           >
-            Directory
+            {t("pantheon.directory")}
           </button>
           <button
             type="button"
@@ -387,15 +385,15 @@ function PantheonBody({
             aria-pressed={view === "org"}
             onClick={() => openView("org")}
           >
-            Org chart
+            {t("pantheon.organization")}
           </button>
         </div>
       </div>
 
-      <div class="pantheon-legend" aria-label="Pantheon flags">
-        <span class="pt-badge is-hotllm">hot-path LLM</span>
-        <span class="pt-badge is-offllm">off-path LLM</span>
-        <span class="pt-badge is-hard">hard dependency</span>
+      <div class="pantheon-legend" aria-label={t("pantheon.flagsLabel")}>
+        <span class="pt-badge is-hotllm">{t("pantheon.hotPathLlm")}</span>
+        <span class="pt-badge is-offllm">{t("pantheon.offPathLlm")}</span>
+        <span class="pt-badge is-hard">{t("pantheon.hardDependency")}</span>
       </div>
 
       {view === "org" ? <AgentOrgChart state={runtime} /> : LAYER_ORDER.map((layer) => {
@@ -404,10 +402,10 @@ function PantheonBody({
           <section class="pt-layer" key={layer}>
             <header class="pt-layer-head">
               <div>
-                <h3>{titleCase(layer)} layer</h3>
-                <p>{LAYER_COPY[layer]}</p>
+                <h3>{t("pantheon.layerTitle", { layer: t(`agents.layer.${layer}`) })}</h3>
+                <p>{t(`pantheon.layer.${layer}`)}</p>
               </div>
-              <span>{agents.length} agents</span>
+              <span>{t("pantheon.agentCount", { count: agents.length })}</span>
             </header>
             <div class="pt-grid">
               {agents.map((agent) => (
@@ -425,8 +423,8 @@ function PantheonBody({
       {view === "directory" ? <section class="pantheon-tree-section">
         <header class="pt-layer-head">
           <div>
-            <h3>Reporting tree</h3>
-            <p>Every reporting line is projected from the registry.</p>
+            <h3>{t("pantheon.reportingTree")}</h3>
+            <p>{t("pantheon.reportingTreeHint")}</p>
           </div>
         </header>
         <ReportingTree agents={graph.agents} />
@@ -434,18 +432,18 @@ function PantheonBody({
 
       <details class="pantheon-workflows">
         <summary>
-          <strong>Cross-agent workflows</strong>
-          <span>{workflows.workflows.length} registered</span>
+          <strong>{t("pantheon.workflows")}</strong>
+          <span>{t("pantheon.registered", { count: workflows.workflows.length })}</span>
         </summary>
         <div class="data-table-wrap">
           <table class="data-table">
             <thead>
               <tr>
-                <th>Id</th>
-                <th>Name</th>
-                <th>Primary</th>
-                <th>Participants</th>
-                <th>Mode</th>
+                <th>{t("pantheon.column.id")}</th>
+                <th>{t("pantheon.column.name")}</th>
+                <th>{t("pantheon.column.primary")}</th>
+                <th>{t("pantheon.column.participants")}</th>
+                <th>{t("pantheon.column.mode")}</th>
               </tr>
             </thead>
             <tbody>
@@ -489,7 +487,6 @@ function PantheonAgentCard({
   readonly agent: AgentDto;
   readonly runtime: AgentsState["agents"][string] | undefined;
 }) {
-  const role = AGENT_ROLE[agent.name];
   const state = runtime?.observed ? runtime.state : "unobserved";
   return (
     <article class={`pt-card is-${agent.layer}`}>
@@ -497,26 +494,26 @@ function PantheonAgentCard({
         <span class={`pt-avatar is-${agent.layer}`}>{agent.name.slice(0, 2)}</span>
         <div>
           <h4><a href={pantheonAgentHref(agent.name, runtime?.correlationId)}>{agent.name}</a></h4>
-          <p>{role?.title ?? titleCase(agent.layer)}</p>
+          <p>{agentRoleTitle(agent.name) ?? titleCase(agent.layer)}</p>
         </div>
         <span class={`pt-runtime state-${state}`}>
           <i aria-hidden="true" />
-          {state}
+          {runtime ? agentStateLabel(runtime) : t("agents.state.unobserved")}
         </span>
       </header>
-      {role ? <p class="pt-summary">{role.summary}</p> : null}
+      {agentRoleSummary(agent.name) ? <p class="pt-summary">{agentRoleSummary(agent.name)}</p> : null}
       <p class="pt-owns">
-        <strong>Owns</strong>{" "}
+        <strong>{t("pantheon.owns")}</strong>{" "}
         {agent.owns.length > 0 ? agent.owns.map((item) => <code key={item}>{item}</code>) : "-"}
       </p>
-      <p class="pt-reports"><strong>Reports to</strong> {agent.reports_to ?? "- (root)"}</p>
+      <p class="pt-reports"><strong>{t("pantheon.reportsTo")}</strong> {agent.reports_to ?? t("pantheon.root")}</p>
       <div class="pt-badges">
-        {agent.hot_path_llm ? <span class="pt-badge is-hotllm">hot-path LLM</span> : null}
-        {agent.off_path_llm ? <span class="pt-badge is-offllm">off-path LLM</span> : null}
-        {agent.hard_dependency ? <span class="pt-badge is-hard">hard dependency</span> : null}
+        {agent.hot_path_llm ? <span class="pt-badge is-hotllm">{t("pantheon.hotPathLlm")}</span> : null}
+        {agent.off_path_llm ? <span class="pt-badge is-offllm">{t("pantheon.offPathLlm")}</span> : null}
+        {agent.hard_dependency ? <span class="pt-badge is-hard">{t("pantheon.hardDependency")}</span> : null}
       </div>
       <div class="pt-live-detail">
-        <span>{runtime?.observed ? runtime.detail ?? STATE_TASK[runtime.state] : "No runtime signal observed"}</span>
+        <span>{runtime?.observed ? runtime.detail ?? stateTaskLabel(runtime.state) : t("agents.task.unobserved")}</span>
         {runtime?.correlationId ? <code>{runtime.correlationId}</code> : null}
       </div>
     </article>
@@ -533,7 +530,7 @@ function ReportingTree({ agents }: { readonly agents: readonly AgentDto[] }) {
   const branch = (agent: AgentDto) => (
     <li key={agent.name}>
       <a class="pt-tree-name" href={pantheonAgentHref(agent.name)}>{agent.name}</a>{" "}
-      <span class="pt-tree-role">- {AGENT_ROLE[agent.name]?.title ?? titleCase(agent.layer)}</span>
+      <span class="pt-tree-role">- {agentRoleTitle(agent.name) ?? titleCase(agent.layer)}</span>
       {(byParent.get(agent.name)?.length ?? 0) > 0 ? (
         <ul>{byParent.get(agent.name)!.map(branch)}</ul>
       ) : null}

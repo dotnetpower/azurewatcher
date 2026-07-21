@@ -1,18 +1,19 @@
 import {
   ORG_CHART,
-  STATE_TASK,
   type AgentNode,
   type EngagedGroup,
   type Incident,
 } from "./agents.model";
 import {
-  STATE_LABEL,
+  agentStateLabel,
   centroid,
   hueForIncident,
   pairsOf,
+  stateTaskLabel,
   type Geometry,
   type Point,
 } from "./agents.view-model";
+import { t } from "../i18n";
 
 /**
  * SVG overlay that draws a connection-line mesh between every pair of
@@ -108,24 +109,24 @@ export function AgentHoverCard({
   readonly node: AgentNode;
   readonly incident: Incident | null;
 }) {
-  const task = STATE_TASK[node.state] ?? node.state;
+  const task = node.detail ?? stateTaskLabel(node.state);
   return (
     <div class="agent-tooltip" role="tooltip">
       <div class="agent-tooltip-head">
         <strong>{node.name}</strong>
         <span class={`agent-tooltip-state state-${node.state}`}>
-          {STATE_LABEL[node.state] ?? node.state}
+          {agentStateLabel(node)}
         </span>
       </div>
       <p class="agent-tooltip-task">{task}</p>
       {node.detail && <p class="agent-tooltip-detail">{node.detail}</p>}
       {incident ? (
         <div class="agent-tooltip-incident">
-          <span class="agent-tooltip-ticket">{incident.ticketId || "incident"}</span>
+          <span class="agent-tooltip-ticket">{incident.ticketId || t("agents.common.incident")}</span>
           <span class="agent-tooltip-title">{incident.title}</span>
         </div>
       ) : (
-        <p class="agent-tooltip-idle">Not engaged on any incident.</p>
+        <p class="agent-tooltip-idle">{t("agents.common.notEngaged")}</p>
       )}
     </div>
   );

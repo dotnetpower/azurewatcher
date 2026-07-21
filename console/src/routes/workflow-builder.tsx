@@ -23,7 +23,6 @@ import type { ReadApiClient } from "../api";
 import { AsyncBoundary, PageHeader, type AsyncState } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
 import type {
   ActionTypePaletteResponse,
   WorkflowCatalogResponse,
@@ -33,6 +32,7 @@ import type { CombinedData } from "./workflow-builder.model";
 import { BuiltInList } from "./workflow-builder.catalog";
 import { WorkflowChat } from "./workflow-builder.chatpanel";
 import { PythonTaskWorkbench } from "./workflow-builder.python-task";
+import { formatNumber, t } from "./i18n/workflow";
 
 // Re-export the pure helpers the vitest suite pins so `./workflow-builder`
 // stays a stable public import surface (workflow-builder.test.ts).
@@ -92,9 +92,7 @@ export function WorkflowBuilderRoute({ client }: Props) {
           if (isOptionalReadApiUnavailable(err)) {
             setState({
               status: "unavailable",
-              message:
-                "The workflow authoring routes are not wired on this deployment. " +
-                "Set ReadApiConfig.workflow_authoring in the composition root to enable them.",
+              message: t("workflow.builder.unavailable"),
             });
           } else {
             setState({ status: "error", message });
@@ -110,7 +108,7 @@ export function WorkflowBuilderRoute({ client }: Props) {
   return (
     <div class="stack governance-route workflow-builder-route">
       <PageHeader title={t("route.workflowBuilder")} subtitle={t("workflowBuilder.subtitle")} />
-      <AsyncBoundary state={state} resourceLabel="workflow builder">
+      <AsyncBoundary state={state} resourceLabel={t("workflow.builder.resourceLabel")}>
         {(data) => <WorkflowShell data={data} />}
       </AsyncBoundary>
     </div>
@@ -151,26 +149,29 @@ function WorkflowShell({ data }: { readonly data: CombinedData }) {
           };
       return {
         routeId: "workflow-builder",
-        routeLabel: "Workflow builder",
-        purpose:
-          "Inspect the built-in workflows (a trigger plus an ordered chain of " +
-          "ActionType steps) and design a new one by chatting with the builder. " +
-          "New workflows are locked to shadow mode; promotion to enforce is a " +
-          "separate reviewed PR. Read-only by construction.",
+        routeLabel: t("workflow.builder.routeLabel"),
+        purpose: t("workflow.builder.purpose"),
         glossary: composeGlossary([TERMS.actionType, TERMS.shadowMode, TERMS.mode]),
         headline: isNew
-          ? `Conversational workflow designer open - ${data.palette.length} ActionTypes available`
-          : `${data.workflows.length} built-in workflows - ${data.palette.length} ActionTypes`,
+          ? t("workflow.builder.headlineNew", { count: formatNumber(data.palette.length) })
+          : t("workflow.builder.headlineList", {
+              workflows: formatNumber(data.workflows.length),
+              actions: formatNumber(data.palette.length),
+            }),
         capturedAt: new Date().toISOString(),
         facts: [
           { key: "built_in_count", value: data.workflows.length, group: "workflow" },
           { key: "palette_size", value: data.palette.length, group: "workflow" },
-          { key: "mode", value: isNew ? "new (chat designer)" : "list", group: "workflow" },
+          {
+            key: "mode",
+            value: t(isNew ? "workflow.builder.modeNew" : "workflow.builder.modeList"),
+            group: "workflow",
+          },
           ...(isNew
             ? [
                 {
                   key: "default_mode",
-                  value: "shadow (locked; promotion is a separate PR)",
+                  value: t("workflow.builder.defaultMode"),
                   group: "workflow",
                 },
               ]

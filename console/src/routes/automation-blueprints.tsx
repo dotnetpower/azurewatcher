@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import type { ReadApiClient } from "../api";
+import { isOptionalReadApiUnavailable, type ReadApiClient } from "../api";
 import {
   AsyncBoundary,
   DataTable,
@@ -13,7 +13,7 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
+import { presentationLabel, t } from "./i18n/evidence";
 import {
   panelArray,
   panelBoolean,
@@ -71,10 +71,10 @@ export function AutomationBlueprintsRoute({ client }: { readonly client: ReadApi
     let cancelled = false;
     client.panel<unknown>("/automation-blueprints")
       .then((value) => { if (!cancelled) setState({ status: "ready", data: decodeAutomationBlueprints(value) }); })
-      .catch((error: unknown) => { if (!cancelled) setState({ status: "error", message: error instanceof Error ? error.message : String(error) }); });
+      .catch((error: unknown) => { if (!cancelled) setState({ status: isOptionalReadApiUnavailable(error) ? "unavailable" : "error", message: error instanceof Error ? error.message : String(error) }); });
     return () => { cancelled = true; };
   }, [client]);
-  return <div class="stack"><PageHeader title={t("route.automationBlueprints")} subtitle={t("nav.panelSub.automationBlueprints")} /><AsyncBoundary state={state} resourceLabel="automation blueprints">{(data) => <BlueprintBody data={data} />}</AsyncBoundary></div>;
+  return <div class="stack"><PageHeader title={t("route.automationBlueprints")} subtitle={t("nav.panelSub.automationBlueprints")} /><AsyncBoundary state={state} resourceLabel={t("evidence.blueprints.resource")}>{(data) => <BlueprintBody data={data} />}</AsyncBoundary></div>;
 }
 
 export function decodeAutomationBlueprints(value: unknown): AutomationBlueprintResponse {
@@ -138,24 +138,24 @@ function ratio(value: Readonly<Record<string, unknown>>, key: string): number {
 }
 
 const columns: readonly Column<BlueprintCard>[] = [
-  { key: "intent", header: "Suggested automation", render: (item) => <div><strong>{item.normalized_task_intent}</strong><small>{item.schedule_expression}</small></div> },
-  { key: "state", header: "Review state", render: (item) => <StatusPill kind={item.state === "draft" ? "shadow" : item.state === "materialized" ? "success" : "warning"} label={item.state} /> },
-  { key: "scope", header: "Resource scope", render: (item) => <code>{item.resource_scope}</code> },
-  { key: "evidence", header: "Evidence", render: (item) => item.evidence_fingerprints.length },
-  { key: "tools", header: "Required tools", render: (item) => item.required_tools.join(", ") || "None" },
-  { key: "isolation", header: "Isolation", render: (item) => `${item.isolation_profile.profile_id}; ${item.isolation_profile.max_tool_calls} tool calls` },
-  { key: "cost", header: "Estimated cost", render: (item) => `${item.estimated_cost_microusd} micro-USD` },
-  { key: "confidence", header: "Confidence", render: (item) => `${(item.confidence * 100).toFixed(1)}%` },
+  { key: "intent", header: t("evidence.blueprints.column.automation"), render: (item) => <div><strong>{item.normalized_task_intent}</strong><small>{item.schedule_expression}</small></div> },
+  { key: "state", header: t("evidence.blueprints.column.state"), render: (item) => <StatusPill kind={item.state === "draft" ? "shadow" : item.state === "materialized" ? "success" : "warning"} label={presentationLabel("status", item.state)} /> },
+  { key: "scope", header: t("evidence.blueprints.column.scope"), render: (item) => <code>{item.resource_scope}</code> },
+  { key: "evidence", header: t("evidence.blueprints.column.evidence"), render: (item) => item.evidence_fingerprints.length },
+  { key: "tools", header: t("evidence.blueprints.column.tools"), render: (item) => item.required_tools.join(", ") || t("evidence.common.none") },
+  { key: "isolation", header: t("evidence.blueprints.column.isolation"), render: (item) => `${item.isolation_profile.profile_id}; ${t("evidence.blueprints.toolCalls", { count: item.isolation_profile.max_tool_calls })}` },
+  { key: "cost", header: t("evidence.blueprints.column.cost"), render: (item) => t("evidence.blueprints.microUsd", { cost: item.estimated_cost_microusd }) },
+  { key: "confidence", header: t("evidence.blueprints.column.confidence"), render: (item) => `${(item.confidence * 100).toFixed(1)}%` },
 ];
 
 function BlueprintBody({ data }: { readonly data: AutomationBlueprintResponse }) {
   usePublishViewContext(
     () => ({
       routeId: "automation-blueprints",
-      routeLabel: "Automation blueprints",
-      purpose: "Read-only evidence cards for recurring operator work that may become a reviewed scheduled task.",
-      glossary: composeGlossary([], [{ term: "automation blueprint", plain: "an inert recurring-work suggestion that requires explicit review", tech: "AutomationBlueprintCandidate" }]),
-      headline: `${data.count} candidates; ${data.metrics.materialized} materialized`,
+      routeLabel: t("route.automationBlueprints"),
+      purpose: t("evidence.blueprints.viewPurpose"),
+      glossary: composeGlossary([], [{ term: t("evidence.blueprints.glossaryTerm"), plain: t("evidence.blueprints.glossaryPlain"), tech: "AutomationBlueprintCandidate" }]),
+      headline: t("evidence.blueprints.headline", { count: data.count, materialized: data.metrics.materialized }),
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "source", value: data.source, group: "provenance" },
@@ -168,5 +168,5 @@ function BlueprintBody({ data }: { readonly data: AutomationBlueprintResponse })
     }),
     [data],
   );
-  return <div class="stack"><div class="governance-readonly-banner"><strong>Review evidence only.</strong><span>Candidates are disabled and shadow-only. Review and materialization happen in authenticated operator channels.</span></div><KpiGrid><KpiCard label="Candidates" value={data.count.toLocaleString()} /><KpiCard label="Accepted" value={data.metrics.accepted.toLocaleString()} /><KpiCard label="Rejected" value={data.metrics.rejected.toLocaleString()} /><KpiCard label="Realized usage" value={data.metrics.realized_usage.toLocaleString()} /></KpiGrid><DataTable rows={data.candidates} columns={columns} keyOf={(item) => item.candidate_id} empty={<EmptyState title="No automation blueprints qualify" />} /></div>;
+  return <div class="stack"><div class="governance-readonly-banner"><strong>{t("evidence.blueprints.bannerTitle")}</strong><span>{t("evidence.blueprints.bannerBody")}</span></div><KpiGrid><KpiCard label={t("evidence.blueprints.candidates")} value={data.count.toLocaleString()} /><KpiCard label={t("evidence.blueprints.accepted")} value={data.metrics.accepted.toLocaleString()} /><KpiCard label={t("evidence.blueprints.rejected")} value={data.metrics.rejected.toLocaleString()} /><KpiCard label={t("evidence.blueprints.realizedUsage")} value={data.metrics.realized_usage.toLocaleString()} /></KpiGrid><DataTable rows={data.candidates} columns={columns} keyOf={(item) => item.candidate_id} empty={<EmptyState title={t("evidence.blueprints.empty")} />} /></div>;
 }

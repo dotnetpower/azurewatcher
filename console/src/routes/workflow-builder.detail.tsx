@@ -8,6 +8,7 @@ import {
   requestedActionType,
   type WorkflowGroup,
 } from "./workflow-builder.model";
+import { formatNumber, statusLabel, t } from "./i18n/workflow";
 
 export function workflowStepHref(
   group: WorkflowGroup,
@@ -75,8 +76,8 @@ export function WorkflowDetail({
   return (
     <section class="workflow-catalog-workspace">
       <aside class="workflow-palette-panel">
-        <h3>Palette <span>{palette.length} ActionTypes</span></h3>
-        <p>Available on this deployment. Catalog view is read-only.</p>
+        <h3>{t("workflow.detail.palette")} <span>{t("workflow.detail.actionTypeCount", { count: formatNumber(palette.length) })}</span></h3>
+        <p>{t("workflow.detail.catalogReadOnly")}</p>
         <ul>
           {palette.map((entry) => (
             <li key={entry.name} class={entry.name === actionType?.name ? "is-selected" : undefined}>
@@ -91,15 +92,15 @@ export function WorkflowDetail({
         <header>
           <div>
             <h3>{workflow.name}</h3>
-            <p>{workflow.description ?? "Published workflow catalog entry"}</p>
+            <p>{workflow.description ?? t("workflow.detail.defaultDescription")}</p>
           </div>
           <span class={workflow.default_mode === "enforce" ? "status-pill status-pill-enforce" : "status-pill status-pill-shadow"}>
-            {workflow.default_mode}
+            {statusLabel(workflow.default_mode)}
           </span>
         </header>
         <div class="workflow-canvas-chain">
           <div class="workflow-canvas-node is-trigger">
-            <span>when</span>
+            <span>{t("workflow.detail.when")}</span>
             <strong>{workflow.trigger.kind}</strong>
             <code>{workflow.trigger.kind === "signal" ? workflow.trigger.signal_type : workflow.trigger.schedule}</code>
           </div>
@@ -111,68 +112,68 @@ export function WorkflowDetail({
                 class={`workflow-canvas-node is-action ${selected?.id === step.id ? "is-selected" : ""}`}
                 onClick={() => openStep(step.id)}
               >
-                <span>{index === workflow.steps.length - 1 ? "then" : "do"}</span>
+                <span>{t(index === workflow.steps.length - 1 ? "workflow.detail.then" : "workflow.detail.do")}</span>
                 <strong>{step.id}</strong>
-                <code>{step.action_type_ref || step.guard_rule_ref || step.on_failure || "workflow stage"}</code>
+                <code>{step.action_type_ref || step.guard_rule_ref || step.on_failure || t("workflow.detail.workflowStage")}</code>
               </button>
             </div>
           ))}
           <div class="workflow-canvas-step">
             <i aria-hidden="true" />
-            <div class="workflow-canvas-node is-done"><span>done</span><strong>audit terminal state</strong></div>
+            <div class="workflow-canvas-node is-done"><span>{t("workflow.detail.done")}</span><strong>{t("workflow.detail.auditTerminalState")}</strong></div>
           </div>
         </div>
       </section>
 
       <aside class="workflow-inspector-panel">
-        <h3>Inspect <span>selected step</span></h3>
+        <h3>{t("workflow.detail.inspect")} <span>{t("workflow.detail.selectedStep")}</span></h3>
         {invalidRequestedStep ? (
-          <UnavailableState message={`Step ${requestedStep} is not registered in ${workflow.name}.`} />
+          <UnavailableState message={t("workflow.detail.stepNotFound", { step: requestedStep ?? "", workflow: workflow.name })} />
         ) : invalidRequestedAction ? (
-          <UnavailableState message={`ActionType ${requestedAction} is not registered in this deployment.`} />
+          <UnavailableState message={t("workflow.detail.actionNotFound", { action: requestedAction ?? "" })} />
         ) : selected === null && actionType !== null ? (
           <>
             <code class="workflow-inspector-name">{actionType.name}</code>
             <dl>
-              <div><dt>Category</dt><dd>{actionType.category ?? "not recorded"}</dd></div>
-              <div><dt>Operation</dt><dd>{actionType.operation}</dd></div>
-              <div><dt>Execution path</dt><dd>{actionType.execution_path ?? "not recorded"}</dd></div>
-              <div><dt>Rollback</dt><dd>{actionType.rollback_contract}</dd></div>
-              <div><dt>Default mode</dt><dd>{actionType.default_mode}</dd></div>
-              <div><dt>Environment scope</dt><dd>{actionType.env_scope}</dd></div>
-              <div><dt>HIL tiers</dt><dd>{actionType.hil_tiers.join(", ") || "none"}</dd></div>
-              <div><dt>Description</dt><dd>{actionType.description ?? "not recorded"}</dd></div>
+              <div><dt>{t("workflow.detail.field.category")}</dt><dd>{actionType.category ?? t("workflow.detail.notRecorded")}</dd></div>
+              <div><dt>{t("workflow.detail.field.operation")}</dt><dd>{actionType.operation}</dd></div>
+              <div><dt>{t("workflow.detail.field.executionPath")}</dt><dd>{actionType.execution_path ?? t("workflow.detail.notRecorded")}</dd></div>
+              <div><dt>{t("workflow.detail.field.rollback")}</dt><dd>{actionType.rollback_contract}</dd></div>
+              <div><dt>{t("workflow.detail.field.defaultMode")}</dt><dd>{actionType.default_mode}</dd></div>
+              <div><dt>{t("workflow.detail.field.environmentScope")}</dt><dd>{actionType.env_scope}</dd></div>
+              <div><dt>{t("workflow.detail.field.hilTiers")}</dt><dd>{actionType.hil_tiers.join(", ") || t("workflow.detail.none")}</dd></div>
+              <div><dt>{t("workflow.detail.field.description")}</dt><dd>{actionType.description ?? t("workflow.detail.notRecorded")}</dd></div>
             </dl>
           </>
         ) : selected ? (
           <>
             <code class="workflow-inspector-name">{selected.action_type_ref || selected.id}</code>
             <dl>
-              <div><dt>Step id</dt><dd>{selected.id}</dd></div>
-              <div><dt>Category</dt><dd>{actionType?.category ?? "not recorded"}</dd></div>
-              <div><dt>Execution path</dt><dd>{actionType?.execution_path ?? "not recorded"}</dd></div>
-              <div><dt>Rollback</dt><dd>{actionType?.rollback_contract ?? "not recorded"}</dd></div>
-              <div><dt>Default mode</dt><dd>{actionType?.default_mode ?? workflow.default_mode}</dd></div>
-              <div><dt>Guard</dt><dd>{selected.guard_rule_ref ?? "none"}</dd></div>
-              <div><dt>Compensated by</dt><dd>{selected.compensated_by ?? "none"}</dd></div>
-              <div><dt>On failure</dt><dd>{selected.on_failure ?? "not recorded"}</dd></div>
-              <div><dt>Parameters</dt><dd>{formatParams(selected.params)}</dd></div>
+              <div><dt>{t("workflow.detail.field.stepId")}</dt><dd>{selected.id}</dd></div>
+              <div><dt>{t("workflow.detail.field.category")}</dt><dd>{actionType?.category ?? t("workflow.detail.notRecorded")}</dd></div>
+              <div><dt>{t("workflow.detail.field.executionPath")}</dt><dd>{actionType?.execution_path ?? t("workflow.detail.notRecorded")}</dd></div>
+              <div><dt>{t("workflow.detail.field.rollback")}</dt><dd>{actionType?.rollback_contract ?? t("workflow.detail.notRecorded")}</dd></div>
+              <div><dt>{t("workflow.detail.field.defaultMode")}</dt><dd>{actionType?.default_mode ?? workflow.default_mode}</dd></div>
+              <div><dt>{t("workflow.detail.field.guard")}</dt><dd>{selected.guard_rule_ref ?? t("workflow.detail.none")}</dd></div>
+              <div><dt>{t("workflow.detail.field.compensatedBy")}</dt><dd>{selected.compensated_by ?? t("workflow.detail.none")}</dd></div>
+              <div><dt>{t("workflow.detail.field.onFailure")}</dt><dd>{selected.on_failure ?? t("workflow.detail.notRecorded")}</dd></div>
+              <div><dt>{t("workflow.detail.field.parameters")}</dt><dd>{formatParams(selected.params)}</dd></div>
             </dl>
           </>
-        ) : <p class="muted">This workflow has no steps.</p>}
+        ) : <p class="muted">{t("workflow.detail.emptySteps")}</p>}
         <div class="workflow-promotion-facts">
-          <strong>Promotion gate</strong>
-          <span>{gate.min_shadow_days}d shadow</span>
-          <span>{gate.min_samples} samples</span>
-          <span>accuracy &ge; {gate.min_accuracy}</span>
-          <span>escapes &le; {gate.max_policy_escapes}</span>
+          <strong>{t("workflow.detail.promotionGate")}</strong>
+          <span>{t("workflow.detail.shadowDays", { count: formatNumber(gate.min_shadow_days) })}</span>
+          <span>{t("workflow.detail.samples", { count: formatNumber(gate.min_samples) })}</span>
+          <span>{t("workflow.detail.accuracy", { value: gate.min_accuracy })}</span>
+          <span>{t("workflow.detail.escapes", { value: gate.max_policy_escapes })}</span>
         </div>
       </aside>
 
       <details class="workflow-yaml-panel">
-        <summary>Published YAML and anti-scope</summary>
-        {workflow.anti_scope ? <p><strong>Anti-scope:</strong> {workflow.anti_scope}</p> : null}
-        <div class="code-actions"><CopyButton text={workflow.yaml} label="Copy YAML" /></div>
+        <summary>{t("workflow.detail.yamlSummary")}</summary>
+        {workflow.anti_scope ? <p><strong>{t("workflow.detail.antiScope")}</strong> {workflow.anti_scope}</p> : null}
+        <div class="code-actions"><CopyButton text={workflow.yaml} label={t("workflow.detail.copyYaml")} /></div>
         <pre class="mono scroll code-block">{workflow.yaml}</pre>
       </details>
     </section>

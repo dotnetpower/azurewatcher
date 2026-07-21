@@ -1,4 +1,5 @@
 import type { ComponentChildren } from "preact";
+import { displayValue, t } from "./i18n/governance";
 
 export type FacetMap = Readonly<Record<string, number>>;
 
@@ -6,11 +7,13 @@ export function FacetChips({
   label,
   value,
   counts,
+  displayGroup,
   onChange,
 }: {
   readonly label: string;
   readonly value: string;
   readonly counts: FacetMap;
+  readonly displayGroup?: string;
   readonly onChange: (next: string) => void;
 }) {
   const options = Object.entries(counts);
@@ -23,7 +26,7 @@ export function FacetChips({
           class={value === "" ? "is-active" : undefined}
           onClick={() => onChange("")}
         >
-          All <small>{options.reduce((sum, [, count]) => sum + count, 0)}</small>
+          {t("governance.common.all")} <small>{options.reduce((sum, [, count]) => sum + count, 0)}</small>
         </button>
         {options.map(([key, count]) => (
           <button
@@ -32,7 +35,7 @@ export function FacetChips({
             class={value === key ? "is-active" : undefined}
             onClick={() => onChange(key)}
           >
-            {key} <small>{count}</small>
+            {displayGroup ? displayValue(displayGroup, key) : key} <small>{count}</small>
           </button>
         ))}
       </div>

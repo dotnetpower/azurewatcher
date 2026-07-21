@@ -49,15 +49,15 @@ export function StepDetail({
   const provenance = auditProvenanceOf(item);
 
   const record: readonly (readonly [string, ComponentChildren])[] = [
-    ["Evidence source", provenance === "sample" ? "Local sample" : "Operational audit"],
-    ["Tier", tier ? <span class="mono">{tier}</span> : null],
-    ["Mode", <StatusPill kind={modePill(item.mode)} label={item.mode} />],
-    ["Outcome", outcome ? <StatusPill kind={outcomePill(outcome)} label={outcome} /> : null],
-    ["Decision", decision ? <span class="mono">{decision}</span> : null],
-    ["Pipeline stage", stage ? <span class="mono">{stage}</span> : null],
-    ["Reason", reason],
+    [t("agentActivity.detail.evidenceSource"), provenance === "sample" ? t("agentActivity.detail.localSample") : t("agentActivity.detail.operationalAudit")],
+    [t("agentActivity.detail.tier"), tier ? <span class="mono">{tier}</span> : null],
+    [t("agentActivity.detail.mode"), <StatusPill kind={modePill(item.mode)} label={item.mode} />],
+    [t("agentActivity.detail.outcome"), outcome ? <StatusPill kind={outcomePill(outcome)} label={outcome} /> : null],
+    [t("agentActivity.detail.decision"), decision ? <span class="mono">{decision}</span> : null],
+    [t("agentActivity.detail.pipelineStage"), stage ? <span class="mono">{stage}</span> : null],
+    [t("agentActivity.detail.reason"), reason],
     [
-      "Correlation",
+      t("agentActivity.detail.correlation"),
       item.correlation_id ? (
         <Tooltip content={t("tooltip.openTrace")}>
           <a
@@ -69,14 +69,14 @@ export function StepDetail({
         </Tooltip>
       ) : null,
     ],
-    ["Seq", <span class="mono">{item.seq}</span>],
-    ["Event id", <span class="mono waterfall-hash">{item.event_id}</span>],
-    ["Entry hash", <span class="mono waterfall-hash">{item.entry_hash}</span>],
-    ["Prev hash", <span class="mono waterfall-hash">{item.previous_hash}</span>],
+    [t("agentActivity.detail.sequence"), <span class="mono">{item.seq}</span>],
+    [t("agentActivity.detail.eventId"), <span class="mono waterfall-hash">{item.event_id}</span>],
+    [t("agentActivity.detail.entryHash"), <span class="mono waterfall-hash">{item.entry_hash}</span>],
+    [t("agentActivity.detail.previousHash"), <span class="mono waterfall-hash">{item.previous_hash}</span>],
   ];
 
   return (
-    <aside class="waterfall-detail" aria-label="Step detail">
+    <aside class="waterfall-detail" aria-label={t("agentActivity.detail.label")}>
       <header class="waterfall-detail-head">
         <span class="waterfall-detail-title">
           <span class="agent-dot agent-dot-lg" data-layer={layer} aria-hidden="true" />
@@ -86,7 +86,7 @@ export function StepDetail({
           <StatusPill kind={modePill(item.mode)} label={item.mode} />
           {outcome ? <StatusPill kind={outcomePill(outcome)} label={outcome} /> : null}
         </span>
-        <button type="button" class="waterfall-detail-close" onClick={onClose} aria-label="Close detail">
+        <button type="button" class="waterfall-detail-close" onClick={onClose} aria-label={t("agentActivity.detail.close")}>
           ×
         </button>
       </header>
@@ -94,7 +94,7 @@ export function StepDetail({
       {summary ? <p class="waterfall-detail-summary">{summary}</p> : null}
 
       <section class="waterfall-section">
-        <h3 class="waterfall-section-title">Lifecycle</h3>
+        <h3 class="waterfall-section-title">{t("agentActivity.detail.lifecycle")}</h3>
         <ol class="waterfall-life">
           {phases.map((phase) => (
             <li class="waterfall-life-step" key={phase.key}>
@@ -108,15 +108,15 @@ export function StepDetail({
           ))}
         </ol>
         <p class="waterfall-life-note muted">
-          {durationMs !== null ? <>Worked <strong>{fmtDur(durationMs)}</strong></> : null}
+          {durationMs !== null ? <>{t("agentActivity.detail.worked")} <strong>{fmtDur(durationMs)}</strong></> : null}
           {durationMs !== null && queueMs !== null ? " · " : null}
-          {queueMs !== null ? <>queued <strong>{fmtDur(queueMs)}</strong></> : null}
+          {queueMs !== null ? <>{t("agentActivity.detail.queued")} <strong>{fmtDur(queueMs)}</strong></> : null}
         </p>
       </section>
 
       {detail ? (
         <section class="waterfall-section">
-          <h3 class="waterfall-section-title">What it did</h3>
+          <h3 class="waterfall-section-title">{t("agentActivity.detail.whatItDid")}</h3>
           <p class="waterfall-detail-text">{detail}</p>
         </section>
       ) : null}
@@ -124,7 +124,7 @@ export function StepDetail({
       {conversation ? (
         <section class="waterfall-section">
           <h3 class="waterfall-section-title">
-            Agent conversation
+            {t("agentActivity.detail.agentConversation")}
             <span class="waterfall-conv-count">{conversation.length}</span>
           </h3>
           <ol class="waterfall-chat">
@@ -150,7 +150,7 @@ export function StepDetail({
         <div class="waterfall-io">
           {inputs ? (
             <section class="waterfall-section">
-              <h3 class="waterfall-section-title">Inputs</h3>
+              <h3 class="waterfall-section-title">{t("agentActivity.detail.inputs")}</h3>
               <dl class="waterfall-kv">
                 {inputs.map(([key, value]) => (
                   <div class="waterfall-kv-row" key={key}>
@@ -163,7 +163,7 @@ export function StepDetail({
           ) : null}
           {outputs ? (
             <section class="waterfall-section">
-              <h3 class="waterfall-section-title">Outputs</h3>
+              <h3 class="waterfall-section-title">{t("agentActivity.detail.outputs")}</h3>
               <dl class="waterfall-kv">
                 {outputs.map(([key, value]) => (
                   <div class="waterfall-kv-row" key={key}>
@@ -178,7 +178,7 @@ export function StepDetail({
       ) : null}
 
       <section class="waterfall-section">
-        <h3 class="waterfall-section-title">Record</h3>
+        <h3 class="waterfall-section-title">{t("agentActivity.detail.record")}</h3>
         <dl class="waterfall-detail-grid">
           {record.map(([label, value]) =>
             value === null || value === undefined ? null : (
@@ -193,7 +193,7 @@ export function StepDetail({
 
       {otherFields.length > 0 ? (
         <section class="waterfall-section">
-          <h3 class="waterfall-section-title">Other recorded fields</h3>
+          <h3 class="waterfall-section-title">{t("agentActivity.detail.otherFields")}</h3>
           <dl class="waterfall-detail-grid">
             {otherFields.map(([key, value]) => (
               <div class="waterfall-detail-row" key={key}>

@@ -1,14 +1,18 @@
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
+import { t } from "../i18n";
 import { routeHref } from "../router";
 import {
-  AGENT_ROLE,
   ORG_CHART,
-  STATE_TASK,
   isEngaged,
   type AgentNode,
   type AgentsState,
   type Incident,
 } from "../routes/agents.model";
+import {
+  agentRoleTitle,
+  agentStateLabel,
+  stateTaskLabel,
+} from "../routes/agents.view-model";
 
 interface Point {
   readonly x: number;
@@ -58,7 +62,7 @@ export function AgentOrgChart({ state }: { readonly state: AgentsState }) {
   const renderNode = (name: string) => {
     const node = state.agents[name];
     if (!node) return null;
-    const role = AGENT_ROLE[name];
+    const roleTitle = agentRoleTitle(name) ?? node.layer;
     const incident = node.correlationId ? (state.incidents[node.correlationId] ?? null) : null;
     const iconUrl = agentIconUrl(name);
     const focused = focusedAgent === name;
@@ -73,7 +77,7 @@ export function AgentOrgChart({ state }: { readonly state: AgentsState }) {
         class={`agent-node layer-${node.layer} state-${node.state}${
           isEngaged(node) ? " is-engaged" : ""
         }${focused ? " is-hovered" : ""}`}
-        aria-label={`Open ${name}, ${role?.title ?? node.layer}`}
+        aria-label={t("pantheon.openAgent", { name, role: roleTitle })}
         onMouseEnter={() => setFocusedAgent(name)}
         onMouseLeave={() => setFocusedAgent((current) => current === name ? null : current)}
         onFocus={() => setFocusedAgent(name)}
@@ -86,7 +90,7 @@ export function AgentOrgChart({ state }: { readonly state: AgentsState }) {
           />
         </span>
         <span class="agent-name">{name}</span>
-        <span class="agent-state">{role?.title ?? node.state}</span>
+        <span class="agent-state">{roleTitle}</span>
         <AgentOrgTooltip node={node} incident={incident} />
       </a>
     );
@@ -96,7 +100,7 @@ export function AgentOrgChart({ state }: { readonly state: AgentsState }) {
     <section
       ref={stageRef}
       class="agents-stage pantheon-org-stage layout-org"
-      aria-label="Pantheon organization chart"
+      aria-label={t("pantheon.organizationChartLabel")}
     >
       <OrgReportingLines geometry={geometry} />
       <div class="agents-org">
@@ -109,7 +113,7 @@ export function AgentOrgChart({ state }: { readonly state: AgentsState }) {
             </div>
           ))}
           <div class="org-branch org-staff-branch">
-            <div class="org-staff-label">Staff to Odin</div>
+            <div class="org-staff-label">{t("agents.layout.staffToOdin")}</div>
             <div class="org-reports">{ORG_CHART.staff.map(renderNode)}</div>
           </div>
         </div>
@@ -129,17 +133,17 @@ function AgentOrgTooltip({
     <span class="agent-tooltip" role="tooltip">
       <span class="agent-tooltip-head">
         <strong>{node.name}</strong>
-        <span class={`agent-tooltip-state state-${node.state}`}>{node.state}</span>
+        <span class={`agent-tooltip-state state-${node.state}`}>{agentStateLabel(node)}</span>
       </span>
-      <span class="agent-tooltip-task">{STATE_TASK[node.state]}</span>
+      <span class="agent-tooltip-task">{node.detail ?? stateTaskLabel(node.state)}</span>
       {node.detail ? <span class="agent-tooltip-detail">{node.detail}</span> : null}
       {incident ? (
         <span class="agent-tooltip-incident">
-          <span class="agent-tooltip-ticket">{incident.ticketId || "incident"}</span>
+          <span class="agent-tooltip-ticket">{incident.ticketId || t("agents.common.incident")}</span>
           <span class="agent-tooltip-title">{incident.title}</span>
         </span>
       ) : (
-        <span class="agent-tooltip-idle">Not engaged on any incident.</span>
+        <span class="agent-tooltip-idle">{t("agents.common.notEngaged")}</span>
       )}
     </span>
   );

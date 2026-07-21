@@ -1,14 +1,21 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { extname, join, relative } from "node:path";
+import ts from "typescript";
 import { describe, expect, test } from "vitest";
 import mainCatalog from "./messages.en.json";
 import analyticsCatalog from "../routes/i18n/analytics.en.json";
+import architectureCatalog from "../routes/i18n/architecture.en.json";
+import evidenceCatalog from "../routes/i18n/evidence.en.json";
+import governanceCatalog from "../routes/i18n/governance.en.json";
 import llmCostCatalog from "../routes/i18n/llm-cost.en.json";
 import liveCatalog from "../routes/i18n/live.messages.en.json";
+import ontologyCatalog from "../routes/i18n/ontology.en.json";
+import workflowCatalog from "../routes/i18n/workflow.en.json";
 
 const SOURCE_ROOT = join(process.cwd(), "src");
 const STATIC_TRANSLATION = /\bt\(\s*["']([^"']+)["']/g;
 const HARDCODED_JSX_TEXT = />\s*([A-Z][^<{]*?)\s*</g;
+const VISIBLE_ATTRIBUTES = new Set(["aria-label", "placeholder", "title"]);
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -38,12 +45,63 @@ function staticKeys(source: string): string[] {
   return [...source.matchAll(STATIC_TRANSLATION)].map((match) => match[1]!);
 }
 
+function hardcodedPresentationStrings(file: string, source: string): string[] {
+  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const hardcoded: string[] = [];
+  const record = (kind: string, value: string): void => {
+    const text = value.replace(/\s+/g, " ").trim();
+    if (/^[A-Z]/.test(text) && !text.startsWith("GET /")) {
+      hardcoded.push(`${file}: ${kind}${text}`);
+    }
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isJsxText(node)) {
+      record("", node.text);
+    } else if (
+      ts.isJsxAttribute(node) &&
+      VISIBLE_ATTRIBUTES.has(node.name.getText(parsed)) &&
+      node.initializer &&
+      ts.isStringLiteral(node.initializer)
+    ) {
+      record(`${node.name.getText(parsed)}=`, node.initializer.text);
+    } else if (
+      ts.isStringLiteral(node) &&
+      ts.isJsxExpression(node.parent)
+    ) {
+      record("", node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  return hardcoded;
+}
+
 describe("console static translation keys", () => {
   test("all literal t() calls resolve in their English source catalog", () => {
     const mainKeys = catalogKeys(mainCatalog);
     const analyticsKeys = catalogKeys({ analytics: analyticsCatalog });
+    const architectureKeys = new Set([
+      ...catalogKeys(architectureCatalog),
+      ...catalogKeys({ architecture: architectureCatalog }),
+    ]);
+    const evidenceKeys = new Set([
+      ...catalogKeys(evidenceCatalog),
+      ...catalogKeys({ evidence: evidenceCatalog }),
+    ]);
+    const governanceKeys = new Set([
+      ...catalogKeys(governanceCatalog),
+      ...catalogKeys({ governance: governanceCatalog }),
+    ]);
     const llmCostKeys = catalogKeys({ llmCost: llmCostCatalog });
     const liveKeys = catalogKeys({ live: liveCatalog });
+    const ontologyKeys = new Set([
+      ...catalogKeys(ontologyCatalog),
+      ...catalogKeys({ ontology: ontologyCatalog }),
+    ]);
+    const workflowKeys = new Set([
+      ...catalogKeys(workflowCatalog),
+      ...catalogKeys({ workflow: workflowCatalog }),
+    ]);
     const missing: string[] = [];
 
     for (const file of sourceFiles(SOURCE_ROOT)) {
@@ -52,6 +110,16 @@ describe("console static translation keys", () => {
         ? liveKeys
         : source.includes('from "./i18n/analytics"')
           ? analyticsKeys
+          : source.includes("i18n/architecture")
+            ? architectureKeys
+            : source.includes("i18n/evidence")
+              ? evidenceKeys
+              : source.includes("i18n/governance")
+                ? governanceKeys
+            : source.includes("i18n/ontology")
+              ? ontologyKeys
+              : source.includes("i18n/workflow")
+                ? workflowKeys
           : source.includes('from "./i18n/llm-cost"')
             ? llmCostKeys
             : new Set<string>();
@@ -70,6 +138,24 @@ describe("console static translation keys", () => {
     const hardcoded = [...accountSections.matchAll(HARDCODED_JSX_TEXT)]
       .map((match) => match[1]!.trim())
       .filter(Boolean);
+    expect(hardcoded).toEqual([]);
+  });
+
+  test("agent workspace has no hardcoded English presentation strings", () => {
+    const files = [
+      "components/agent-workspace-nav.tsx",
+      "routes/agents.tsx",
+      "routes/agents.constellation.tsx",
+      "routes/agents.detail.tsx",
+      "routes/agents.roster.tsx",
+    ];
+    const hardcoded: string[] = [];
+
+    for (const file of files) {
+      const source = readFileSync(join(SOURCE_ROOT, file), "utf8");
+      hardcoded.push(...hardcodedPresentationStrings(file, source));
+    }
+
     expect(hardcoded).toEqual([]);
   });
 });

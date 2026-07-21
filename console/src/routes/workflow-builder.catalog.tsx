@@ -11,10 +11,16 @@ import { WorkflowDetail } from "./workflow-builder.detail";
 import {
   workflowFromDefinition,
   workflowGroup,
-  workflowGroupLabel,
   workflowSelection,
   type WorkflowGroup,
 } from "./workflow-builder.model";
+import { formatNumber, statusLabel, t, triggerLabel } from "./i18n/workflow";
+
+function groupLabel(group: WorkflowGroup): string {
+  if (group === "built_in") return t("workflow.catalog.group.builtIn");
+  if (group === "shared") return t("workflow.catalog.group.shared");
+  return t("workflow.catalog.group.mine");
+}
 
 export function BuiltInList({
   workflows,
@@ -96,25 +102,21 @@ export function BuiltInList({
   return (
     <div class="stack">
       <div class="governance-readonly-banner">
-        <strong>Catalog workflows are read-only here.</strong> A workflow is a business process - a
-        trigger plus an ordered chain of actions the control plane runs for you, each with a
-        built-in safety net (stop-condition, rollback, blast-radius cap, audit). Describe what you
-        want in plain words; the designer asks a few questions, shows you the exact YAML and a
-        visual of how it runs, and lets you test it. YAML changes land through a PR. The Python
-        task workbench uses its own validated artifact and typed proposal path.
+        <strong>{t("workflow.catalog.readOnlyTitle")}</strong>{" "}
+        {t("workflow.catalog.readOnlyBody")}
       </div>
 
       <div class="section-header workflow-builder-actions">
         <button type="button" class="btn" onClick={onNew}>
-          + Design a new workflow
+          + {t("workflow.catalog.designNew")}
         </button>
         <button type="button" class="btn" onClick={onPython}>
-          Author Python VM task
+          {t("workflow.catalog.authorPython")}
         </button>
       </div>
 
       <section class="stack-section">
-        <nav class="workflow-origin-tabs" aria-label="Workflow ownership">
+        <nav class="workflow-origin-tabs" aria-label={t("workflow.catalog.ownership")}>
           {(["built_in", "shared", "mine"] as const).map((value) => (
             <a
               key={value}
@@ -122,21 +124,24 @@ export function BuiltInList({
               class={group === value ? "is-active" : undefined}
               aria-current={group === value ? "page" : undefined}
             >
-              <span>{workflowGroupLabel(value)}</span>
-              <strong>{value === "built_in" ? workflows.length : definitions.groups[value].length}</strong>
+              <span>{groupLabel(value)}</span>
+              <strong>{formatNumber(value === "built_in" ? workflows.length : definitions.groups[value].length)}</strong>
             </a>
           ))}
         </nav>
         <div class="section-header">
           <h3 class="section-title">
-            {workflowGroupLabel(group)} workflows ({groupedWorkflows.length})
+            {t("workflow.catalog.groupHeading", {
+              group: groupLabel(group),
+              count: formatNumber(groupedWorkflows.length),
+            })}
           </h3>
         </div>
         <p class="muted small">
-          The shipped workflows, for reference: open a row to see every step and the raw YAML.
+          {t("workflow.catalog.description")}
         </p>
         {groupedWorkflows.length === 0 ? (
-          <p class="muted small">No workflows are available in this group.</p>
+          <p class="muted small">{t("workflow.catalog.empty")}</p>
         ) : (
           <>
             <div class="list-toolbar">
@@ -144,23 +149,27 @@ export function BuiltInList({
                 class="form-input"
                 type="search"
                 value={filter}
-                placeholder="Filter by name, trigger, or mode..."
-                aria-label="Filter workflows"
+                placeholder={t("workflow.catalog.filterPlaceholder")}
+                aria-label={t("workflow.catalog.filterAria")}
                 onInput={(event) => setFilter((event.target as HTMLInputElement).value)}
               />
               <span class="muted small">
-                Showing {shown.length} of {groupedWorkflows.length} - {shadowCount} shadow, {" "}
-                {enforceCount} enforce
+                {t("workflow.catalog.filterSummary", {
+                  shown: formatNumber(shown.length),
+                  total: formatNumber(groupedWorkflows.length),
+                  shadow: formatNumber(shadowCount),
+                  enforce: formatNumber(enforceCount),
+                })}
               </span>
             </div>
             <div class="scroll">
               <table class="data-table data-table-clickable">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Trigger</th>
-                    <th>Steps</th>
-                    <th>Mode</th>
+                    <th>{t("workflow.catalog.table.name")}</th>
+                    <th>{t("workflow.catalog.table.trigger")}</th>
+                    <th>{t("workflow.catalog.table.steps")}</th>
+                    <th>{t("workflow.catalog.table.mode")}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -186,13 +195,13 @@ export function BuiltInList({
                       >
                         <td class="mono">{workflow.name}</td>
                         <td class="mono muted">
-                          <span class="badge tag">{workflow.trigger.kind}</span>{" "}
+                          <span class="badge tag">{triggerLabel(workflow.trigger.kind)}</span>{" "}
                           {workflow.trigger.kind === "signal" ? workflow.trigger.signal_type : workflow.trigger.schedule}
                         </td>
-                        <td>{workflow.step_count}</td>
+                        <td>{formatNumber(workflow.step_count)}</td>
                         <td>
                           <span class={workflow.default_mode === "enforce" ? "badge enforce" : "badge shadow"}>
-                            {workflow.default_mode}
+                            {statusLabel(workflow.default_mode)}
                           </span>
                         </td>
                         <td class="chevron-col">
@@ -210,11 +219,11 @@ export function BuiltInList({
 
       {invalidRequestedWorkflow ? (
         <div class="state-block state-unavailable" role="alert">
-          Workflow <code>{requestedWorkflow}</code> is not registered in this group. Choose a workflow from the table.
+          {t("workflow.catalog.workflowNotFound", { workflow: requestedWorkflow ?? "" })}
         </div>
       ) : invalidRequestedAction ? (
         <div class="state-block state-unavailable" role="alert">
-          ActionType <code>{requestedAction}</code> is not connected to a workflow in this group.
+          {t("workflow.catalog.actionNotConnected", { action: requestedAction ?? "" })}
         </div>
       ) : null}
 
