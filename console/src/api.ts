@@ -7,6 +7,11 @@
  */
 
 import type { AuthContext } from "./auth";
+import {
+  decodeReadDataSources,
+  type ReadDataSourcesPayload,
+  unavailableSourceReason,
+} from "./api-data-sources";
 import type { ConsoleConfig } from "./config";
 import {
   isOptionalReadApiUnavailable,
@@ -51,6 +56,7 @@ export class ReadApiClient {
   readonly #insights: InsightsApiClient;
   readonly #iam: IamApiClient;
   readonly #reporting: ReportingApiClient;
+  #dataSourcesPromise: Promise<ReadDataSourcesPayload> | null = null;
 
   constructor(
     config: ConsoleConfig,
@@ -73,10 +79,12 @@ export class ReadApiClient {
   };
 
   async listAudit(options: AuditQuery = {}): Promise<AuditPage> {
+    await this.#requireAuthoritativeSource("/audit");
     return this.#operations.listAudit(options);
   }
 
   async listIncidents(options: IncidentQuery = {}): Promise<IncidentPage> {
+    await this.#requireAuthoritativeSource("/incidents");
     return this.#operations.listIncidents(options);
   }
 
@@ -88,6 +96,7 @@ export class ReadApiClient {
    * "why", never "execute".
    */
   async rca(correlationId: string): Promise<RcaView> {
+    await this.#requireAuthoritativeSource("/rca");
     return this.#operations.rca(correlationId);
   }
 
@@ -98,10 +107,12 @@ export class ReadApiClient {
    * change is a policy-as-code PR, never a console write.
    */
   async scope(): Promise<EffectiveScope> {
+    await this.#requireAuthoritativeSource("/scope");
     return this.#insights.scope();
   }
 
   async dashboardMetrics(): Promise<DashboardKpi> {
+    await this.#requireAuthoritativeSource("/kpi");
     return this.#insights.dashboardMetrics();
   }
 
@@ -111,6 +122,7 @@ export class ReadApiClient {
    * "cost axis not served here" rather than a hard failure.
    */
   async finops(): Promise<FinOpsPayload> {
+    await this.#requireAuthoritativeSource("/finops");
     return this.#insights.finops();
   }
 
@@ -120,11 +132,25 @@ export class ReadApiClient {
    * surface not served here".
    */
   async autonomy(): Promise<AutonomyPayload> {
+    await this.#requireAuthoritativeSource("/kpi/autonomy");
     return this.#insights.autonomy();
   }
 
   async listHilQueue(opts: { limit?: number; query?: string } = {}): Promise<HilQueuePage> {
+    await this.#requireAuthoritativeSource("/hil-queue");
     return this.#operations.listHilQueue(opts);
+  }
+
+  async dataSources(): Promise<ReadDataSourcesPayload> {
+    this.#dataSourcesPromise ??= this.#insights
+      .panel<unknown>("/system/data-sources")
+      .then(decodeReadDataSources);
+    try {
+      return await this.#dataSourcesPromise;
+    } catch (error) {
+      this.#dataSourcesPromise = null;
+      throw error;
+    }
   }
 
   async iamOverview(): Promise<IamOverview> {
@@ -148,10 +174,12 @@ export class ReadApiClient {
   }
 
   async reports(): Promise<ReportList> {
+    await this.#requireAuthoritativeSource("/reports");
     return this.#reporting.reports();
   }
 
   async reportingRegistry(): Promise<ReportingRegistry> {
+    await this.#requireAuthoritativeSource("/reports/registry");
     return this.#reporting.registry();
   }
 
@@ -159,6 +187,7 @@ export class ReadApiClient {
     reportId: string,
     variables: Readonly<Record<string, string>> = {},
   ): Promise<RenderedReportView> {
+    await this.#requireAuthoritativeSource("/reports");
     return this.#reporting.render(reportId, variables);
   }
 
@@ -167,6 +196,7 @@ export class ReadApiClient {
     format: string,
     variables: Readonly<Record<string, string>> = {},
   ): Promise<Blob> {
+    await this.#requireAuthoritativeSource("/reports");
     return this.#reporting.download(reportId, format, variables);
   }
 
@@ -178,7 +208,20 @@ export class ReadApiClient {
    * state (see app-shape.instructions.md § Operator console).
    */
   async panel<T>(path: string, params?: Record<string, string>): Promise<T> {
+    await this.#requireAuthoritativeSource(path);
     return this.#insights.panel<T>(path, params);
+  }
+
+  async #requireAuthoritativeSource(path: string): Promise<void> {
+    let sources: ReadDataSourcesPayload;
+    try {
+      sources = await this.dataSources();
+    } catch (error) {
+      if (isOptionalReadApiUnavailable(error)) return;
+      throw error;
+    }
+    const reason = unavailableSourceReason(sources, path);
+    if (reason !== null) throw new ReadApiError(503, reason);
   }
 }
 
@@ -194,3 +237,5 @@ export {
   decodeDashboardKpi,
   decodeScopeView,
 } from "./api-insights";
+export { decodeReadDataSources, sourceForRoute, unavailableSourceReason } from "./api-data-sources";
+export type { ReadDataSourceStatus, ReadDataSourcesPayload } from "./api-data-sources";

@@ -45,6 +45,7 @@ from fdai.delivery.read_api.routes.chat import (
     make_chat_stream_route,
 )
 from fdai.delivery.read_api.routes.chat_registration import append_chat_routes
+from fdai.shared.providers.testing.user_context import InMemoryConversationHistoryStore
 from fdai.shared.providers.workload_identity import IdentityToken
 from fdai.shared.telemetry.correlation import current_correlation_id, with_correlation
 
@@ -203,6 +204,34 @@ def test_authenticated_preferences_shape_plan_but_current_turn_still_wins() -> N
     assert preferred["answer_plan"]["preference_applied"] is True
     assert overridden["answer_plan"]["detail_level"] == "brief"
     assert overridden["answer_plan"]["format"] == "numbered_steps"
+
+
+def test_chat_idempotency_conflict_returns_409_instead_of_500() -> None:
+    store = InMemoryConversationHistoryStore()
+    app = Starlette(
+        routes=[
+            make_chat_route(
+                backend=_RecordingBackend(model="test", delay_ms=0),
+                authorize=_allow,
+                conversation_history_store=store,
+            )
+        ]
+    )
+    client = TestClient(app)
+    request = {
+        "prompt": "Show major issues.",
+        "session_id": "conversation-1",
+        "request_id": "request-1",
+    }
+
+    assert client.post("/chat", json=request).status_code == 200
+    conflict = client.post(
+        "/chat",
+        json={**request, "prompt": "Show a different result."},
+    )
+
+    assert conflict.status_code == 409
+    assert conflict.text == "chat request id conflicts with an existing turn"
 
 
 class _EvidenceResolver:

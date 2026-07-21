@@ -90,7 +90,7 @@ from fdai.delivery.read_api.routes.post_turn_review import (
     explicit_corrections,
 )
 from fdai.shared.providers.briefing import ConversationPolicyStore
-from fdai.shared.providers.user_context import ConversationHistoryStore
+from fdai.shared.providers.user_context import ConversationHistoryStore, UserContextConflictError
 from fdai.shared.telemetry.correlation import with_correlation
 
 _LOG = logging.getLogger(__name__)
@@ -208,15 +208,21 @@ def make_chat_stream_route(
         try:
             operator_turn = None
             if conversation_history_store is not None:
-                operator_turn = await append_operator_turn(
-                    store=conversation_history_store,
-                    principal_id=user_id,
-                    conversation_id=session_id,
-                    request_id=request_id,
-                    content=clean_prompt,
-                    recorded_at=datetime.now(tz=UTC),
-                    ontology_projector=user_context_ontology_projector,
-                )
+                try:
+                    operator_turn = await append_operator_turn(
+                        store=conversation_history_store,
+                        principal_id=user_id,
+                        conversation_id=session_id,
+                        request_id=request_id,
+                        content=clean_prompt,
+                        recorded_at=datetime.now(tz=UTC),
+                        ontology_projector=user_context_ontology_projector,
+                    )
+                except UserContextConflictError as exc:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="chat request id conflicts with an existing turn",
+                    ) from exc
         except Exception:
             if busy_input_coordinator is not None and active_turn is not None:
                 await busy_input_coordinator.finish_turn(

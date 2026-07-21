@@ -10,6 +10,7 @@ on a laptop without Postgres.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -102,6 +103,29 @@ def test_config_rejects_non_positive_connect_timeout() -> None:
         PostgresConsoleReadModel(
             config=PostgresConsoleReadModelConfig(dsn="postgresql://x", connect_timeout_s=0)
         )
+
+
+async def test_verify_connection_executes_bounded_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = AsyncMock()
+    connection.__aenter__.return_value = connection
+    connect = AsyncMock(return_value=connection)
+    monkeypatch.setattr(
+        "fdai.delivery.read_api.postgres_read_model.psycopg.AsyncConnection.connect",
+        connect,
+    )
+    model = PostgresConsoleReadModel(
+        config=PostgresConsoleReadModelConfig(
+            dsn="postgresql://example/fdai",
+            connect_timeout_s=7,
+        )
+    )
+
+    await model.verify_connection()
+
+    connect.assert_awaited_once_with("postgresql://example/fdai", connect_timeout=7)
+    connection.execute.assert_awaited_once_with("SELECT 1")
 
 
 # ---------------------------------------------------------------------------

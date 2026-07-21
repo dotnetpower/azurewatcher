@@ -30,7 +30,7 @@ import os
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from starlette.applications import Starlette
@@ -60,9 +60,16 @@ from fdai.core.scheduler import (  # noqa: E402
     ScheduleRunHistoryService,
 )
 from fdai.delivery.event_bus_multiplex import MultiplexedEventBus  # noqa: E402
+from fdai.delivery.persistence.postgres_conversation_delivery import (  # noqa: E402
+    PostgresConversationDeliveryStore,
+    PostgresConversationDeliveryStoreConfig,
+)
 from fdai.delivery.read_api.auth import (  # noqa: E402
     UnsafeClaimsExtractor,
     build_authenticator,
+)
+from fdai.delivery.read_api.dev.authoritative_proxy import (  # noqa: E402
+    authoritative_read_proxy_from_env,
 )
 from fdai.delivery.read_api.dev.azure_cli_identity import (  # noqa: E402
     resolve_azure_cli_identity,
@@ -80,6 +87,7 @@ from fdai.delivery.read_api.dev.config import (  # noqa: E402
 from fdai.delivery.read_api.dev.config import (  # noqa: E402
     group_mapping_from_env as _group_mapping_from_env,
 )
+from fdai.delivery.read_api.dev.data_sources import build_local_data_sources  # noqa: E402
 from fdai.delivery.read_api.dev.fixtures.dynamic_views import (  # noqa: E402
     _build_blast_radius_graph,
     _build_scope_view,
@@ -124,7 +132,19 @@ from fdai.delivery.read_api.entra_verifier import (  # noqa: E402
     EntraJwtVerifier,
 )
 from fdai.delivery.read_api.main import ReadApiConfig, build_app  # noqa: E402
+from fdai.delivery.read_api.postgres_read_model import PostgresConsoleReadModel  # noqa: E402
+from fdai.delivery.read_api.production.config import build_prod_read_model  # noqa: E402
+from fdai.delivery.read_api.production.panels import build_production_panels  # noqa: E402
+from fdai.delivery.read_api.production.persistence import (  # noqa: E402
+    build_production_persistence,
+)
+from fdai.delivery.read_api.production.scope import build_production_scope_source  # noqa: E402
+from fdai.delivery.read_api.production.user_context import (  # noqa: E402
+    build_production_user_context,
+)
+from fdai.delivery.read_api.production.views import _build_dynamic_views  # noqa: E402
 from fdai.delivery.read_api.read_model import (  # noqa: E402
+    ConsoleReadModel,
     InMemoryConsoleReadModel,
 )
 from fdai.delivery.read_api.routes.arb_status import (  # noqa: E402
@@ -142,6 +162,7 @@ from fdai.delivery.read_api.routes.operator_memory import OperatorMemoryPanel  #
 from fdai.delivery.read_api.routes.panels import (  # noqa: E402
     CapabilityCatalogPanel,
     ExampleFinOpsPanel,
+    ReadPanel,
 )
 from fdai.delivery.read_api.routes.post_turn_event_bus import (  # noqa: E402
     EventBusPostTurnReviewIntake,
@@ -156,7 +177,11 @@ from fdai.delivery.read_api.routes.skill_runtime import (  # noqa: E402
 )
 from fdai.delivery.read_api.routes.skills import RuntimeSkillsPanel  # noqa: E402
 from fdai.delivery.read_api.streaming.agent_activity_stream import (  # noqa: E402
+    SseAgentActivityPublisher,
     runtime_agent_state_snapshot,
+)
+from fdai.delivery.read_api.streaming.pantheon_activity_observer import (  # noqa: E402
+    PantheonActivityObserver,
 )
 from fdai.delivery.read_api.streaming.provision_stream import ProvisionStreamConfig  # noqa: E402
 from fdai.shared.config.runtime_flags import pantheon_start_enabled  # noqa: E402
@@ -164,6 +189,7 @@ from fdai.shared.providers.testing.state_store import InMemoryStateStore  # noqa
 
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
 _LOCAL_ENTRA_ENV = "FDAI_READ_API_LOCAL_ENTRA"
+_EMBED_PANTHEON_ENV = "FDAI_READ_API_EMBED_PANTHEON"
 _LOCAL_AZURE_CLI_ENV = "FDAI_READ_API_LOCAL_AZURE_CLI"
 _LOCAL_ACTION_TOPIC = "aw.events"
 # local.py lives at src/fdai/delivery/read_api/dev/local.py, so the repo root
@@ -207,9 +233,18 @@ def build_local_app(
             "local dev entrypoint and MUST NOT boot in production."
         )
     local_cli_identity = identity_resolver() if local_azure_cli else None
-    read_model = InMemoryConsoleReadModel()
-    if test_fixtures:
-        _seed(read_model)
+    authoritative_read_proxy = (
+        None if test_fixtures else authoritative_read_proxy_from_env(os.environ)
+    )
+    local_database_configured = bool(os.environ.get("FDAI_DATABASE_URL", "").strip())
+    read_model: ConsoleReadModel
+    if local_database_configured and not test_fixtures:
+        read_model = build_prod_read_model(os.environ)
+    else:
+        in_memory_read_model = InMemoryConsoleReadModel()
+        read_model = in_memory_read_model
+        if test_fixtures:
+            _seed(in_memory_read_model)
     group_mapping = _group_mapping_from_env()
     resolver = RoleResolver(group_mapping=group_mapping)
     # dev_mode (auth off) wins when both flags are set. Otherwise this is the
@@ -263,13 +298,72 @@ def build_local_app(
         "tighter-tags": _DemoTighterTagsEvaluator(),
     }
 
-    user_context_group = views.user_context
-    conversation_history_store = user_context_group.conversation_history_store
-    conversation_policy_store = user_context_group.conversation_policy_store
-    user_context_ontology_projector = user_context_group.ontology_projector
-    user_context = user_context_group.routes
-    workflow_definitions = user_context_group.workflow_definitions
-    seed_user_workflow_ontology = user_context_group.seed_callback
+    reporting = views.reporting if test_fixtures else None
+    process_views = views.process_views
+    workflow_execution = views.workflow_execution
+    scope_source = _build_scope_view() if test_fixtures else None
+    conversation_delivery_store = None
+    durable_panels: tuple[ReadPanel, ...] = ()
+    if local_database_configured and not test_fixtures:
+        postgres_read_model = cast(PostgresConsoleReadModel, read_model)
+        persistence = build_production_persistence(postgres_read_model)
+        (
+            reporting,
+            process_views,
+            _production_object_types,
+            _production_link_types,
+            _production_action_types,
+            _production_workflows,
+            _production_workflow_authoring,
+            workflow_execution,
+        ) = _build_dynamic_views(
+            dsn=postgres_read_model._config.dsn,
+            statement_timeout_ms=postgres_read_model._config.statement_timeout_ms,
+            connect_timeout_s=postgres_read_model._config.connect_timeout_s,
+            read_model=postgres_read_model,
+            group_mapping=group_mapping,
+        )
+        production_user_context = build_production_user_context(
+            read_model=postgres_read_model,
+            object_types=ontology_object_types,
+            link_types=ontology_link_types,
+            action_types=action_types,
+            workflows=built_in_workflows,
+            promoted_workflows=enforce_workflows,
+        )
+        conversation_history_store = production_user_context.conversation_history_store
+        conversation_policy_store = production_user_context.conversation_policy_store
+        user_context_ontology_projector = production_user_context.ontology_projector
+        user_context = production_user_context.routes
+        workflow_definitions = production_user_context.workflow_definitions
+        user_context_startup_callbacks = production_user_context.startup_callbacks
+        durable_panels = cast(
+            tuple[ReadPanel, ...],
+            build_production_panels(
+                read_model=postgres_read_model,
+                onboarding_probe=EmptyResourceProbe(),
+                onboarding_configured=False,
+                state_store=persistence.state_store,
+                action_types=tuple(action_types),
+                active_rule_count=len(rule_catalog_rules),
+            ),
+        )
+        conversation_delivery_store = PostgresConversationDeliveryStore(
+            config=PostgresConversationDeliveryStoreConfig(
+                dsn=postgres_read_model._config.dsn,
+                statement_timeout_ms=postgres_read_model._config.statement_timeout_ms,
+                connect_timeout_s=postgres_read_model._config.connect_timeout_s,
+            )
+        )
+        scope_source = build_production_scope_source(os.environ)
+    else:
+        user_context_group = views.user_context
+        conversation_history_store = user_context_group.conversation_history_store
+        conversation_policy_store = user_context_group.conversation_policy_store
+        user_context_ontology_projector = user_context_group.ontology_projector
+        user_context = user_context_group.routes
+        workflow_definitions = user_context_group.workflow_definitions
+        user_context_startup_callbacks = (user_context_group.seed_callback,)
 
     command_transport = (
         None
@@ -279,7 +373,6 @@ def build_local_app(
             action_types=tuple(action_types),
         )
     )
-    workflow_execution = views.workflow_execution
     if enforce_workflows and command_transport is not None and command_transport.kind != "azure":
         raise RuntimeError("FDAI_WORKFLOW_ENFORCE_ALLOWLIST requires local Azure event transport")
     if workflow_execution is not None and command_transport is not None:
@@ -299,6 +392,12 @@ def build_local_app(
     )
     runtime = None
     post_turn_review_queue = None
+    embed_pantheon = os.environ.get(_EMBED_PANTHEON_ENV, "").strip().casefold() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
     if test_fixtures:
         live_stream_config, agent_activity_config = _build_agent_streams()
         local_operator_oid = (
@@ -320,7 +419,7 @@ def build_local_app(
                 fixture_runtime.pantheon_runtime.health()
             ),
         )
-    elif command_transport is not None:
+    elif command_transport is not None and embed_pantheon:
         pantheon_event_bus = (
             MultiplexedEventBus(
                 bus=command_transport.event_bus,
@@ -332,11 +431,24 @@ def build_local_app(
             if command_transport.kind == "azure"
             else command_transport.event_bus
         )
+        handler_observer = (
+            PantheonActivityObserver(
+                publisher=SseAgentActivityPublisher(
+                    sink=agent_activity_config.sink,
+                    channel=agent_activity_config.channel,
+                )
+            )
+            if command_transport.kind == "local"
+            and agent_activity_config is not None
+            and agent_activity_config.sink is not None
+            else None
+        )
         interactive_runtime = build_interactive_pantheon_wiring(
             event_bus=pantheon_event_bus,
             event_topic=command_transport.event_topic,
             read_model=read_model,
             action_types=tuple(action_types),
+            handler_observer=handler_observer,
         )
         runtime = interactive_runtime
         post_turn_review_queue = PostTurnReviewQueue(
@@ -383,10 +495,10 @@ def build_local_app(
             ArchitectureReviewStatusPanel(
                 manifest_path=_REPO_ROOT / "config" / "architecture-review.yaml",
                 repo_root=_REPO_ROOT,
-                engine=views.process_views.engine,
+                engine=process_views.engine,
             ),
         )
-        if views.process_views is not None
+        if process_views is not None
         else ()
     )
 
@@ -403,6 +515,43 @@ def build_local_app(
 
         await ensure_narrator_endpoint_open(models.backend)
 
+    fixture_panels: tuple[ReadPanel, ...] = (
+        (
+            ExampleFinOpsPanel(read_model),
+            AutonomyMeasurementPanel(read_model),
+            OperatorMemoryPanel(
+                service=OperatorMemoryReviewService(store=InMemoryOperatorMemoryStore()),
+                compactions=InMemoryMemoryCompactionRepository(),
+            ),
+            SchedulerRunsPanel(
+                service=ScheduleRunHistoryService(ledger=InMemoryScheduleRunLedger()),
+                source="synthetic-dev",
+                durable=False,
+            ),
+        )
+        if test_fixtures
+        else ()
+    )
+    local_panels: tuple[ReadPanel, ...] = (
+        durable_panels
+        if durable_panels
+        else (
+            CapabilityCatalogPanel(),
+            OnboardingPanel(probe=EmptyResourceProbe(), configured=False),
+            LlmCostPanel(
+                metering,
+                source="synthetic-dev" if test_fixtures else "local-process",
+            ),
+        )
+    )
+    extra_panels = (
+        fixture_panels
+        + local_panels
+        + (
+            RuntimeSkillsPanel(skill_disclosure),
+            *arb_status_panels,
+        )
+    )
     application = build_app(
         authenticator=authenticator,
         read_model=read_model,
@@ -444,32 +593,17 @@ def build_local_app(
                 if test_fixtures
                 else None
             ),
-            scope_source=_build_scope_view() if test_fixtures else None,
-            extra_panels=(
-                (
-                    ExampleFinOpsPanel(read_model),
-                    AutonomyMeasurementPanel(read_model),
-                    CapabilityCatalogPanel(),
-                    OperatorMemoryPanel(
-                        service=OperatorMemoryReviewService(store=InMemoryOperatorMemoryStore()),
-                        compactions=InMemoryMemoryCompactionRepository(),
-                    ),
-                    SchedulerRunsPanel(
-                        service=ScheduleRunHistoryService(ledger=InMemoryScheduleRunLedger()),
-                        source="synthetic-dev",
-                        durable=False,
-                    ),
-                    OnboardingPanel(probe=EmptyResourceProbe(), configured=False),
-                    LlmCostPanel(
-                        metering,
-                        source="synthetic-dev",
-                    ),
-                )
-                if test_fixtures
-                else ()
-            )
-            + (RuntimeSkillsPanel(skill_disclosure),)
-            + arb_status_panels,
+            scope_source=scope_source,
+            extra_panels=extra_panels,
+            conversation_delivery_store=conversation_delivery_store,
+            data_sources=build_local_data_sources(
+                test_fixtures=test_fixtures,
+                authoritative_proxy_configured=authoritative_read_proxy is not None,
+                local_database_configured=local_database_configured,
+                local_database_startup_verified=local_database_configured,
+                scope_configured=scope_source is not None,
+            ),
+            authoritative_read_proxy=authoritative_read_proxy,
             trace_reader=trace_reader if test_fixtures else None,
             bitemporal_reader=trace_reader if test_fixtures else None,
             what_if_reader=trace_reader if test_fixtures else None,
@@ -496,9 +630,15 @@ def build_local_app(
             workflow_authoring=workflow_authoring,
             workflow_execution=workflow_execution,
             python_tasks=runtime.python_tasks if runtime is not None else None,
-            reporting=views.reporting if test_fixtures else None,
-            process_views=views.process_views,
-            startup_callbacks=(seed_user_workflow_ontology, open_narrator_endpoint)
+            reporting=reporting,
+            process_views=process_views,
+            startup_callbacks=(
+                (postgres_read_model.verify_connection,)
+                if local_database_configured and not test_fixtures
+                else ()
+            )
+            + user_context_startup_callbacks
+            + (open_narrator_endpoint,)
             + ((runtime.start_pantheon_runtime,) if runtime is not None else ())
             + (
                 (runtime.operator_runtime.start,)
@@ -513,6 +653,7 @@ def build_local_app(
                 else ()
             )
             + ((command_transport.shutdown,) if command_transport is not None else ())
+            + ((authoritative_read_proxy.aclose,) if authoritative_read_proxy is not None else ())
             + log_query_shutdown_callbacks
             + iam.shutdown_callbacks,
         ),

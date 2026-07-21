@@ -80,7 +80,11 @@ def _uses_evidence_fast_path(view_context: Mapping[str, Any]) -> bool:
     if isinstance(view_context.get("_behavior_evidence"), Mapping):
         return True
     tool = view_context.get("_tool_evidence")
-    if isinstance(tool, Mapping) and tool.get("tool") in {"query_inventory", "query_log"}:
+    if isinstance(tool, Mapping) and tool.get("tool") in {
+        "describe_read_sources",
+        "query_inventory",
+        "query_log",
+    }:
         return True
     raw = view_context.get("_operational_evidence")
     if not isinstance(raw, Mapping):

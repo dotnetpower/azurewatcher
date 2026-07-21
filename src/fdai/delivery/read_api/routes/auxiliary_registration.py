@@ -81,6 +81,7 @@ def append_auxiliary_routes(
         conversation_search=config.conversation_search,
         inventory_graph_provider=config.inventory_graph_provider,
         log_query_provider=config.log_query_provider,
+        data_sources=config.data_sources,
         answer_preference_store=(
             config.user_context.preferences if config.user_context is not None else None
         ),

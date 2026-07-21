@@ -30,6 +30,10 @@ from fdai.delivery.persistence.postgres_browser_evidence import (
     PostgresBrowserEvidenceArtifactStore,
     PostgresBrowserEvidenceStoreConfig,
 )
+from fdai.delivery.read_api.routes.audit_finops import AuditFinOpsPanel
+from fdai.delivery.read_api.routes.audit_measurement_summary import (
+    AuditAutonomyMeasurementPanel,
+)
 from fdai.delivery.read_api.routes.automation_blueprints import AutomationBlueprintPanel
 from fdai.delivery.read_api.routes.browser_evidence import BrowserEvidencePanel
 from fdai.delivery.read_api.routes.context_selection_comparisons import (
@@ -39,6 +43,9 @@ from fdai.delivery.read_api.routes.llm_cost import LlmCostPanel
 from fdai.delivery.read_api.routes.onboarding import OnboardingPanel
 from fdai.delivery.read_api.routes.operator_memory import OperatorMemoryPanel
 from fdai.delivery.read_api.routes.panels import CapabilityCatalogPanel
+from fdai.delivery.read_api.routes.persisted_promotion_gates import (
+    PersistedPromotionGatesPanel,
+)
 from fdai.delivery.read_api.routes.post_turn_review_panel import PostTurnReviewPanel
 from fdai.delivery.read_api.routes.scheduler_runs import SchedulerRunsPanel
 
@@ -49,6 +56,8 @@ def build_production_panels(
     onboarding_probe: Any,
     onboarding_configured: bool,
     state_store: Any,
+    action_types: tuple[Any, ...],
+    active_rule_count: int,
 ) -> tuple[Any, ...]:
     """Build the production panel set in its established order."""
     connection = {
@@ -58,6 +67,15 @@ def build_production_panels(
     }
     return (
         CapabilityCatalogPanel(),
+        AuditFinOpsPanel(read_model),
+        AuditAutonomyMeasurementPanel(
+            read_model,
+            active_rule_count=active_rule_count,
+        ),
+        PersistedPromotionGatesPanel(
+            action_types=action_types,
+            store=state_store,
+        ),
         BrowserEvidencePanel(
             PostgresBrowserEvidenceArtifactStore(
                 config=PostgresBrowserEvidenceStoreConfig(**connection)

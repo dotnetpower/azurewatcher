@@ -144,8 +144,12 @@ function decodeMetric(value: unknown, label: string): AutonomyPayload["success"]
     throw contractError(`autonomy measurement.${label}.direction MUST be higher or lower`);
   }
   return {
-    value: apiNumber(item, "value", `autonomy measurement.${label}`),
-    baseline: apiNumber(item, "baseline", `autonomy measurement.${label}`),
+    value: item["value"] === null
+      ? null
+      : apiNumber(item, "value", `autonomy measurement.${label}`),
+    baseline: item["baseline"] === null
+      ? null
+      : apiNumber(item, "baseline", `autonomy measurement.${label}`),
     direction,
   };
 }

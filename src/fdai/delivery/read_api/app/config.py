@@ -10,6 +10,7 @@ from fdai.core.hil_resume import HilResumeCoordinator
 from fdai.core.rbac.resolver import Principal
 from fdai.core.skills import RuntimeSkillDisclosure
 from fdai.delivery.read_api.routes.busy_input_runtime import BusyInputRuntime
+from fdai.delivery.read_api.routes.data_sources import ReadDataSourceStatus
 from fdai.delivery.read_api.routes.hil_callback import HilCallbackConfig
 from fdai.delivery.read_api.routes.panels import ReadPanel
 from fdai.delivery.read_api.streaming.agent_activity_stream import AgentActivityStreamConfig
@@ -55,6 +56,22 @@ class ReadApiConfig:
     Each panel is registered as a ``GET``-only route, preserving the
     read-only invariant. The app factory fails fast on a malformed or
     colliding panel path."""
+
+    data_sources: tuple[ReadDataSourceStatus, ...] = ()
+    """Composition-owned availability and provenance for console evidence.
+
+    The manifest is projected through ``GET /system/data-sources``. It
+    describes configured providers without probing them or inferring health
+    from route registration.
+    """
+
+    authoritative_read_proxy: Any = None
+    """Optional GET-only proxy used by interactive local composition.
+
+    The proxy forwards the already-issued browser bearer token only to one
+    configured HTTPS origin and a fixed operational-read allowlist. Production
+    leaves this unset and binds providers directly.
+    """
 
     conversation_delivery_store: ConversationDeliveryStore | None = None
     """Optional durable reply ledger projected as GET-only delivery metrics."""

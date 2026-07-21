@@ -8,6 +8,7 @@ from typing import Any, Protocol
 
 from fdai.agents import PANTHEON_NAMES
 from fdai.core.conversation.narrator import default_tool_schemas
+from fdai.delivery.read_api.routes.chat_data_sources import needs_read_source_evidence
 from fdai.delivery.read_api.routes.chat_evidence import needs_operational_evidence
 from fdai.delivery.read_api.routes.chat_inventory import needs_inventory_evidence
 from fdai.delivery.read_api.routes.chat_prompt import (
@@ -172,15 +173,20 @@ async def _with_tool_evidence(
     enriched.pop("_current_screen_tool", None)
     explicit_command = _is_explicit_tool_command(prompt)
     inventory_question = needs_inventory_evidence(prompt)
+    read_source_question = needs_read_source_evidence(prompt)
     if resolver is None or (
         not explicit_command
         and not inventory_question
+        and not read_source_question
         and ("_behavior_evidence" in enriched or "_operational_evidence" in enriched)
     ):
         return enriched
     evidence = await resolver.resolve(prompt, principal_id=principal_id)
     if evidence is not None:
-        if explicit_command or evidence.get("tool") == "query_inventory":
+        if explicit_command or evidence.get("tool") in {
+            "describe_read_sources",
+            "query_inventory",
+        }:
             enriched.pop("_behavior_evidence", None)
             enriched.pop("_operational_evidence", None)
         if _tool_matches_current_route(evidence, enriched):

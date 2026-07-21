@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import httpx
+import pytest
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.responses import JSONResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
+
+from fdai.delivery.read_api.dev.authoritative_proxy import (
+    AuthoritativeReadProxy,
+    AuthoritativeReadProxyMiddleware,
+)
+
+
+def _app(proxy: AuthoritativeReadProxy) -> Starlette:
+    async def local(_request):  # type: ignore[no-untyped-def]
+        return JSONResponse({"source": "local"})
+
+    return Starlette(
+        routes=[Route("/kpi", local), Route("/local", local)],
+        middleware=[Middleware(AuthoritativeReadProxyMiddleware, proxy=proxy)],
+    )
+
+
+def test_proxy_forwards_only_allowlisted_gets_with_bearer_and_query() -> None:
+    seen: list[httpx.Request] = []
+
+    def remote(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"source": "remote", "query": request.url.query.decode()})
+
+    remote_client = httpx.AsyncClient(transport=httpx.MockTransport(remote))
+    proxy = AuthoritativeReadProxy(base_url="https://read.example.test", client=remote_client)
+    with TestClient(_app(proxy)) as client:
+        response = client.get(
+            "/kpi?window=7d",
+            headers={"authorization": "Bearer signed-token"},
+        )
+        local = client.get("/local")
+        post = client.post("/kpi")
+
+    assert response.json() == {"source": "remote", "query": "window=7d"}
+    assert seen[0].headers["authorization"] == "Bearer signed-token"
+    assert local.json() == {"source": "local"}
+    assert post.status_code == 405
+
+
+def test_proxy_requires_bearer_and_rejects_unsafe_origins() -> None:
+    proxy = AuthoritativeReadProxy(
+        base_url="https://read.example.test",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200))),
+    )
+    with TestClient(_app(proxy)) as client:
+        response = client.get("/audit")
+    assert response.status_code == 401
+
+    for value in (
+        "http://read.example.test",
+        "https://user:secret@read.example.test",
+        "https://read.example.test/api",
+    ):
+        with pytest.raises(ValueError):
+            AuthoritativeReadProxy(base_url=value)

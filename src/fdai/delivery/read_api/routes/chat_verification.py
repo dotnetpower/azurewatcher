@@ -16,6 +16,10 @@ from fdai.delivery.read_api.routes.chat_claims import (
     ScreenClaimResult,
     verify_screen_claims,
 )
+from fdai.delivery.read_api.routes.chat_data_sources import (
+    read_source_evidence_refs,
+    render_read_source_answer,
+)
 from fdai.delivery.read_api.routes.chat_inventory import (
     inventory_evidence_refs,
     render_inventory_answer,
@@ -86,6 +90,28 @@ def verify_answer(
     """
 
     tool = view_context.get("_tool_evidence")
+    if isinstance(tool, Mapping) and tool.get("tool") == "describe_read_sources":
+        source_answer = render_read_source_answer(tool, locale=locale)
+        if source_answer is None:
+            return AnswerVerification(
+                status="unverified",
+                answer="Read-source manifest evidence could not be rendered.",
+                authority="server_read_source_manifest",
+                checks_completed=0,
+                checks_total=1,
+                reason_code="read_source_manifest_invalid",
+            )
+        source_refs = read_source_evidence_refs(tool)
+        return AnswerVerification(
+            status=_changed(provisional, source_answer),
+            answer=source_answer,
+            authority="server_read_source_manifest",
+            checks_completed=len(source_refs),
+            checks_total=len(source_refs),
+            evidence_refs=source_refs,
+            reason_code="read_source_manifest_grounded",
+        )
+
     if isinstance(tool, Mapping) and tool.get("tool") == "query_log":
         log_answer = render_log_query_answer(tool, locale=locale)
         if log_answer is None:

@@ -55,6 +55,7 @@ from fdai.delivery.read_api.read_model import ConsoleReadModel
 from fdai.delivery.read_api.routes import auxiliary_registration, dynamic_views
 from fdai.delivery.read_api.routes.conversation_delivery import ConversationDeliveryPanel
 from fdai.delivery.read_api.routes.core_reads import append_local_auth_route, make_core_read_routes
+from fdai.delivery.read_api.routes.data_sources import make_data_sources_route
 from fdai.delivery.read_api.routes.hil_callback import (
     make_hil_callback_route,
 )
@@ -78,6 +79,7 @@ _CORE_ROUTE_PATHS: frozenset[str] = frozenset(
         "/rca",
         "/healthz",
         "/system/kill-switch",
+        "/system/data-sources",
         "/iam",
         "/iam/self",
         "/iam/directory/users",
@@ -252,6 +254,12 @@ def build_app(
             dev_mode=resolved_config.dev_mode,
         )
     )
+    routes.append(
+        make_data_sources_route(
+            sources=resolved_config.data_sources,
+            authorize=_authorize,
+        )
+    )
 
     if resolved_config.kill_switch_command is not None:
         from fdai.delivery.read_api.routes.kill_switch import make_kill_switch_route
@@ -387,6 +395,18 @@ def build_app(
                 allow_methods=allow_methods,
                 allow_headers=["authorization", "content-type"],
                 allow_credentials=False,
+            )
+        )
+
+    if resolved_config.authoritative_read_proxy is not None:
+        from fdai.delivery.read_api.dev.authoritative_proxy import (
+            AuthoritativeReadProxyMiddleware,
+        )
+
+        middleware.append(
+            Middleware(
+                AuthoritativeReadProxyMiddleware,
+                proxy=resolved_config.authoritative_read_proxy,
             )
         )
 

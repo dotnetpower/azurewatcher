@@ -34,12 +34,14 @@ from fdai.delivery.read_api.routes.chat_answer_planning import compatible_planni
 from fdai.delivery.read_api.routes.chat_behavior_evidence import (
     RepositoryBehaviorEvidenceResolver,
 )
+from fdai.delivery.read_api.routes.chat_data_sources import DataSourceChatTools
 from fdai.delivery.read_api.routes.chat_evidence import OperationalEvidenceResolver
 from fdai.delivery.read_api.routes.chat_inventory import InventoryChatTools
 from fdai.delivery.read_api.routes.chat_log_query import LogQueryChatTools
 from fdai.delivery.read_api.routes.chat_skills import RuntimeSkillChatTools
 from fdai.delivery.read_api.routes.chat_system_health import SystemHealthChatTools
 from fdai.delivery.read_api.routes.chat_tools import ReadModelChatTools
+from fdai.delivery.read_api.routes.data_sources import ReadDataSourceStatus
 from fdai.delivery.read_api.routes.inventory_graph import InventoryGraphProvider
 from fdai.delivery.read_api.routes.post_turn_review import PostTurnReviewSubmitter
 from fdai.shared.providers.briefing import ConversationPolicyStore
@@ -60,6 +62,7 @@ def append_chat_routes(
     conversation_search: ConversationSearch | None = None,
     inventory_graph_provider: InventoryGraphProvider | None = None,
     log_query_provider: Any = None,
+    data_sources: tuple[ReadDataSourceStatus, ...] = (),
     answer_preference_store: UserPreferenceStore | None = None,
     post_turn_review_submitter: PostTurnReviewSubmitter | None = None,
     user_context_ontology_projector: UserContextOntologyProjector | None = None,
@@ -97,9 +100,10 @@ def append_chat_routes(
         if skill_disclosure is None
         else RuntimeSkillChatTools(skill_disclosure, fallback=inventory_tools)
     )
+    data_source_tools = DataSourceChatTools(data_sources, fallback=skill_tools)
     tools = SystemHealthChatTools(
         read_model,
-        skill_tools,
+        data_source_tools,
     )
     routes.extend(
         (

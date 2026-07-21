@@ -70,6 +70,10 @@ from fdai.delivery.persistence import (
     PostgresModelHealthTransitionSink,
     PostgresModelHealthTransitionSinkConfig,
 )
+from fdai.delivery.persistence.postgres_conversation_delivery import (
+    PostgresConversationDeliveryStore,
+    PostgresConversationDeliveryStoreConfig,
+)
 from fdai.delivery.persistence.postgres_inventory_snapshot import (
     PostgresInventoryGraphProvider,
     PostgresInventorySnapshotStoreConfig,
@@ -96,11 +100,13 @@ from fdai.delivery.read_api.production.config import (
     _parse_positive_int,
     build_prod_read_model,
 )
+from fdai.delivery.read_api.production.data_sources import build_production_data_sources
 from fdai.delivery.read_api.production.identity import build_production_identity
 from fdai.delivery.read_api.production.onboarding import build_production_onboarding
 from fdai.delivery.read_api.production.panels import build_production_panels
 from fdai.delivery.read_api.production.persistence import build_production_persistence
 from fdai.delivery.read_api.production.runtime_wiring import build_production_runtime
+from fdai.delivery.read_api.production.scope import build_production_scope_source
 from fdai.delivery.read_api.production.skill_sources import build_production_skill_sources
 from fdai.delivery.read_api.production.skills import build_production_skill_runtime
 from fdai.delivery.read_api.production.user_context import build_production_user_context
@@ -331,6 +337,7 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         shutdown_callbacks=shutdown_callbacks,
     )
     shutdown_callbacks = onboarding.shutdown_callbacks
+    scope_source = build_production_scope_source(env)
     chat = None
     chat_web_search = None
     resolved_models_path = env.get(_env.RESOLVED_MODELS_ENV, "").strip()
@@ -457,6 +464,7 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
                 connect_timeout_s=read_model._config.connect_timeout_s,
             )
         ),
+        scope_source=scope_source,
         log_query_provider=log_query_provider,
         reporting=reporting,
         process_views=process_views,
@@ -470,6 +478,13 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         skill_disclosure=skill_runtime.disclosure,
         skill_sources=skill_sources.routes,
         busy_input_runtime=busy_input_runtime,
+        conversation_delivery_store=PostgresConversationDeliveryStore(
+            config=PostgresConversationDeliveryStoreConfig(
+                dsn=read_model._config.dsn,
+                statement_timeout_ms=read_model._config.statement_timeout_ms,
+                connect_timeout_s=read_model._config.connect_timeout_s,
+            )
+        ),
         chat_web_search=chat_web_search,
         chat_probe_interval_seconds=_parse_positive_int(
             env,
@@ -495,6 +510,10 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
                 onboarding_probe=onboarding.probe,
                 onboarding_configured=onboarding.configured,
                 state_store=state_store,
+                action_types=action_types,
+                active_rule_count=sum(
+                    1 for _ in (_REPO_ROOT / "rule-catalog" / "catalog").glob("*.yaml")
+                ),
             ),
             skill_runtime.panel,
             ArchitectureReviewStatusPanel(
@@ -520,6 +539,12 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         },
         live_stream=runtime.live_stream,
         agent_activity=runtime.agent_activity,
+        data_sources=build_production_data_sources(
+            scope_configured=scope_source is not None,
+            onboarding_configured=onboarding.configured,
+            model_settings_configured=model_settings is not None,
+            streams_configured=runtime.live_stream is not None,
+        ),
         startup_callbacks=runtime.startup_callbacks,
         shutdown_callbacks=shutdown_callbacks,
     )

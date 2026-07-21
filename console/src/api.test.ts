@@ -45,6 +45,19 @@ describe("read API response decoders", () => {
     })).toThrow(ReadApiError);
   });
 
+  test("keeps unobserved audit-derived measurements unavailable", () => {
+    const decoded = decodeAutonomyPayload({
+      ...autonomy,
+      source: { name: "postgres-audit", kind: "audit", as_of: null },
+      success: {
+        ...autonomy.success,
+        mttr_seconds: { value: null, baseline: null, direction: "lower" },
+      },
+    });
+    expect(decoded.success.mttr_seconds.value).toBeNull();
+    expect(decoded.success.mttr_seconds.baseline).toBeNull();
+  });
+
   test("reject malformed always-on payloads with a uniform contract error", () => {
     for (const decode of [decodeAuditPage, decodeDashboardKpi, decodeHilQueuePage, decodeIncidentPage]) {
       expect(() => decode({})).toThrow(ReadApiError);

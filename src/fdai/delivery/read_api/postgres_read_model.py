@@ -115,6 +115,15 @@ class PostgresConsoleReadModel(ConsoleReadModel):
             raise ValueError("connect_timeout_s MUST be >= 1")
         self._config = config
 
+    async def verify_connection(self) -> None:
+        """Fail startup unless PostgreSQL accepts a bounded read query."""
+
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
+            await conn.execute("SELECT 1")
+
     # ------------------------------------------------------------------
     # ConsoleReadModel
     # ------------------------------------------------------------------

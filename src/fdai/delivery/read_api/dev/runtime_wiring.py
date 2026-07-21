@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fdai.agents import PantheonRuntime
+from fdai.agents import AgentHandlerObserver, PantheonRuntime
 from fdai.core.incident import (
     IncidentLifecycleWorkflow,
     IncidentRegistry,
@@ -78,6 +78,7 @@ def build_interactive_pantheon_wiring(
     event_topic: str,
     read_model: Any,
     action_types: tuple[Any, ...],
+    handler_observer: AgentHandlerObserver | None = None,
 ) -> LocalRuntimeWiring:
     """Wire all agents to the selected local transport without fixture executors."""
     incident_workflow = IncidentLifecycleWorkflow(
@@ -109,6 +110,7 @@ def build_interactive_pantheon_wiring(
         consumer_group_prefix="fdai-local-pantheon",
         incident_candidate_hook=open_incident_candidate,
         action_types=action_types,
+        handler_observer=handler_observer,
     )
     start_pantheon_runtime, stop_pantheon_runtime = _runtime_callbacks(pantheon_runtime)
     return LocalRuntimeWiring(

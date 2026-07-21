@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import time
@@ -21,8 +22,17 @@ from fdai.delivery.read_api.dev.config import (
     local_entra_verifier_environment,
 )
 from fdai.delivery.read_api.dev.runtime_wiring import build_interactive_pantheon_wiring
+from fdai.delivery.read_api.postgres_read_model import PostgresConsoleReadModel
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
-from fdai.delivery.read_api.streaming.agent_activity_stream import runtime_agent_state_snapshot
+from fdai.delivery.read_api.streaming.agent_activity_stream import (
+    DEFAULT_CHANNEL,
+    SseAgentActivityPublisher,
+    runtime_agent_state_snapshot,
+)
+from fdai.delivery.read_api.streaming.pantheon_activity_observer import (
+    PantheonActivityObserver,
+)
+from fdai.shared.providers.local import LocalSseSink
 from fdai.shared.providers.testing.live_event_bus import LiveInMemoryEventBus
 
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
@@ -32,6 +42,11 @@ _LOCAL_SCENARIO_REPLAY_ENV = "FDAI_LOCAL_SCENARIO_REPLAY"
 _LOCAL_AZURE_DISCOVERY_ENV = "FDAI_LOCAL_AZURE_DISCOVERY"
 _LOCAL_AZURE_SUBSCRIPTION_ENV = "FDAI_LOCAL_AZURE_SUBSCRIPTION_ID"
 _START_PANTHEON_ENV = "FDAI_START_PANTHEON"
+_KAFKA_BOOTSTRAP_ENV = "FDAI_KAFKA_BOOTSTRAP_SERVERS"
+_KAFKA_EVENT_TOPIC_ENV = "KAFKA_TOPIC_EVENTS"
+_DATABASE_URL_ENV = "FDAI_DATABASE_URL"
+_EMBED_PANTHEON_ENV = "FDAI_READ_API_EMBED_PANTHEON"
+_AUTHORITATIVE_READ_API_ENV = "FDAI_AUTHORITATIVE_READ_API_BASE_URL"
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -69,6 +84,70 @@ def test_interactive_pantheon_wires_all_agents_without_fixture_executors() -> No
     assert wiring.operator_runtime is None
 
 
+async def test_interactive_local_event_streams_huginn_and_heimdall_activity() -> None:
+    event_bus = LiveInMemoryEventBus()
+    sink = LocalSseSink()
+    observer = PantheonActivityObserver(
+        publisher=SseAgentActivityPublisher(sink=sink, channel=DEFAULT_CHANNEL)
+    )
+    wiring = build_interactive_pantheon_wiring(
+        event_bus=event_bus,
+        event_topic="aw.events",
+        read_model=InMemoryConsoleReadModel(),
+        action_types=(),
+        handler_observer=observer,
+    )
+    frames: list[dict[str, object]] = []
+
+    async def collect() -> None:
+        async for event in sink.subscribe(DEFAULT_CHANNEL):
+            frames.append(json.loads(event.data))
+            completed = {
+                str(frame["agent"])
+                for frame in frames
+                if frame["agent"] in {"Huginn", "Heimdall"}
+                and frame["state"] == "watching"
+                and str(frame["detail"]).startswith("Processed ")
+            }
+            if completed == {"Huginn", "Heimdall"}:
+                return
+
+    collector = asyncio.create_task(collect())
+    while sink.subscriber_count(DEFAULT_CHANNEL) == 0:
+        await asyncio.sleep(0)
+    await wiring.start_pantheon_runtime()
+    await event_bus.publish(
+        "aw.events",
+        "event-local-1",
+        {
+            "event_id": "event-local-1",
+            "idempotency_key": "event-local-1",
+            "correlation_id": "corr-local-live",
+            "resource_id": "resource-local-1",
+            "resource_type": "compute.vm",
+            "event_type": "resource.changed",
+        },
+    )
+    try:
+        await asyncio.wait_for(collector, timeout=2.0)
+    finally:
+        collector.cancel()
+        await asyncio.gather(collector, return_exceptions=True)
+        await wiring.stop_pantheon_runtime()
+
+    by_agent = {
+        agent: [frame["state"] for frame in frames if frame["agent"] == agent]
+        for agent in ("Huginn", "Heimdall")
+    }
+    assert by_agent == {
+        "Huginn": ["collecting", "watching"],
+        "Heimdall": ["analyzing", "watching"],
+    }
+    active_frames = [frame for frame in frames if frame["state"] not in {"idle", "watching"}]
+    assert all(frame["correlation_id"] == "corr-local-live" for frame in active_frames)
+    assert all(frame["source"] == "runtime-observed" for frame in frames)
+
+
 def test_full_stack_launch_uses_entra_rbac_without_fixture_or_cli_principal() -> None:
     launch = json.loads((_REPO_ROOT / ".vscode" / "launch.json").read_text(encoding="utf-8"))
     configs = {item["name"]: item for item in launch["configurations"]}
@@ -81,10 +160,14 @@ def test_full_stack_launch_uses_entra_rbac_without_fixture_or_cli_principal() ->
     assert api_env["FDAI_READ_API_LOCAL_ENTRA"] == "1"
     assert api_env["FDAI_READ_API_DEV_MODE"] == "0"
     assert api_env["FDAI_READ_API_LOCAL_AZURE_CLI"] == "0"
+    assert api_env[_EMBED_PANTHEON_ENV] == "0"
     assert _START_PANTHEON_ENV not in api_env
+    assert configs["Console Web: Read API"]["preLaunchTask"] == "console: prepare full stack"
+    assert configs["Console Web: Read API"]["envFile"].endswith("/.fdai/local-runtime.env")
     assert frontend_env["VITE_DEV_MODE"] == "0"
     assert frontend_env["VITE_LOCAL_AZURE_CLI_AUTH"] == "0"
     assert compound["configurations"] == [
+        "Console Web: Core Runtime",
         "Console Web: Read API",
         "Console Web: Frontend",
     ]
@@ -110,10 +193,12 @@ class TestLocalEntrypoint:
 
         monkeypatch.delenv(_LOCAL_AZURE_DISCOVERY_ENV, raising=False)
         monkeypatch.delenv(_LOCAL_AZURE_SUBSCRIPTION_ENV, raising=False)
+        monkeypatch.delenv("AZURE_SUBSCRIPTION_ID", raising=False)
 
         provider = _local._build_inventory_graph_provider()
 
         assert isinstance(provider, AzureCliInventoryGraphProvider)
+        assert provider.cache_path is None
 
     def test_local_azure_discovery_rejects_synthetic_opt_out(
         self, monkeypatch: pytest.MonkeyPatch
@@ -137,6 +222,12 @@ class TestLocalEntrypoint:
         )
         provider = _local._build_inventory_graph_provider()
         assert isinstance(provider, AzureCliInventoryGraphProvider)
+        assert provider.inventory.subscription_id == "00000000-0000-0000-0000-000000000000"
+        assert provider.cache_path is not None
+        assert provider.cache_identity is not None
+        assert provider.cache_identity in provider.cache_path.name
+        assert provider.invalidation_path is not None
+        assert provider.cache_identity in provider.invalidation_path.name
 
     def test_agent_stream_uses_real_runtime_relay_by_default(
         self, monkeypatch: pytest.MonkeyPatch
@@ -378,6 +469,10 @@ class TestLocalEntraLoginHarness:
     def _enable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(_DEV_ENV, raising=False)
         monkeypatch.delenv(_LOCAL_AZURE_CLI_ENV, raising=False)
+        monkeypatch.delenv(_KAFKA_BOOTSTRAP_ENV, raising=False)
+        monkeypatch.delenv(_KAFKA_EVENT_TOPIC_ENV, raising=False)
+        monkeypatch.delenv(_DATABASE_URL_ENV, raising=False)
+        monkeypatch.delenv(_AUTHORITATIVE_READ_API_ENV, raising=False)
         monkeypatch.setenv(_LOCAL_ENTRA_ENV, "1")
         monkeypatch.setenv("FDAI_ENTRA_TENANT_ID", "00000000-0000-0000-0000-000000000abc")
         monkeypatch.setenv("FDAI_API_AUDIENCE", "api://00000000-0000-0000-0000-000000000def")
@@ -400,6 +495,7 @@ class TestLocalEntraLoginHarness:
         assert "/agents/stream" in {route.path for route in application.routes}
         assert application.state.pantheon_runtime is not None
         assert len(application.state.pantheon_runtime.agents) == 15
+        assert application.state.pantheon_runtime.bridge.handler_observer is not None
 
     def test_explicit_pantheon_disable_omits_runtime_and_stream(
         self, monkeypatch: pytest.MonkeyPatch
@@ -413,6 +509,25 @@ class TestLocalEntraLoginHarness:
         assert application.state.pantheon_runtime is None
         assert "/agents/stream" not in paths
         assert "/live/stream" not in paths
+
+    def test_full_stack_core_owns_pantheon_while_read_api_relays_streams(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._enable(monkeypatch)
+        monkeypatch.delenv(_START_PANTHEON_ENV, raising=False)
+        monkeypatch.setenv(_EMBED_PANTHEON_ENV, "0")
+        monkeypatch.setenv(
+            _KAFKA_BOOTSTRAP_ENV,
+            "example.servicebus.windows.net:9093",
+        )
+        monkeypatch.setenv(_KAFKA_EVENT_TOPIC_ENV, "aw.change.events")
+
+        application = _local.app()
+        paths = {route.path for route in application.routes}
+
+        assert application.state.pantheon_runtime is None
+        assert "/agents/stream" in paths
+        assert "/live/stream" in paths
 
     def test_local_transport_rejects_enforce_allowlist(
         self, monkeypatch: pytest.MonkeyPatch
@@ -446,6 +561,112 @@ class TestLocalEntraLoginHarness:
 
 
 class TestLocalAzureCliHarness:
+    @pytest.fixture(autouse=True)
+    def _without_full_stack_runtime(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv(_KAFKA_BOOTSTRAP_ENV, raising=False)
+        monkeypatch.delenv(_KAFKA_EVENT_TOPIC_ENV, raising=False)
+        monkeypatch.delenv(_DATABASE_URL_ENV, raising=False)
+
+    def test_authoritative_proxy_is_declared_without_synthetic_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv(_DEV_ENV, raising=False)
+        monkeypatch.delenv(_LOCAL_ENTRA_ENV, raising=False)
+        monkeypatch.setenv(_LOCAL_AZURE_CLI_ENV, "1")
+        monkeypatch.setenv(
+            _AUTHORITATIVE_READ_API_ENV,
+            "https://read.example.test",
+        )
+        monkeypatch.setattr(
+            _local,
+            "resolve_azure_cli_identity",
+            lambda: LocalAzureCliIdentity(
+                principal=Principal(
+                    oid="cli-user",
+                    roles=frozenset({Role.CONTRIBUTOR}),
+                ),
+                username="user@example.com",
+            ),
+        )
+
+        with TestClient(_local.app()) as client:
+            sources = {
+                item["key"]: item for item in client.get("/system/data-sources").json()["sources"]
+            }
+
+        assert sources["operational-state"]["source"] == "remote-read-api"
+        assert sources["operational-state"]["authoritative"] is True
+        assert sources["operational-state"]["durable"] is True
+        assert sources["overview-measurement"]["availability"] == "unknown"
+
+    def test_local_postgresql_profile_registers_durable_read_surfaces(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv(_DEV_ENV, raising=False)
+        monkeypatch.delenv(_LOCAL_ENTRA_ENV, raising=False)
+        monkeypatch.setenv(_LOCAL_AZURE_CLI_ENV, "1")
+        monkeypatch.setenv(_DATABASE_URL_ENV, "postgresql://example.invalid/fdai")
+        monkeypatch.setenv(_EMBED_PANTHEON_ENV, "0")
+        monkeypatch.setenv("AZURE_SUBSCRIPTION_ID", "subscription-a")
+        monkeypatch.setenv("AZURE_RESOURCE_GROUP", "resource-group-a")
+        monkeypatch.setattr(
+            _local,
+            "resolve_azure_cli_identity",
+            lambda: LocalAzureCliIdentity(
+                principal=Principal(
+                    oid="cli-user",
+                    roles=frozenset({Role.CONTRIBUTOR}),
+                ),
+                username="user@example.com",
+            ),
+        )
+
+        application = _local.app()
+        paths = {route.path for route in application.routes}
+
+        assert {
+            "/automation-blueprints",
+            "/context-selection-comparisons",
+            "/conversation-delivery",
+            "/finops",
+            "/kpi/autonomy",
+            "/kpi/promotion-gates",
+            "/operator-memory",
+            "/reports",
+            "/scheduler-runs",
+            "/scope",
+        } <= paths
+        assert application.state.pantheon_runtime is None
+
+    def test_local_postgresql_profile_fails_startup_when_database_is_unreachable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv(_DEV_ENV, raising=False)
+        monkeypatch.delenv(_LOCAL_ENTRA_ENV, raising=False)
+        monkeypatch.setenv(_LOCAL_AZURE_CLI_ENV, "1")
+        monkeypatch.setenv(_DATABASE_URL_ENV, "postgresql://example.invalid/fdai")
+        monkeypatch.setenv(_EMBED_PANTHEON_ENV, "0")
+        monkeypatch.setattr(
+            _local,
+            "resolve_azure_cli_identity",
+            lambda: LocalAzureCliIdentity(
+                principal=Principal(
+                    oid="cli-user",
+                    roles=frozenset({Role.CONTRIBUTOR}),
+                ),
+                username="user@example.com",
+            ),
+        )
+
+        async def fail_connection(_read_model: PostgresConsoleReadModel) -> None:
+            raise RuntimeError("PostgreSQL startup verification failed")
+
+        monkeypatch.setattr(PostgresConsoleReadModel, "verify_connection", fail_connection)
+
+        with pytest.raises(RuntimeError, match="startup verification failed"):
+            with TestClient(_local.app()):
+                pass
+
     def test_default_local_transport_starts_all_pantheon_consumers(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -475,6 +696,7 @@ class TestLocalAzureCliHarness:
     def test_builds_with_resolved_cli_identity(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(_DEV_ENV, raising=False)
         monkeypatch.delenv(_LOCAL_ENTRA_ENV, raising=False)
+        monkeypatch.delenv(_AUTHORITATIVE_READ_API_ENV, raising=False)
         monkeypatch.setenv(_LOCAL_AZURE_CLI_ENV, "1")
         monkeypatch.delenv(_START_PANTHEON_ENV, raising=False)
         identity = LocalAzureCliIdentity(
@@ -493,6 +715,10 @@ class TestLocalAzureCliHarness:
         paths = {route.path for route in client.app.routes}
         assert "/inventory/graph" in paths
         assert "/models/settings" in paths
+        assert "/capabilities" in paths
+        assert "/onboarding" in paths
+        assert "/kpi/llm-cost" in paths
+        assert "/system/data-sources" in paths
         assert "/workflows/run" in paths
         assert "/views/process" in paths
         assert "/arb/status" in paths
@@ -503,6 +729,13 @@ class TestLocalAzureCliHarness:
         assert "/scope" not in paths
         assert "/promotion-gates" not in paths
         assert "/stewardship" not in paths
+        sources = {
+            item["key"]: item for item in client.get("/system/data-sources").json()["sources"]
+        }
+        assert sources["operational-state"]["availability"] == "unavailable"
+        assert sources["operational-state"]["authoritative"] is False
+        assert sources["catalogs"]["availability"] == "available"
+        assert sources["local-metering"]["durable"] is False
         assert client.get("/local-auth/me").json()["source"] == "azure-cli"
 
         started = client.post(
