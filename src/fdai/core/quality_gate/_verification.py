@@ -47,8 +47,9 @@ def verify_grounding(
         if supports_fn is not None:
             try:
                 supported = supports_fn(candidate, rule_id)
-            except Exception:  # noqa: BLE001 - grounding failure fails closed
-                supported = False
+            except Exception as exc:  # noqa: BLE001 - grounding failure fails closed
+                reasons.append(f"grounding_error:{rule_id}:{type(exc).__name__}")
+                continue
             if not supported:
                 reasons.append(f"ungrounded_citation:{rule_id}")
                 continue

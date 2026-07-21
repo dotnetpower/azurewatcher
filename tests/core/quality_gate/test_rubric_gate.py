@@ -366,8 +366,10 @@ async def test_grounding_supports_error_fails_closed() -> None:
     # MUST NOT raise.
     decision = await gate.evaluate(_candidate())
     assert decision.outcome is QualityOutcome.ABSTAIN
-    # Grounding leg treated the citation as ungrounded (fail-closed)...
-    assert any(r.startswith("ungrounded_citation") for r in decision.reasons)
+    # Grounding leg records provider failure separately from a genuine
+    # citation mismatch without exposing the provider exception message.
+    assert "grounding_error:r.known:RuntimeError" in decision.reasons
+    assert not any(r.startswith("ungrounded_citation") for r in decision.reasons)
     # ...and the rubric leg fell into its own fail-closed abstain.
     assert any(r.startswith("rubric_evaluator_error") for r in decision.reasons)
 
