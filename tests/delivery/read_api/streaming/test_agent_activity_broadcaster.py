@@ -158,7 +158,7 @@ async def test_consumes_stage_frames_and_publishes_agent_activity() -> None:
     bus = InMemoryEventBus()
     topic = "aw.pipeline.stages"
     for frame in (
-        _stage_dict(StageName.INGEST),
+        _stage_dict(StageName.INGEST, detail={"incident_id": "incident-1"}),
         _stage_dict(StageName.GATE, detail={"gate_decision": "auto"}),
         _stage_dict(
             StageName.AUDIT,
@@ -176,6 +176,19 @@ async def test_consumes_stage_frames_and_publishes_agent_activity() -> None:
     tickets = [e for e in pub.events if isinstance(e, IncidentTicketEvent)]
     assert tickets[-1].status.value == "resolved"
     assert "Huginn" in {e.agent for e in pub.events if isinstance(e, AgentStateEvent)}
+
+
+async def test_routine_stage_frames_do_not_fabricate_incident_tickets() -> None:
+    bus = InMemoryEventBus()
+    topic = "aw.pipeline.stages"
+    await bus.publish(topic, "evt-1", _stage_dict(StageName.INGEST))
+
+    pub = _RecordingPublisher()
+    broadcaster = AgentActivityBroadcaster(event_bus=bus, publisher=pub, stage_topic=topic)
+    await _drain(broadcaster)
+
+    assert any(isinstance(event, AgentStateEvent) for event in pub.events)
+    assert not any(isinstance(event, IncidentTicketEvent) for event in pub.events)
 
 
 async def test_malformed_frames_are_dropped() -> None:
