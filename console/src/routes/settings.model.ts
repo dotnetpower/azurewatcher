@@ -19,6 +19,10 @@ export function releaseSettingsMutation(lock: SettingsMutationLock): void {
   lock.current = false;
 }
 
+export function settingsDraftIsCurrent(currentRevision: number, startedRevision: number): boolean {
+  return currentRevision === startedRevision;
+}
+
 export function claimSettingsDelete(claims: Set<string>, key: string): boolean {
   if (claims.has(key)) return false;
   claims.add(key);

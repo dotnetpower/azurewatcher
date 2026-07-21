@@ -8,6 +8,7 @@ import {
   parseBriefingHour,
   releaseSettingsMutation,
   responseDefaultsPolicyForSave,
+  settingsDraftIsCurrent,
 } from "./settings";
 
 describe("General Settings validation", () => {
@@ -54,6 +55,11 @@ describe("General Settings validation", () => {
         answer_language: "ko",
       },
     });
+  });
+
+  it("rejects context hydration after a local draft edit", () => {
+    expect(settingsDraftIsCurrent(4, 4)).toBe(true);
+    expect(settingsDraftIsCurrent(5, 4)).toBe(false);
   });
 
   it("keeps the successful preference revision after a later partial-save failure", () => {

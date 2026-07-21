@@ -33,6 +33,7 @@ import {
   parseBriefingHour,
   releaseSettingsMutation,
   responseDefaultsPolicyForSave,
+  settingsDraftIsCurrent,
   setLocaleOverride,
 } from "./settings.model";
 
@@ -53,6 +54,7 @@ export function useSettingsController(client: ReadApiClient) {
   const briefingIntent = useRef<MutationIntentIdentity | null>(null);
   const mutationInFlight = useRef(false);
   const pendingDeleteClaims = useRef(new Set<string>());
+  const draftRevision = useRef(0);
 
   const beginMutation = (): boolean => {
     if (!claimSettingsMutation(mutationInFlight)) return false;
@@ -73,16 +75,19 @@ export function useSettingsController(client: ReadApiClient) {
 
   const refreshContext = async (): Promise<void> => {
     const generation = ++refreshGeneration.current;
+    const startedDraftRevision = draftRevision.current;
     setContextLoading(true);
     try {
       const context = await fetchUserContext();
       if (generation !== refreshGeneration.current) return;
       setServerContext(context);
-      setAnswerDetail(context.preference?.answer_detail ?? "standard");
-      setAnswerFormat(context.preference?.answer_format ?? "prose");
-      setAnswerPreferencesEnabled(context.preference?.answer_preferences_enabled ?? true);
-      setTimezone(context.preference?.timezone ?? defaultTimezone());
-      setShareWithLearner(context.preference?.share_with_learner ?? false);
+      if (settingsDraftIsCurrent(draftRevision.current, startedDraftRevision)) {
+        setAnswerDetail(context.preference?.answer_detail ?? "standard");
+        setAnswerFormat(context.preference?.answer_format ?? "prose");
+        setAnswerPreferencesEnabled(context.preference?.answer_preferences_enabled ?? true);
+        setTimezone(context.preference?.timezone ?? defaultTimezone());
+        setShareWithLearner(context.preference?.share_with_learner ?? false);
+      }
       setContextError(null);
     } catch (error) {
       if (generation !== refreshGeneration.current) return;
@@ -94,7 +99,33 @@ export function useSettingsController(client: ReadApiClient) {
 
   useEffect(() => {
     void refreshContext();
+    return () => { refreshGeneration.current += 1; };
   }, [client]);
+
+  const updateAnswerDetail = (value: UserPreferencePayload["answer_detail"]): void => {
+    draftRevision.current += 1;
+    setAnswerDetail(value);
+  };
+
+  const updateAnswerFormat = (value: UserPreferencePayload["answer_format"]): void => {
+    draftRevision.current += 1;
+    setAnswerFormat(value);
+  };
+
+  const updateAnswerPreferencesEnabled = (value: boolean): void => {
+    draftRevision.current += 1;
+    setAnswerPreferencesEnabled(value);
+  };
+
+  const updateTimezone = (value: string): void => {
+    draftRevision.current += 1;
+    setTimezone(value);
+  };
+
+  const updateShareWithLearner = (value: boolean): void => {
+    draftRevision.current += 1;
+    setShareWithLearner(value);
+  };
 
   usePublishViewContext(
     () => ({
@@ -313,15 +344,15 @@ export function useSettingsController(client: ReadApiClient) {
     contextLoading,
     contextError,
     answerDetail,
-    setAnswerDetail,
+    setAnswerDetail: updateAnswerDetail,
     answerFormat,
-    setAnswerFormat,
+    setAnswerFormat: updateAnswerFormat,
     answerPreferencesEnabled,
-    setAnswerPreferencesEnabled,
+    setAnswerPreferencesEnabled: updateAnswerPreferencesEnabled,
     timezone,
-    setTimezone,
+    setTimezone: updateTimezone,
     shareWithLearner,
-    setShareWithLearner,
+    setShareWithLearner: updateShareWithLearner,
     briefingHour,
     setBriefingHour,
     savingContext,
