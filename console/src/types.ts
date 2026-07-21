@@ -171,8 +171,8 @@ export interface FinOpsPayload {
  * `direction` says which way is better, so the console can render the
  * improvement factor correctly (higher-is-better vs lower-is-better). */
 export interface MetricVsBaseline {
-  readonly value: number;
-  readonly baseline: number;
+  readonly value: number | null;
+  readonly baseline: number | null;
   readonly direction: "higher" | "lower";
 }
 
