@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: a99ce898f1ac559b7185da41e86b4b7a8feec03f
+translation_source_sha: 36182beab1243ba01cc02274e1ffa5820c2ff2bf
 translation_revised: 2026-07-21
 ---
 
@@ -41,7 +41,7 @@ fdai/
 │   │   ├── working_context/    # 턴당 경계 프롬프트 조립: 불변 selection policy + 필수 validator + shadow evidence/replay + planner/orchestrator fold + summarizer/retriever seam
 │   │   ├── quality_gate/       # mixed-model 교차 검사, verifier, grounding; 실패한 fan-out은 sibling을 cancel+drain (T2 방어)
 │   │   ├── rca/                # 루트 원인 분석 (T0 deterministic + seam 뒤의 T2 reasoner; grounding-gated)
-│   │   ├── risk_gate/          # 통합 authority: 리스크 스코어 + auto vs HIL vs deny; 4개 안전 불변식 강제
+│   │   ├── risk_gate/          # 통합 authority: 리스크 스코어 + auto vs HIL vs deny; malformed promotion metric 거부 + 4개 안전 불변식 강제
 │   │   ├── rbac/               # 리드 API 를 위한 사람 RBAC (5개 롤 매트릭스, resolver, enforcer)
 │   │   ├── hil_resume/         # HIL 승인 라운드트립: park, 채널로 push, 결정 시 resume
 │   │   ├── executor/           # 리소스별 락, 딜리버리 어댑터로 멱등 적용

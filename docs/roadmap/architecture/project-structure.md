@@ -36,7 +36,7 @@ fdai/
 │   │   ├── working_context/    # bounded per-turn prompt assembly: immutable selection policy + mandatory validator + shadow evidence/replay + planner/orchestrator folds + summarizer/retriever seams
 │   │   ├── quality_gate/       # mixed-model cross-check, verifier, grounding; failed fan-out cancels and drains siblings (guards T2)
 │   │   ├── rca/                # root-cause analysis (T0 deterministic + T2 reasoner behind seam; grounding-gated)
-│   │   ├── risk_gate/          # unified authority: risk score + auto vs HIL vs deny; enforces the four safety invariants
+│   │   ├── risk_gate/          # unified authority: risk score + auto vs HIL vs deny; rejects malformed promotion metrics and enforces the four safety invariants
 │   │   ├── rbac/               # human RBAC for the read API (5-role matrix, resolver, enforcer)
 │   │   ├── hil_resume/         # HIL approval round-trip: park, push to channel, resume on decision
 │   │   ├── executor/           # per-resource lock, idempotent apply via delivery adapters

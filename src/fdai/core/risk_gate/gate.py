@@ -46,6 +46,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from math import isfinite
 from typing import Literal
 
 from fdai.shared.contracts.models import (
@@ -80,6 +81,18 @@ class PromotionMetrics:
     samples: int
     accuracy: float
     policy_escapes: int
+
+    def __post_init__(self) -> None:
+        if not self.action_type:
+            raise ValueError("action_type MUST NOT be empty")
+        if self.shadow_days < 0:
+            raise ValueError("shadow_days MUST be >= 0")
+        if self.samples < 0:
+            raise ValueError("samples MUST be >= 0")
+        if not isfinite(self.accuracy) or not 0.0 <= self.accuracy <= 1.0:
+            raise ValueError("accuracy MUST be finite and in [0.0, 1.0]")
+        if self.policy_escapes < 0:
+            raise ValueError("policy_escapes MUST be >= 0")
 
 
 @dataclass(frozen=True, slots=True)

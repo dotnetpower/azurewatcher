@@ -112,6 +112,33 @@ def test_invalid_config_is_rejected(override: dict[str, Any], message: str) -> N
         )
 
 
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [
+        ({"action_type": ""}, "action_type"),
+        ({"shadow_days": -1}, "shadow_days"),
+        ({"samples": -1}, "samples"),
+        ({"accuracy": -0.1}, "accuracy"),
+        ({"accuracy": 1.1}, "accuracy"),
+        ({"accuracy": float("nan")}, "accuracy"),
+        ({"accuracy": float("inf")}, "accuracy"),
+        ({"policy_escapes": -1}, "policy_escapes"),
+    ],
+)
+def test_invalid_promotion_metrics_are_rejected(override: dict[str, Any], message: str) -> None:
+    values: dict[str, Any] = {
+        "action_type": "remediate.tag-add",
+        "shadow_days": 14,
+        "samples": 30,
+        "accuracy": 1.0,
+        "policy_escapes": 0,
+    }
+    values.update(override)
+
+    with pytest.raises(ValueError, match=message):
+        PromotionMetrics(**values)
+
+
 # ---------------------------------------------------------------------------
 # Shadow-mode default behaviour
 # ---------------------------------------------------------------------------
