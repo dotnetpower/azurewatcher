@@ -121,6 +121,9 @@ verifier and policy re-check are the authority, not model text.
 - **Learned-action reuse (provenance + safety)**: a reused action carries provenance (source
   incident id, historical success rate) and is **re-validated through the verifier and risk gate
   before it can execute** - reuse is not auto-trust.
+- **Evidence bounds**: similarity must be finite and within `[-1, 1]`; success rate must be within
+  `[0, 1]`; reuse count and required action provenance must be valid. Malformed pattern-library
+  evidence abstains instead of becoming a reuse candidate.
 - Target: absorb ~15-20% of events without a frontier round-trip, **validated by measurement**.
 
 ## Promotion (shadow → enforce)

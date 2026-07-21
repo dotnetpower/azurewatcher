@@ -1,7 +1,7 @@
 ---
 title: "Phase 2 - 지속적 규칙 업데이트, Quality Gate, T1"
 translation_of: phase-2-quality-and-t1.md
-translation_source_sha: 6f2efb3c855e355ff5ebe6c97d3b5953ceb10f25
+translation_source_sha: 6eda55ed2d07964afae12cd2f0affe4720475598
 translation_revised: 2026-07-21
 ---
 
@@ -117,6 +117,9 @@ verifier와 정책 재검사가 권위, 모델 텍스트 아님.
 - **학습된-액션 재사용 (provenance + 안전)**: 재사용 액션은 provenance(source 인시던트 id, 역사적
   성공률) 를 운반하고 **실행 전 verifier와 리스크 게이트를 통해 재검증** - 재사용은 auto-trust
   아님.
+- **Evidence bound**: similarity는 finite이며 `[-1, 1]` 범위여야 하고 success rate는 `[0, 1]`
+  범위여야 합니다. Reuse count와 필수 action provenance도 valid해야 하며 malformed pattern-library
+  evidence는 reuse candidate가 되지 않고 abstain합니다.
 - 목표: 프론티어 왕복 없이 ~15-20% 이벤트 흡수, **측정으로 검증**.
 
 ## 승격 (shadow → enforce)

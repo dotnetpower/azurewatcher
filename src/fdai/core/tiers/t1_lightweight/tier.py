@@ -191,11 +191,22 @@ class T1Tier:
                 reason="non_finite_similarity_score",
                 reasons=("non_finite_similarity_score",),
             )
+        if any(not -1.0 <= match.score <= 1.0 for match in matches):
+            return T1Decision(
+                outcome=T1Outcome.ABSTAIN,
+                event_id=str(event.event_id),
+                threshold=self._config.similarity_threshold,
+                best_match=None,
+                reason="similarity_score_out_of_range",
+                reasons=("similarity_score_out_of_range",),
+            )
 
         # matches are already ordered by descending score by contract;
         # we still take the max to be safe.
         best = max(matches, key=lambda m: m.score)
         reasons: list[str] = []
+
+        reasons.extend(_learned_action_reasons(best.action))
 
         if best.score < self._config.similarity_threshold:
             reasons.append(
@@ -204,6 +215,8 @@ class T1Tier:
 
         if not isfinite(best.action.success_rate):
             reasons.append("non_finite_success_rate")
+        elif not 0.0 <= best.action.success_rate <= 1.0:
+            reasons.append("success_rate_out_of_range")
         elif best.action.success_rate < self._config.min_success_rate:
             reasons.append(
                 f"success_rate={best.action.success_rate:.4f}<"
@@ -228,6 +241,24 @@ class T1Tier:
             reason=None,
             reasons=(),
         )
+
+
+def _learned_action_reasons(action: LearnedAction) -> list[str]:
+    reasons: list[str] = []
+    required = {
+        "signature": action.signature,
+        "rule_id": action.rule_id,
+        "action_type": action.action_type,
+        "incident_id": action.incident_id,
+    }
+    for field_name, value in required.items():
+        if not isinstance(value, str) or not value.strip():
+            reasons.append(f"invalid_learned_action_{field_name}")
+    if not isinstance(action.params, Mapping):
+        reasons.append("invalid_learned_action_params")
+    if action.reuse_count < 0:
+        reasons.append("negative_reuse_count")
+    return reasons
 
 
 # ---------------------------------------------------------------------------
