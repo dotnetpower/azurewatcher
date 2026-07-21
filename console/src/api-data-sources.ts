@@ -60,6 +60,9 @@ export function unavailableSourceReason(
   if (source === null || (source.availability !== "unavailable" && source.authoritative)) {
     return null;
   }
+  if (!source.authoritative) {
+    return source.reason ?? `Source ${source.key} is not authoritative.`;
+  }
   return source.reason ?? `Authoritative source ${source.key} is unavailable.`;
 }
 

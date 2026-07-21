@@ -45,4 +45,20 @@ describe("read data sources", () => {
       sources: [{ ...payload.sources[0], routes: ["audit"] }],
     })).toThrow(/absolute paths/);
   });
+
+  test("distinguishes a non-authoritative source from an unavailable source", () => {
+    const decoded = decodeReadDataSources({
+      ...payload,
+      sources: [{
+        ...payload.sources[0],
+        source: "local-process-metering",
+        availability: "available",
+        reachable: true,
+        reason: null,
+      }],
+    });
+
+    expect(unavailableSourceReason(decoded, "/kpi"))
+      .toBe("Source operational-state is not authoritative.");
+  });
 });
