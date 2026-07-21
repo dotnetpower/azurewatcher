@@ -37,7 +37,7 @@ from fdai.core.quality_gate.gate import (
 from fdai.core.tiers.t0_deterministic import RuleIndex, T0Engine
 from fdai.core.tiers.t2_reasoning import T2Outcome, T2ProposalContext, T2Tier
 from fdai.core.trust_router import RoutingDecision, RoutingTier, TrustRouter
-from fdai.shared.contracts.models import Event, Mode
+from fdai.shared.contracts.models import Event, Mode, Rule
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 from fdai.shared.contracts.validation import (
     JsonSchemaContractValidator,
@@ -89,9 +89,11 @@ def _candidate() -> QualityCandidate:
 class _Proposer:
     def __init__(self, candidate: QualityCandidate | None) -> None:
         self._candidate = candidate
+        self.calls = 0
 
     async def propose(self, *, context: T2ProposalContext) -> QualityCandidate | None:
         del context
+        self.calls += 1
         return self._candidate
 
 
@@ -123,7 +125,7 @@ def _make_loop(
             resource_lock=ResourceLockManager(),
         ),
         audit_store=audit,
-        rules_by_id={},
+        rules_by_id={"r1": _rule()},
         t2_engine=t2_engine,
         stage_publisher=stage_publisher,
     )
@@ -135,6 +137,31 @@ def _routing() -> RoutingDecision:
         resource_type="compute.vm.novel",
         candidate_rule_ids=("r1",),
         reason=None,
+    )
+
+
+def _rule() -> Rule:
+    return Rule.model_validate(
+        {
+            "schema_version": "1.0.0",
+            "id": "r1",
+            "version": "1.0.0",
+            "source": "custom",
+            "severity": "low",
+            "category": "config_drift",
+            "resource_type": "compute.vm.novel",
+            "check_logic": {"kind": "rego", "reference": "policies/example.rego"},
+            "remediation": {"template_ref": "remediations/example"},
+            "remediates": "remediate.tag-add",
+            "provenance": {
+                "source_url": "https://example.com/rules/r1",
+                "resolved_ref": "0000000000000000000000000000000000000000",
+                "content_hash": "sha256:example",
+                "license": "MIT",
+                "redistribution": "embeddable",
+                "retrieved_at": "2026-07-05T00:00:00Z",
+            },
+        }
     )
 
 
@@ -175,6 +202,34 @@ async def test_consult_t2_absent_engine_returns_none(tmp_path: Path) -> None:
         correlation_id=str(event.event_id),
     )
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_consult_t2_without_grounding_rules_skips_proposer(tmp_path: Path) -> None:
+    audit = InMemoryStateStore()
+    proposer = _Proposer(_candidate())
+    tier = T2Tier(proposer=proposer, quality_gate=_FakeGate(QualityOutcome.ELIGIBLE))
+    loop = _make_loop(t2_engine=tier, audit=audit, tmp_path=tmp_path)
+    event = await _ingest("evt-t2-no-grounding")
+    decision = RoutingDecision(
+        tier=RoutingTier.T0,
+        resource_type="compute.vm.novel",
+        candidate_rule_ids=("missing-rule",),
+        reason="no exact rule",
+    )
+
+    result = await loop._consult_t2(  # noqa: SLF001 - test hook
+        event=event,
+        decision=decision,
+        citing=(),
+        cs_decision=None,
+        t1_decision=None,
+        event_id=str(event.event_id),
+        correlation_id=str(event.event_id),
+    )
+
+    assert result is None
+    assert proposer.calls == 0
 
 
 # ---------------------------------------------------------------------------

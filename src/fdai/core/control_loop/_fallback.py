@@ -171,6 +171,8 @@ class ControlLoopFallbackMixin:
             if (rule := self._rules_by_id.get(rule_id)) is not None
             and rule.resource_type == decision.resource_type
         )
+        if not allowed_rules:
+            return None
         context = T2ProposalContext(
             event=event,
             target_resource_ref=target_ref,

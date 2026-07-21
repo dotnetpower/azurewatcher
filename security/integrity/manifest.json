@@ -126,7 +126,7 @@
     "src/fdai/core/control_loop/_boundary.py": "63408f62e54e31518d2c38435ad5370227372e2cb5102013cdf2560259014470",
     "src/fdai/core/control_loop/_canary.py": "37e5c4b72d481376fab31ee9a2734bb31993ac27e8ae3961b2d360a95183c04f",
     "src/fdai/core/control_loop/_execution.py": "6501a45086b1ca051cdb9f7f9a73a6f3056556017a039cd682ac6871149f8dbd",
-    "src/fdai/core/control_loop/_fallback.py": "d1be282bb5aed3ce7d9b5dbd150332a046f8e35fa3f11bd702831d74940b1bda",
+    "src/fdai/core/control_loop/_fallback.py": "b578dad54f1388c46a9d8b15085345e2c0049118e58b7d0a2bc2feea82f9c989",
     "src/fdai/core/control_loop/_helpers.py": "96323502707a0e6f952360155734fc64bb0114847c684db7128f0529dd5ba606",
     "src/fdai/core/control_loop/_notification_helpers.py": "bd16e3abebdff293e0941ff96fbc2d804edbb182a55ffae3909a0f902c17dfbe",
     "src/fdai/core/control_loop/_process.py": "8bbfc3618588c6a10d7dc8137c398898d8f2afa6bac2167caceabed7b9dfb2f2",
