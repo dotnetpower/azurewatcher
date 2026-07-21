@@ -100,6 +100,14 @@ class EventHubsKafkaBusConfig:
     def __post_init__(self) -> None:
         if self.auto_offset_reset not in {"earliest", "latest"}:
             raise ValueError("auto_offset_reset MUST be earliest or latest")
+        if self.session_timeout_ms <= 0:
+            raise ValueError("session_timeout_ms MUST be positive")
+        if self.heartbeat_interval_ms <= 0:
+            raise ValueError("heartbeat_interval_ms MUST be positive")
+        if self.heartbeat_interval_ms >= self.session_timeout_ms:
+            raise ValueError("heartbeat_interval_ms MUST be less than session_timeout_ms")
+        if not self.dlq_suffix:
+            raise ValueError("dlq_suffix MUST NOT be empty")
 
 
 class _EntraTokenProvider(AbstractTokenProvider):  # type: ignore[misc]

@@ -62,6 +62,26 @@ def test_config_rejects_invalid_auto_offset_reset() -> None:
         _cfg(auto_offset_reset="middle")
 
 
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    (
+        ({"session_timeout_ms": 0}, "session_timeout_ms"),
+        ({"heartbeat_interval_ms": 0}, "heartbeat_interval_ms"),
+        (
+            {"session_timeout_ms": 10_000, "heartbeat_interval_ms": 10_000},
+            "less than session_timeout_ms",
+        ),
+        ({"dlq_suffix": ""}, "dlq_suffix"),
+    ),
+)
+def test_config_rejects_unsafe_transport_values(
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        _cfg(**overrides)
+
+
 def test_encode_produces_deterministic_bytes() -> None:
     payload = {"b": 2, "a": 1}
     encoded = _encode(payload)
