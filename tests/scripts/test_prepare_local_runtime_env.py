@@ -11,6 +11,11 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPT = _REPO_ROOT / "scripts/deployment/azure/prepare-local-runtime-env.sh"
 _BASH = shutil.which("bash") or "bash"
+_EXECUTOR_RESOURCE_ID = (
+    "/subscriptions/00000000-0000-0000-0000-000000000001/"
+    "resourceGroups/rg-example/providers/Microsoft.ManagedIdentity/"
+    "userAssignedIdentities/id-example"
+)
 
 
 def test_prepares_deployed_transport_without_copying_stale_transport(tmp_path: Path) -> None:
@@ -40,7 +45,7 @@ def test_prepares_deployed_transport_without_copying_stale_transport(tmp_path: P
         'elif [[ "$*" == *"output -raw resource_group_name"* ]]; then\n'
         "  printf 'rg-example'\n"
         'elif [[ "$*" == *"output -raw executor_identity_resource_id"* ]]; then\n'
-        "  printf '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-example/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-example'\n"
+        f"  printf '{_EXECUTOR_RESOURCE_ID}'\n"
         "else\n"
         "  exit 2\n"
         "fi\n",
@@ -129,7 +134,7 @@ def test_omits_inventory_invalidation_topic_until_provisioned(tmp_path: Path) ->
         'elif [[ "$*" == *"output -raw resource_group_name"* ]]; then\n'
         "  printf 'rg-example'\n"
         'elif [[ "$*" == *"output -raw executor_identity_resource_id"* ]]; then\n'
-        "  printf '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-example/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-example'\n"
+        f"  printf '{_EXECUTOR_RESOURCE_ID}'\n"
         "else\n"
         "  exit 2\n"
         "fi\n",
@@ -188,13 +193,13 @@ def test_rejects_cli_subscription_that_differs_from_terraform(tmp_path: Path) ->
         'if [[ "$*" == *"output -raw event_bus_kafka_bootstrap"* ]]; then\n'
         "  printf 'example.servicebus.windows.net:9093'\n"
         'elif [[ "$*" == *"output -json event_bus_topics"* ]]; then\n'
-        '  printf \'["aw.change.events"]\'\n'
+        "  printf '[\"aw.change.events\"]'\n"
         'elif [[ "$*" == *"output -json event_bus_auxiliary_topics"* ]]; then\n'
         "  printf '[]'\n"
         'elif [[ "$*" == *"output -raw resource_group_name"* ]]; then\n'
         "  printf 'rg-example'\n"
         'elif [[ "$*" == *"output -raw executor_identity_resource_id"* ]]; then\n'
-        "  printf '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-example/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-example'\n"
+        f"  printf '{_EXECUTOR_RESOURCE_ID}'\n"
         "else\n"
         "  exit 2\n"
         "fi\n",
