@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ReadApiError } from "../api";
 import {
   architectureResourceExists,
+  architectureCacheRefreshPending,
   architectureSourceLabel,
   architectureViewExists,
   formatAge,
@@ -9,6 +10,14 @@ import {
 } from "./architecture";
 
 describe("architecture resource selection", () => {
+  it("polls only while a cached snapshot refresh is pending", () => {
+    expect(architectureCacheRefreshPending({ cache: { status: "refreshing" } } as never))
+      .toBe(true);
+    expect(architectureCacheRefreshPending({ cache: { status: "fresh" } } as never))
+      .toBe(false);
+    expect(architectureCacheRefreshPending({} as never)).toBe(false);
+  });
+
   it("advances snapshot age from an explicit clock", () => {
     const snapshot = "2026-07-17T09:00:00Z";
     expect(formatAge(snapshot, Date.parse("2026-07-17T09:00:05Z"))).toBe("5s ago");

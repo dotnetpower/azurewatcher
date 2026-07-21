@@ -169,7 +169,9 @@ action.
 
 - IaC in `infra/` (see [project-structure.md](../architecture/project-structure.md)) is the entry point. Every
   environment is provisioned identically from the same code with per-environment parameters
-  and per-environment isolated state.
+  and per-environment isolated state. Terraform exposes primary Event Hub names through
+  `event_bus_topics` and auxiliary stage, approval, and inventory-ingress names through
+  `event_bus_auxiliary_topics` so local runtime preparation binds only provisioned topics.
 - **Entry command**: `terraform apply` against the `infra/` Terraform (HCL) modules - resolves
   the previous OD (`azd up` vs `terraform apply` vs a wrapper). Environment values are supplied
   via `*.tfvars` files that are **never committed** (per

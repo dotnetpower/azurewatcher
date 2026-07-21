@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 from fdai.core.executor.lock import ResourceLockManager
@@ -355,4 +356,35 @@ def _build_inventory_delta_projector() -> Any:
         PostgresInventorySnapshotStoreConfig,
     )
 
-    return PostgresInventoryDeltaProjector(config=PostgresInventorySnapshotStoreConfig(dsn=dsn))
+    projector = PostgresInventoryDeltaProjector(
+        config=PostgresInventorySnapshotStoreConfig(dsn=dsn)
+    )
+    if (
+        os.environ.get("RUNTIME_ENV", "").strip().lower() == "dev"
+        and os.environ.get("FDAI_RUNTIME_LOCAL_AZURE_CLI", "").strip() == "1"
+    ):
+        subscription_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "").strip()
+        if not subscription_id:
+            return projector
+        from fdai.delivery.inventory_cache_invalidation import (
+            InvalidatingInventoryDeltaProjector,
+        )
+        from fdai.delivery.read_api.dev.azure_inventory_graph import inventory_cache_path
+
+        _, cache_identity = inventory_cache_path(
+            repo_root=Path(__file__).resolve().parents[3],
+            subscription_id=subscription_id,
+            azure_config_dir=os.environ.get("FDAI_LOCAL_AZURE_CONFIG_DIR", "").strip() or None,
+        )
+
+        return InvalidatingInventoryDeltaProjector(
+            inner=projector,
+            marker_path=(
+                Path(__file__).resolve().parents[3]
+                / ".fdai"
+                / "cache"
+                / "inventory"
+                / f"{cache_identity}.invalidated"
+            ),
+        )
+    return projector

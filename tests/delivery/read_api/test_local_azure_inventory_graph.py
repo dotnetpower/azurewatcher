@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import time
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
 from fdai.delivery.read_api.dev.azure_inventory_graph import (
     AzureCliInventoryGraphProvider,
+    inventory_cache_path,
 )
+from fdai.delivery.read_api.dev.helpers import build_inventory_graph_provider
 from fdai.delivery.read_api.routes.inventory_graph import InventoryGraphViewNotFoundError
 from fdai.shared.providers.inventory import InventoryBatch, ResourceRecord
 
@@ -120,3 +126,176 @@ def test_rejects_snapshot_without_final_fence() -> None:
     provider = AzureCliInventoryGraphProvider(inventory=_Inventory(final=False))
     with pytest.raises(RuntimeError, match="final fence"):
         asyncio.run(provider(None, 4, ("contains",)))
+
+
+def test_helper_disables_persistent_cache_without_explicit_subscription(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FDAI_LOCAL_AZURE_DISCOVERY", raising=False)
+    monkeypatch.delenv("FDAI_LOCAL_AZURE_SUBSCRIPTION_ID", raising=False)
+    monkeypatch.delenv("AZURE_SUBSCRIPTION_ID", raising=False)
+    monkeypatch.delenv("FDAI_LOCAL_AZURE_CONFIG_DIR", raising=False)
+
+    provider = build_inventory_graph_provider()
+
+    assert provider.inventory.subscription_id is None
+    assert provider.cache_path is None
+    assert provider.cache_identity is None
+    assert provider.invalidation_path is None
+
+
+def test_helper_isolates_cache_by_explicit_subscription_and_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FDAI_LOCAL_AZURE_DISCOVERY", raising=False)
+    monkeypatch.delenv("FDAI_LOCAL_AZURE_SUBSCRIPTION_ID", raising=False)
+    monkeypatch.setenv("AZURE_SUBSCRIPTION_ID", "subscription-example")
+    monkeypatch.setenv("FDAI_LOCAL_AZURE_CONFIG_DIR", "/profiles/example")
+
+    provider = build_inventory_graph_provider()
+
+    assert provider.inventory.subscription_id == "subscription-example"
+    assert provider.inventory.azure_config_dir == "/profiles/example"
+    assert provider.cache_path is not None
+    assert provider.cache_identity is not None
+    assert provider.cache_identity in provider.cache_path.name
+    assert "subscription-example" not in provider.cache_path.name
+    assert provider.invalidation_path == provider.cache_path.with_suffix(".invalidated")
+
+
+def test_persistent_cache_survives_provider_restart(tmp_path: Path) -> None:
+    cache_path, identity = inventory_cache_path(
+        repo_root=tmp_path,
+        subscription_id="subscription-example",
+        azure_config_dir=None,
+    )
+    first_inventory = _Inventory()
+    first_provider = AzureCliInventoryGraphProvider(
+        inventory=first_inventory,
+        cache_path=cache_path,
+        cache_identity=identity,
+    )
+    first = asyncio.run(first_provider(None, 4, ("contains",)))
+
+    second_inventory = _Inventory()
+    second_provider = AzureCliInventoryGraphProvider(
+        inventory=second_inventory,
+        cache_path=cache_path,
+        cache_identity=identity,
+    )
+    second = asyncio.run(second_provider(None, 4, ("contains",)))
+
+    assert first_inventory.calls == 1
+    assert second_inventory.calls == 0
+    assert second["resources"] == first["resources"]
+    assert second["cache"] == {
+        "status": "fresh",
+        "age_seconds": 0,
+        "persistent": True,
+    }
+    assert "subscription-example" not in cache_path.name
+    serialized = cache_path.read_text(encoding="utf-8")
+    assert "subscription-example" not in serialized
+    assert "/subscriptions/" not in serialized
+    assert "provider_ref" not in serialized
+
+
+def test_stale_cache_returns_immediately_and_refreshes_in_background(tmp_path: Path) -> None:
+    cache_path, identity = inventory_cache_path(
+        repo_root=tmp_path,
+        subscription_id="subscription-example",
+        azure_config_dir="/profiles/example",
+    )
+    seed_provider = AzureCliInventoryGraphProvider(
+        inventory=_Inventory(),
+        cache_path=cache_path,
+        cache_identity=identity,
+    )
+    asyncio.run(seed_provider(None, 4, ("contains",)))
+    payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    payload["cached_at"] = (datetime.now(tz=UTC) - timedelta(minutes=5)).isoformat()
+    cache_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    inventory = _Inventory()
+    provider = AzureCliInventoryGraphProvider(
+        inventory=inventory,
+        cache_ttl_seconds=60,
+        cache_path=cache_path,
+        cache_identity=identity,
+    )
+
+    async def _run() -> tuple[dict[str, object], dict[str, object]]:
+        stale = await provider(None, 4, ("contains",))
+        await provider.wait_for_refresh()
+        fresh = await provider(None, 4, ("contains",))
+        return stale, fresh
+
+    stale, fresh = asyncio.run(_run())
+    assert stale["freshness"] == "stale"
+    assert stale["cache"]["status"] == "refreshing"
+    assert inventory.calls == 1
+    assert fresh["freshness"] == "fresh"
+    assert fresh["cache"]["status"] == "fresh"
+
+
+def test_cache_identity_mismatch_forces_new_snapshot(tmp_path: Path) -> None:
+    cache_path = tmp_path / "inventory.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "identity": "other-subscription",
+                "cached_at": datetime.now(tz=UTC).isoformat(),
+                "graph": {"resources": [], "links": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    inventory = _Inventory()
+    provider = AzureCliInventoryGraphProvider(
+        inventory=inventory,
+        cache_path=cache_path,
+        cache_identity="expected-subscription",
+    )
+
+    graph = asyncio.run(provider(None, 4, ("contains",)))
+
+    assert inventory.calls == 1
+    assert len(graph["resources"]) == 3
+
+
+def test_invalidation_marker_refreshes_cache_before_ttl(tmp_path: Path) -> None:
+    cache_path, identity = inventory_cache_path(
+        repo_root=tmp_path,
+        subscription_id="subscription-example",
+        azure_config_dir=None,
+    )
+    marker = cache_path.parent / f"{identity}.invalidated"
+    seed_provider = AzureCliInventoryGraphProvider(
+        inventory=_Inventory(),
+        cache_path=cache_path,
+        cache_identity=identity,
+        invalidation_path=marker,
+    )
+    asyncio.run(seed_provider(None, 4, ("contains",)))
+    time.sleep(0.01)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("changed\n", encoding="ascii")
+
+    inventory = _Inventory()
+    provider = AzureCliInventoryGraphProvider(
+        inventory=inventory,
+        cache_ttl_seconds=3600,
+        cache_path=cache_path,
+        cache_identity=identity,
+        invalidation_path=marker,
+    )
+
+    async def _run() -> dict[str, object]:
+        stale = await provider(None, 4, ("contains",))
+        await provider.wait_for_refresh()
+        return stale
+
+    stale = asyncio.run(_run())
+    assert stale["cache"]["status"] == "refreshing"
+    assert inventory.calls == 1

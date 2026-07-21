@@ -79,6 +79,10 @@ export async function loadArchitectureGraph(
   }
 }
 
+export function architectureCacheRefreshPending(graph: InventoryGraphResponse): boolean {
+  return graph.cache?.status === "refreshing";
+}
+
 export function ArchitectureRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<InventoryGraphResponse>>({ status: "loading" });
   const [selectedId, setSelectedId] = useState<string | null>(() => selectedResourceIdFromHash(window.location.search));
@@ -124,6 +128,21 @@ export function ArchitectureRoute({ client }: Props) {
     );
     return () => { cancelled = true; };
   }, [client, viewScope]);
+
+  useEffect(() => {
+    if (state.status !== "ready" || !architectureCacheRefreshPending(state.data)) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      loadArchitectureGraph(client, viewScope).then(
+        (data) => { if (!cancelled) setState({ status: "ready", data }); },
+        () => undefined,
+      );
+    }, 2_000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [client, state, viewScope]);
 
   function selectResource(resource: InventoryResource | null): void {
     setSelectedId(resource?.id ?? null);
@@ -351,7 +370,7 @@ function ArchitectureBody({
             <div><dt>{t("source")}</dt><dd>{architectureSourceLabel(graph.source)}</dd></div>
             <div><dt>{t("pendingChanges")}</dt><dd>{graph.realtime?.pending_changes ?? 0}</dd></div>
           </dl>
-          {(graph.realtime?.pending_changes ?? 0) > 0 ? (
+          {(graph.realtime?.pending_changes ?? 0) > 0 || architectureCacheRefreshPending(graph) ? (
             <span class="architecture-pending-note">{t("refreshInProgress")}</span>
           ) : null}
         </div>

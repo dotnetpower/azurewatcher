@@ -1475,6 +1475,10 @@ an automatic sign-in redirect because an unreachable read API would create a red
 The Architecture route leads with inventory provenance and factual counts for resources, dependencies, containment boundaries, and resources whose status is unavailable. Its default isometric map makes containment and resource shape visible; top and front views remain optional display settings. Simple inventory projections reflow three or more resource groups into at most two columns, widen each boundary, and render direct resources at up to 1.25 times their base size. Authored layouts with nested boundaries keep their supplied geometry. Selecting a resource updates the canonical deep link without reloading the inventory graph, highlights its direct neighborhood, and exposes directional relationships before technical identifiers.
 Map labels avoid node and label collisions, fit long names within the canvas, and grow from 13px up to 20px as the operator zooms, including the first zoom step. The selected label can grow to 22px. Zoom-in and zoom-out steps are reciprocal, and the canvas palette follows the active console theme. The route uses the main page scroll rather than a nested inspector scroll and provides a keyboard-accessible resource and relationship index equivalent to the filtered canvas content.
 A truncated snapshot carries an explicit partial-inventory notice. Pointer interaction uses a minimum 44px node target and lets operators select containment boundaries as well as resource nodes.
+Architecture renders a subscription-scoped cached snapshot immediately when one exists. It labels an
+expired or change-invalidated snapshot as stale, shows the refresh-in-progress state, and polls only
+until the read API atomically promotes the completed background refresh. Cache state never upgrades
+the server-owned freshness verdict.
 
 Time-bound and aggregate evidence remains conservative while a route stays
 open. Approval and Operator Memory rows cross their recorded TTL boundary

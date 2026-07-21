@@ -118,7 +118,16 @@ or adding an approval endpoint.
 
 | Subsystem | Status | Gap |
 |-----------|--------|-----|
-| Azure Resource Graph inventory | Production adapter exists (`delivery/azure/inventory.py`) | Full-stack local always uses read-only `AzureCliInventory`; synthetic opt-out is rejected |
+
+The local inventory cache promotes only scans that reach the final fence and writes them by atomic
+replace. A fresh cache returns immediately across read API restarts. An expired or Huginn-invalidated
+cache returns immediately as `stale` with `cache.status=refreshing`, then a background Azure CLI scan
+atomically replaces it. When a provisioned `aw.inventory.raw` topic is configured through
+`FDAI_INVENTORY_RAW_TOPIC`, accepted write/delete events invalidate the local cache after durable
+projection. A stack without that auxiliary-topic binding converges through TTL refresh. A missing explicit subscription
+disables persistent cache reuse rather than risking a snapshot from another active Azure CLI
+subscription.
+| Azure Resource Graph inventory | Production reads the promoted PostgreSQL snapshot plus Huginn's real-time delta overlay | Full-stack local uses read-only `AzureCliInventory` with a `.fdai/cache/inventory` snapshot isolated by subscription and Azure CLI profile fingerprint; synthetic opt-out is rejected |
 | Azure Monitor Logs KQL | Production and local adapters share `AzureLogAnalyticsQueryProvider` | Requires server-owned `FDAI_MONITOR_WORKSPACE_ID`; explicit `query_log` fails closed when unavailable |
 | Managed Identity token (`WorkloadIdentity`) | Deployed adapter exists | interactive local publishes to the deployed executor; fixture tests may use a local issuer |
 | Governed execution backend | Provider-neutral Protocol, profile registry, durable PostgreSQL ledger, bubblewrap/VM adapters, and Azure Container Apps Job adapter exist | profiles are disabled by default; local interactive has no executor binding, and live Azure Job evidence remains required before promotion |

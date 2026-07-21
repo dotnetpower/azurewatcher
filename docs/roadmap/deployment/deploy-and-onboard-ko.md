@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: 4e536d00be0509b9a5e1a5fbc8dab7250c734cc1
+translation_source_sha: f8da9a7f2b3ac87ccc49992565c93a809afb4fec
 translation_revised: 2026-07-21
 ---
 
@@ -172,7 +172,9 @@ provision 하며, alert 는 인간 신호일 뿐 자율 액션이 아니다.
 ## 배포 아티팩트
 
 - `infra/`의 IaC ([project-structure-ko.md](../architecture/project-structure-ko.md) 참조)가 엔트리 포인트.
-  모든 환경은 환경별 파라미터와 환경별 격리된 state로 같은 코드에서 동일하게 프로비저닝.
+  모든 환경은 환경별 파라미터와 환경별 격리된 state로 같은 코드에서 동일하게 프로비저닝합니다.
+  Terraform은 primary Event Hub 이름을 `event_bus_topics`로, stage, approval, inventory ingress
+  auxiliary 이름을 `event_bus_auxiliary_topics`로 제공해 local runtime 준비가 provision된 topic만 연결합니다.
 - **엔트리 명령**: `infra/`의 Terraform (HCL) 모듈에 대해 `terraform apply` - 이전 OD
   (`azd up` vs `terraform apply` vs wrapper 스크립트) 해결. 환경 값은 **깃에 커밋되지 않는**
   `*.tfvars` 파일로 공급 ([generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md)

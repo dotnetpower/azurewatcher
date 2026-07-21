@@ -48,8 +48,13 @@ output "event_bus_kafka_bootstrap" {
 }
 
 output "event_bus_topics" {
-  description = "Provisioned topic names."
+  description = "Provisioned primary topic names."
   value       = module.event_bus.topics
+}
+
+output "event_bus_auxiliary_topics" {
+  description = "Provisioned auxiliary topic names used by stage, approval, and inventory ingress."
+  value       = keys(module.event_bus.auxiliary_topic_ids)
 }
 
 output "postgres_fqdn" {

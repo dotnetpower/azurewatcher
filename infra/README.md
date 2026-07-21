@@ -175,6 +175,10 @@ user-assigned managed identity, while Event Hubs local authentication remains
 disabled. The core normalizes that raw stream into the canonical change topic
 for Huginn. The Inventory Container Apps Job still performs the complete
 ARG/ARM reconciliation every six hours by default.
+Terraform exposes primary and auxiliary Event Hub names separately through
+`event_bus_topics` and `event_bus_auxiliary_topics`; local runtime preparation
+uses the auxiliary output to bind `FDAI_INVENTORY_RAW_TOPIC` only after that
+topic is present in the applied state.
 
 See [envs/dev.tfvars.example](envs/dev.tfvars.example) for the full commented example.
 

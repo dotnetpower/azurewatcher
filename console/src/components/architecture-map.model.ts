@@ -49,6 +49,11 @@ export interface InventoryGraphResponse {
   readonly links: readonly InventoryLink[];
   readonly truncated: boolean;
   readonly cursor?: string | null;
+  readonly cache?: {
+    readonly status: "fresh" | "stale" | "refreshing";
+    readonly age_seconds: number;
+    readonly persistent: boolean;
+  };
   readonly realtime?: {
     readonly pending_changes: number;
     readonly latest_at: string | null;
