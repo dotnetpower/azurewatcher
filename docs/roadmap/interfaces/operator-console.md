@@ -1447,7 +1447,9 @@ static claims. Scheduler Runs shows its ledger `source` and `durable` flag; LLM
 Cost shows `latest_occurred_at`; Settings Models shows the generated snapshot
 filename and `as_of`. Missing fields render unavailable or fail contract
 decoding. The browser doesn't infer durability, freshness, or provider health
-from a route name, environment mode, or configured default.
+from a route name, environment mode, or configured default. A source with
+`availability=unavailable` never reports `reachable=true`; unconfigured or unprobed
+providers use `reachable=null`.
 
 Exact entity lookups filter on the server before page limits. Incident
 correlation links, Audit entry links, and Approval searches therefore resolve

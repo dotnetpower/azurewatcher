@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 31a0832b02341b566d51d73afd1c832e9d55896e
+translation_source_sha: 8e3a05b47f2475010d7930ab2867c6254a01747c
 translation_revised: 2026-07-21
 ---
 
@@ -1377,7 +1377,9 @@ Scheduler Runs는 ledger `source`와 `durable` flag를, LLM Cost는
 `latest_occurred_at`을, Settings Models는 generated snapshot filename과 `as_of`를
 표시합니다. 누락된 field는 unavailable로 렌더링하거나 contract decode를 실패시킵니다.
 Browser는 route 이름, environment mode, configured default에서 durability, freshness,
-provider health를 추론하지 않습니다.
+provider health를 추론하지 않습니다. `availability=unavailable`인 source는
+`reachable=true`를 보고하지 않으며, 구성되지 않았거나 probe하지 않은 provider는
+`reachable=null`을 사용합니다.
 
 정확한 entity 조회는 page limit 전에 server에서 filter합니다. 따라서 Incident correlation link,
 Audit entry link, Approval search는 첫 roster page 밖에서도 false absence 없이 resolve됩니다.

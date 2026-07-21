@@ -38,11 +38,7 @@ def build_local_data_sources(
             else "unavailable"
         ),
         configured=True,
-        reachable=(
-            True
-            if test_fixtures or local_state_available or not (local_state or remote_state)
-            else None
-        ),
+        reachable=True if test_fixtures or local_state_available else None,
         authoritative=local_state or remote_state,
         durable=True if local_state or remote_state else False,
         synthetic=test_fixtures,

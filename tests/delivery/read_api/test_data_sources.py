@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from starlette.applications import Starlette
@@ -230,8 +230,18 @@ def test_data_source_status_rejects_false_availability_claims() -> None:
         _source(configured=False)
     with pytest.raises(ValueError, match="MUST include a reason"):
         _source(availability="unavailable", reason=None)
+    with pytest.raises(ValueError, match="MUST NOT be reachable"):
+        _source(availability="unavailable", reachable=True, reason="not connected")
     with pytest.raises(ValueError, match="MUST NOT be authoritative"):
         _source(synthetic=True)
+
+
+def test_unconfigured_local_operational_source_has_unknown_reachability() -> None:
+    sources = build_local_data_sources(test_fixtures=False)
+
+    operational = next(source for source in sources if source.key == "operational-state")
+    assert operational.availability == "unavailable"
+    assert operational.reachable is None
 
 
 def test_local_postgresql_stays_unknown_without_startup_verification() -> None:
@@ -323,7 +333,7 @@ def test_database_content_question_uses_read_source_manifest(
                     source="empty-local-memory",
                     routes=("/audit", "/kpi", "/incidents", "/hil-queue", "/rca"),
                     availability="unavailable",
-                    reachable=True,
+                        reachable=None,
                     authoritative=False,
                     durable=False,
                     reason="Authoritative operational state is not connected.",
@@ -343,23 +353,26 @@ def test_database_content_question_uses_read_source_manifest(
     )
 
     assert response.status_code == 200
-    payload = response.json()
-    assert payload["verification"]["authority"] == "server_read_source_manifest"
-    assert payload["verification"]["reason_code"] == "read_source_manifest_grounded"
-    assert "operational-state" in payload["answer"]
-    assert "empty-local-memory" in payload["answer"]
-    assert "unavailable" in payload["answer"]
-    assert "/audit" in payload["answer"]
-    assert "테이블이나 행을 직접 조회한 결과는 아닙니다" in payload["answer"]
+    payload: dict[str, object] = response.json()
+    verification = cast(dict[str, object], payload["verification"])
+    answer = cast(str, payload["answer"])
+    assert verification["authority"] == "server_read_source_manifest"
+    assert verification["reason_code"] == "read_source_manifest_grounded"
+    assert "operational-state" in answer
+    assert "empty-local-memory" in answer
+    assert "unavailable" in answer
+    assert "/audit" in answer
+    assert "테이블이나 행을 직접 조회한 결과는 아닙니다" in answer
 
     stream_response = TestClient(app).post(
         "/chat/stream",
         json={"prompt": "db 에는 어떤 데이터가 있어?", "view_context": {}},
     )
     done = _done_event(stream_response.text)
-    assert done["answer"] == payload["answer"]
-    assert done["verification"]["authority"] == "server_read_source_manifest"
-    assert done["verification"]["reason_code"] == "read_source_manifest_grounded"
+    done_verification = cast(dict[str, object], done["verification"])
+    assert done["answer"] == answer
+    assert done_verification["authority"] == "server_read_source_manifest"
+    assert done_verification["reason_code"] == "read_source_manifest_grounded"
     assert backend.calls == 0
 
 
@@ -486,7 +499,7 @@ def _weakness_app() -> tuple[Starlette, RecordingBackend]:
                     source="empty-local-memory",
                     routes=("/audit", "/kpi", "/incidents", "/hil-queue", "/rca"),
                     availability="unavailable",
-                    reachable=True,
+                    reachable=None,
                     authoritative=False,
                     durable=False,
                     reason="Authoritative operational state is not connected.",

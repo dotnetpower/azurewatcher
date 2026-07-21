@@ -41,6 +41,8 @@ class ReadDataSourceStatus:
             raise ValueError("an available read data source MUST be configured")
         if self.availability == "unavailable" and not self.reason:
             raise ValueError("an unavailable read data source MUST include a reason")
+        if self.availability == "unavailable" and self.reachable is True:
+            raise ValueError("an unavailable read data source MUST NOT be reachable")
 
     def to_dict(self) -> dict[str, Any]:
         return {
