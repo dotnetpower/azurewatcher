@@ -153,7 +153,12 @@ active Azure CLI subscription. The cache envelope also binds the resource limit,
 or materially future-dated snapshots, and bounds each local refresh to 240 seconds. Cache-file or
 marker I/O failure preserves the last complete in-memory graph. Marker write failure falls back to
 TTL convergence; marker metadata read failure is treated as stale and schedules refresh rather than
-trusting uncertain cache state.
+trusting uncertain cache state. Persistent reads accept only user-private regular files and enforce
+the 5 MB limit on an already-open descriptor. Writes repair the cache directory to mode `0700`,
+create mode-`0600` files, cap serialized bytes before replace, and fsync the directory. Both live
+and cached graphs reject duplicate resources or links, dangling/self links, non-finite or out-of-
+world geometry, invalid roots or parent cycles, future timestamps, invalid envelopes, and counts
+beyond the configured limit.
 
 ## Parity Contract (MUST)
 

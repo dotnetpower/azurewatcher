@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import stat
 import threading
 import time
 from datetime import UTC, datetime, timedelta
@@ -93,6 +94,27 @@ class _HangingInventory(_Inventory):
         await asyncio.Event().wait()
         if False:
             yield InventoryBatch()
+
+
+class _OversizedInventory(_Inventory):
+    async def full_snapshot(self, since: str | None = None):  # type: ignore[no-untyped-def]
+        del since
+        self.calls += 1
+        yield InventoryBatch(
+            resources=(
+                ResourceRecord(
+                    resource_id="resourcegroups/rg-example",
+                    type="resource-group",
+                    props={
+                        "name": "rg-example",
+                        "resourceGroup": "rg-example",
+                        "tags": {"large": "x" * 5_000_000},
+                    },
+                ),
+            ),
+            cursor="page-1",
+        )
+        yield InventoryBatch(cursor="done", final=True)
 
 
 def test_projects_contains_graph_without_provider_refs_and_caches() -> None:
@@ -270,6 +292,65 @@ def test_persistent_cache_survives_provider_restart(tmp_path: Path) -> None:
     assert "provider_ref" not in serialized
 
 
+@pytest.mark.parametrize("cache_kind", ["symlink", "insecure", "oversized"])
+def test_unsafe_cache_file_forces_new_snapshot(tmp_path: Path, cache_kind: str) -> None:
+    cache_path, identity = inventory_cache_path(
+        repo_root=tmp_path,
+        subscription_id="subscription-example",
+        azure_config_dir=None,
+    )
+    asyncio.run(
+        AzureCliInventoryGraphProvider(
+            inventory=_Inventory(),
+            cache_path=cache_path,
+            cache_identity=identity,
+        )(None, 4, ("contains",))
+    )
+    if cache_kind == "symlink":
+        target = cache_path.with_name("target.json")
+        cache_path.replace(target)
+        cache_path.symlink_to(target)
+    elif cache_kind == "insecure":
+        cache_path.chmod(0o644)
+    else:
+        cache_path.write_bytes(b"x" * 5_000_001)
+        cache_path.chmod(0o600)
+    inventory = _Inventory()
+
+    asyncio.run(
+        AzureCliInventoryGraphProvider(
+            inventory=inventory,
+            cache_path=cache_path,
+            cache_identity=identity,
+        )(None, 4, ("contains",))
+    )
+
+    assert inventory.calls == 1
+    assert cache_path.is_file()
+    assert not cache_path.is_symlink()
+    assert stat.S_IMODE(cache_path.stat().st_mode) == 0o600
+
+
+def test_cache_write_repairs_existing_directory_permissions(tmp_path: Path) -> None:
+    cache_path, identity = inventory_cache_path(
+        repo_root=tmp_path,
+        subscription_id="subscription-example",
+        azure_config_dir=None,
+    )
+    cache_path.parent.mkdir(parents=True, mode=0o755)
+    cache_path.parent.chmod(0o755)
+
+    asyncio.run(
+        AzureCliInventoryGraphProvider(
+            inventory=_Inventory(),
+            cache_path=cache_path,
+            cache_identity=identity,
+        )(None, 4, ("contains",))
+    )
+
+    assert stat.S_IMODE(cache_path.parent.stat().st_mode) == 0o700
+
+
 def test_stale_cache_returns_immediately_and_refreshes_in_background(tmp_path: Path) -> None:
     cache_path, identity = inventory_cache_path(
         repo_root=tmp_path,
@@ -368,6 +449,27 @@ def test_cache_limit_change_forces_new_snapshot(tmp_path: Path) -> None:
     [
         lambda payload: payload.update(cached_at="2999-01-01T00:00:00+00:00"),
         lambda payload: payload["graph"].update(resources=[{"id": 7}]),
+        lambda payload: payload["graph"]["resources"].append(
+            dict(payload["graph"]["resources"][0])
+        ),
+        lambda payload: payload["graph"]["resources"][0].update(x=float("nan")),
+        lambda payload: payload["graph"]["resources"][0].update(w=-1),
+        lambda payload: payload["graph"].update(source="other"),
+        lambda payload: payload["graph"].update(snapshot_at="2999-01-01T00:00:00+00:00"),
+        lambda payload: payload["graph"]["resources"][0].update(type="compute.vm"),
+        lambda payload: payload["graph"]["resources"][0].update(
+            parent_id=payload["graph"]["resources"][1]["id"]
+        ),
+        lambda payload: payload["graph"]["links"].append(
+            {"source": "missing", "target": "also-missing", "type": "contains"}
+        ),
+        lambda payload: payload["graph"]["links"].append(
+            {
+                "source": "azure-subscription",
+                "target": "azure-subscription",
+                "type": "contains",
+            }
+        ),
     ],
 )
 def test_invalid_persistent_cache_forces_new_snapshot(tmp_path: Path, mutation) -> None:  # type: ignore[no-untyped-def]
@@ -428,7 +530,7 @@ def test_cache_serialization_failure_keeps_live_snapshot_available(
         del args, kwargs
         raise TypeError("unsupported cache value")
 
-    monkeypatch.setattr(module.json, "dump", fail_serialization)
+    monkeypatch.setattr(module.json, "dumps", fail_serialization)
     cache_path, identity = inventory_cache_path(
         repo_root=tmp_path,
         subscription_id="subscription-example",
@@ -443,6 +545,28 @@ def test_cache_serialization_failure_keeps_live_snapshot_available(
     graph = asyncio.run(provider(None, 4, ("contains",)))
 
     assert graph["freshness"] == "fresh"
+    assert "azure_cli_inventory_cache_write_failed" in caplog.text
+
+
+def test_oversized_cache_is_not_written_but_live_snapshot_remains_available(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    cache_path, identity = inventory_cache_path(
+        repo_root=tmp_path,
+        subscription_id="subscription-example",
+        azure_config_dir=None,
+    )
+    provider = AzureCliInventoryGraphProvider(
+        inventory=_OversizedInventory(),
+        cache_path=cache_path,
+        cache_identity=identity,
+    )
+
+    graph = asyncio.run(provider(None, 4, ("contains",)))
+
+    assert graph["freshness"] == "fresh"
+    assert not cache_path.exists()
     assert "azure_cli_inventory_cache_write_failed" in caplog.text
 
 

@@ -1,8 +1,8 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: 6f7f96ee3fb1951d8af1ace0d98301b4586f93aa
-translation_revised: 2026-07-21
+translation_source_sha: defe371f1da13780bc74e051a8563ce1e6ec8b43
+translation_revised: 2026-07-22
 ---
 
 # Runtime Parity - Authoritative Local Development 및 Test Fixture
@@ -156,6 +156,11 @@ Cache envelope은 resource limit도 bind하고 malformed 또는 과도하게 미
 각 local refresh를 240초로 제한합니다. Cache file 또는 marker I/O failure가 발생해도 마지막 complete
 in-memory graph를 유지합니다. Marker write failure는 TTL 수렴으로 fallback하고 marker metadata read
 failure는 stale로 처리해 불확실한 cache를 신뢰하지 않고 refresh합니다.
+Persistent read는 user-private regular file만 수용하고 이미 연 descriptor에 5 MB 제한을 적용합니다.
+Write는 cache directory를 mode `0700`으로 교정하고 mode `0600` file을 생성하며 replace 전에 serialized
+byte를 제한하고 directory를 fsync합니다. Live graph와 cached graph 모두 duplicate resource 또는 link,
+dangling/self link, non-finite 또는 world 밖 geometry, invalid root 또는 parent cycle, 미래 timestamp,
+invalid envelope, configured limit 초과 count를 거부합니다.
 
 ## Parity 컨트랙트 (MUST)
 

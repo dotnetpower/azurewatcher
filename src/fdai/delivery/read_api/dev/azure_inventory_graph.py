@@ -8,6 +8,7 @@ import json
 import logging
 import math
 import os
+import stat
 import tempfile
 from collections import defaultdict
 from collections.abc import Mapping
@@ -15,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
-from typing import Any, Final
+from typing import Any, Final, TypeGuard
 
 from fdai.core.views.architecture_graph import project_architecture_graph
 from fdai.shared.providers.inventory import Inventory, ResourceRecord
@@ -144,6 +145,8 @@ class AzureCliInventoryGraphProvider:
             if not final_seen:
                 raise RuntimeError("local Azure inventory ended without a final fence")
             graph = _project_graph(records, max_resources=self.max_resources, cursor=cursor)
+            if not _valid_cached_graph(graph, self.max_resources):
+                raise RuntimeError("local Azure inventory projected an invalid graph")
             self._cached = graph
             self._cached_at = monotonic()
             self._cached_at_utc = refresh_started_at
@@ -263,10 +266,22 @@ def _read_cache_file(
     identity: str,
     max_resources: int,
 ) -> tuple[dict[str, Any], datetime] | None:
+    descriptor = -1
     try:
-        if not path.is_file() or path.stat().st_size > _MAX_CACHE_BYTES:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_mode & 0o077
+            or metadata.st_size > _MAX_CACHE_BYTES
+        ):
             return None
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = -1
+            encoded = stream.read(_MAX_CACHE_BYTES + 1)
+        if len(encoded) > _MAX_CACHE_BYTES:
+            return None
+        payload = json.loads(encoded)
         if (
             not isinstance(payload, dict)
             or payload.get("version") != _CACHE_VERSION
@@ -276,7 +291,7 @@ def _read_cache_file(
         ):
             return None
         graph = payload["graph"]
-        if not _valid_cached_graph(graph):
+        if not _valid_cached_graph(graph, max_resources):
             return None
         cached_at = datetime.fromisoformat(str(payload.get("cached_at")))
         if cached_at.tzinfo is None:
@@ -285,8 +300,11 @@ def _read_cache_file(
         if (cached_at_utc - datetime.now(tz=UTC)).total_seconds() > _MAX_CLOCK_SKEW_SECONDS:
             return None
         return graph, cached_at_utc
-    except (OSError, ValueError, json.JSONDecodeError):
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
         return None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 def _write_cache_file(
@@ -297,6 +315,7 @@ def _write_cache_file(
     graph: dict[str, Any],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path.parent, 0o700)
     payload = {
         "version": _CACHE_VERSION,
         "identity": identity,
@@ -304,41 +323,149 @@ def _write_cache_file(
         "cached_at": cached_at.isoformat(),
         "graph": graph,
     }
+    encoded = (json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "\n").encode("utf-8")
+    if len(encoded) > _MAX_CACHE_BYTES:
+        raise ValueError("inventory cache exceeds the maximum serialized size")
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, ensure_ascii=True, separators=(",", ":"))
-            stream.write("\n")
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
         os.chmod(temporary, 0o600)
         os.replace(temporary, path)
+        directory_descriptor = os.open(
+            path.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
     finally:
         temporary.unlink(missing_ok=True)
 
 
-def _valid_cached_graph(graph: Mapping[str, Any]) -> bool:
+def _valid_cached_graph(graph: Mapping[str, Any], max_resources: int) -> bool:
     resources = graph.get("resources")
     links = graph.get("links")
     if not isinstance(resources, list) or not isinstance(links, list):
         return False
-    if not all(
-        isinstance(resource, dict)
-        and isinstance(resource.get("id"), str)
-        and bool(resource["id"])
-        and isinstance(resource.get("type"), str)
-        and isinstance(resource.get("name"), str)
-        for resource in resources
+    if (
+        not resources
+        or len(resources) > max_resources + 1
+        or len(links) > max_resources
+        or graph.get("source") != "azure-cli-local"
+        or graph.get("freshness") != "fresh"
+        or not isinstance(graph.get("truncated"), bool)
+        or not _valid_timestamp(graph.get("snapshot_at"))
     ):
         return False
-    return all(
-        isinstance(link, dict)
-        and isinstance(link.get("source"), str)
-        and isinstance(link.get("target"), str)
-        and link.get("type") in {"contains", "attached_to", "depends_on"}
-        for link in links
+    resource_ids: set[str] = set()
+    parent_by_id: dict[str, str] = {}
+    root: Mapping[str, Any] | None = None
+    for resource in resources:
+        if not isinstance(resource, dict) or not _valid_resource(resource):
+            return False
+        resource_id = resource["id"]
+        if resource_id in resource_ids:
+            return False
+        resource_ids.add(resource_id)
+        if resource_id == _ROOT_ID:
+            root = resource
+        if isinstance(resource.get("parent_id"), str):
+            parent_by_id[resource_id] = resource["parent_id"]
+    if (
+        root is None
+        or root.get("type") != "subscription"
+        or root.get("parent_id") is not None
+        or any(parent not in resource_ids for parent in parent_by_id.values())
+        or _has_parent_cycle(resource_ids, parent_by_id)
+    ):
+        return False
+    link_ids: set[tuple[str, str, str]] = set()
+    for link in links:
+        if not isinstance(link, dict):
+            return False
+        source = link.get("source")
+        target = link.get("target")
+        link_type = link.get("type")
+        if (
+            not isinstance(source, str)
+            or not isinstance(target, str)
+            or not isinstance(link_type, str)
+            or link_type not in {"contains", "attached_to", "depends_on"}
+            or source == target
+            or source not in resource_ids
+            or target not in resource_ids
+        ):
+            return False
+        identity = (source, link_type, target)
+        if identity in link_ids:
+            return False
+        link_ids.add(identity)
+    return True
+
+
+def _valid_resource(resource: Mapping[str, Any]) -> bool:
+    if (
+        not isinstance(resource.get("id"), str)
+        or not resource["id"]
+        or not isinstance(resource.get("type"), str)
+        or not resource["type"]
+        or not isinstance(resource.get("name"), str)
+        or not isinstance(resource.get("status"), str)
+    ):
+        return False
+    parent_id = resource.get("parent_id")
+    if parent_id is not None and (not isinstance(parent_id, str) or not parent_id):
+        return False
+    x = resource.get("x")
+    y = resource.get("y")
+    width = resource.get("w")
+    height = resource.get("h")
+    if not _finite_number(x) or not 0 <= x <= 18:
+        return False
+    if not _finite_number(y) or not 0 <= y <= 12:
+        return False
+    if width is not None and (not _finite_number(width) or not 0 < width <= 18):
+        return False
+    if height is not None and (not _finite_number(height) or not 0 < height <= 12):
+        return False
+    if width is not None and x + width > 18:
+        return False
+    return not (height is not None and y + height > 12)
+
+
+def _finite_number(value: object) -> TypeGuard[int | float]:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _valid_timestamp(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return (
+        parsed.tzinfo is not None
+        and (parsed.astimezone(UTC) - datetime.now(tz=UTC)).total_seconds()
+        <= _MAX_CLOCK_SKEW_SECONDS
     )
+
+
+def _has_parent_cycle(resource_ids: set[str], parent_by_id: Mapping[str, str]) -> bool:
+    for resource_id in resource_ids:
+        visited: set[str] = set()
+        current: str | None = resource_id
+        while current is not None:
+            if current in visited:
+                return True
+            visited.add(current)
+            current = parent_by_id.get(current)
+    return False
 
 
 def _project_graph(

@@ -10,6 +10,7 @@ from fdai.delivery.inventory_cache_invalidation import InvalidatingInventoryDelt
 
 async def test_advances_marker_only_after_durable_projection_succeeds(tmp_path: Path) -> None:
     marker = tmp_path / "invalidated"
+    marker.parent.chmod(0o755)
 
     async def project(payload: object) -> str:
         assert payload == {"inventory_change": {"kind": "upsert"}}
@@ -19,6 +20,7 @@ async def test_advances_marker_only_after_durable_projection_succeeds(tmp_path: 
     assert await projector({"inventory_change": {"kind": "upsert"}}) == "applied"
     assert marker.read_text(encoding="ascii") == "inventory.resource_changed\n"
     assert os.stat(marker).st_mode & 0o777 == 0o600
+    assert os.stat(marker.parent).st_mode & 0o777 == 0o700
 
 
 async def test_does_not_advance_marker_when_projection_fails(tmp_path: Path) -> None:

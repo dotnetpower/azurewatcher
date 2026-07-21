@@ -44,6 +44,7 @@ def _contains_inventory_change(payload: Mapping[str, Any]) -> bool:
 
 def _advance_marker(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path.parent, 0o700)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary = Path(temporary_name)
     try:
@@ -53,6 +54,14 @@ def _advance_marker(path: Path) -> None:
             os.fsync(stream.fileno())
         os.chmod(temporary, 0o600)
         os.replace(temporary, path)
+        directory_descriptor = os.open(
+            path.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
     finally:
         temporary.unlink(missing_ok=True)
 
