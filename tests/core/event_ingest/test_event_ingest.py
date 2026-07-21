@@ -135,6 +135,25 @@ def test_operator_proposal_normalizes_to_deterministic_event() -> None:
     assert first.payload["operator_request"]["params"] == proposal["params"]
 
 
+@pytest.mark.parametrize("resource_id", ("", "   "))
+def test_operator_proposal_normalizes_blank_resource_to_none(resource_id: str) -> None:
+    proposal = {
+        "idempotency_key": "operator-1::resource-free",
+        "initiator_principal": "operator-1",
+        "operator_initiated": True,
+        "action_type": "tool.generate-report",
+        "resource_id": resource_id,
+        "event_type": "operator_request",
+        "params": {},
+    }
+
+    event = EventIngest(validator=_validator()).ingest(proposal)
+
+    assert event is not None
+    assert event.resource_ref is None
+    assert event.payload["resource"]["resource_id"] is None
+
+
 @pytest.mark.parametrize(
     "patch",
     (

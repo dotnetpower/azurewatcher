@@ -129,7 +129,8 @@ def _normalize_operator_proposal(raw: Mapping[str, Any]) -> dict[str, Any]:
         return value
     at = datetime.now(tz=UTC)
     event_id = uuid5(NAMESPACE_URL, f"fdai.operator-request://{idempotency_key}")
-    resource_ref = value.get("resource_id")
+    resource_id = value.get("resource_id")
+    resource_ref = resource_id if isinstance(resource_id, str) and resource_id.strip() else None
     return {
         "schema_version": "1.0.0",
         "event_id": str(event_id),
@@ -137,7 +138,7 @@ def _normalize_operator_proposal(raw: Mapping[str, Any]) -> dict[str, Any]:
         "correlation_id": str(value.get("correlation_id") or event_id),
         "source": "operator_console",
         "event_type": "operator_request",
-        "resource_ref": resource_ref if isinstance(resource_ref, str) else None,
+        "resource_ref": resource_ref,
         "payload": {
             "operator_request": {
                 "initiator_principal": initiator,
@@ -150,7 +151,7 @@ def _normalize_operator_proposal(raw: Mapping[str, Any]) -> dict[str, Any]:
                 else {}
             ),
             "resource": {
-                "resource_id": resource_ref if isinstance(resource_ref, str) else None,
+                "resource_id": resource_ref,
                 "resource_type": value.get("resource_type"),
                 "props": {},
             },
