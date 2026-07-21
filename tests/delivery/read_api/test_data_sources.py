@@ -272,6 +272,18 @@ def test_startup_verified_local_postgresql_sources_are_available() -> None:
     assert all(source.reachable is True for source in database_sources.values())
 
 
+def test_remote_manifest_owns_allowlisted_stewardship_route() -> None:
+    sources = build_local_data_sources(
+        test_fixtures=False,
+        authoritative_proxy_configured=True,
+    )
+
+    stewardship = next(source for source in sources if "/stewardship" in source.routes)
+    assert stewardship.source == "remote-read-api"
+    assert stewardship.authoritative is True
+    assert stewardship.availability == "unknown"
+
+
 def test_data_source_manifest_is_authenticated_and_sorted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

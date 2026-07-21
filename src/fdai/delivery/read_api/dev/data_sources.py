@@ -214,6 +214,7 @@ def build_local_data_sources(
                 "/conversation-delivery",
                 "/operator-memory",
                 "/scheduler-runs",
+                "/stewardship",
             ),
             availability=(
                 "available"
