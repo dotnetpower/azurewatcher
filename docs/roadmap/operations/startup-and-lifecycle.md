@@ -14,27 +14,31 @@ observation). Design invariants come from
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md).
 
 Azure focus: non-Azure providers are TBD (see
-[Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)).
+[Always-On Rules](../../../.github/copilot-instructions.md#always-on-rules-must)).
 Timeline suggestions below are directional, not hard rules; **the gates are hard**.
+
+> **Implementation status**: The current reference Terraform deploys one `core` container with
+> `min_replicas = 1` and no KEDA scaling rule. The generic rule catalog and model-resolver CLI
+> exist, but automatic collector/discovery startup, end-to-end HIL bootstrap, and model lifecycle
+> reconciliation are not wired as complete runtime workflows. This document distinguishes the
+> current bootstrap contract from the target lifecycle.
 
 ## Cold Start (scale-to-zero specifics)
 
-The core engine runs on Container Apps with **KEDA scale-to-zero** and event-driven scaling.
-The core is a **single Container App with sidecar containers** (`event-ingest` primary,
-`trust-router` / `executor` / `audit-writer` as sidecars - see
-[deploy-and-onboard.md](../deployment/deploy-and-onboard.md#compute-shape-sidecar-containers)). "Starting"
-therefore means:
+The current core engine runs as **one Container App with one `core` container**. The trust router,
+executor, and audit writer run in the same Python process; there is no localhost sidecar IPC. The
+day-zero `min_replicas` default is 1 and there is no Event Hubs lag KEDA rule. A fork can use
+scale-to-zero only after adding a lag-based scaling rule and lowering `min_replicas` to 0. Current
+startup therefore means:
 
-1. At least one event arrives on the ingress.
-2. KEDA scales the app's replica set from zero; **all sidecars come up together** (one scale
-   unit).
-3. The primary container loads config, opens state / audit / event-bus connections, hydrates
-   the rule catalog into OPA; sidecars complete their own boot in parallel and expose
-   readiness on `localhost`.
-4. The event flows through `event-ingest → correlation → trust-router → tier → risk-gate →
-   audit`, hopping between sidecars over `localhost` IPC.
+1. The Container App revision starts the `core` replica and keeps at least one replica running.
+2. The core process loads configuration and composes the state, audit, event-bus adapter, and rule
+   catalog.
+3. The HTTP startup and readiness probes verify `/ready` before the replica becomes traffic-ready.
+4. The consumer processes events through the in-process `event-ingest → correlation → trust-router
+   → tier → risk-gate → audit` path.
 
-Rules that apply to every cold start:
+The following rules apply to future deployments that enable scale-to-zero:
 
 - **Cold-start metric**: the first event on a cold path MAY exceed the T0 latency budget while
   the replica warms. This latency MUST be recorded as a separate **cold-start metric** so the
@@ -45,9 +49,9 @@ Rules that apply to every cold start:
 - **Cold-start ordering**: cold-started replicas MUST respect the per-resource ordering /
   idempotency guarantees; a replica coming up cannot violate the "same event twice = one
   effect" invariant.
-- **Sidecar readiness gating**: the primary container MUST NOT accept an event until every
-  sidecar's readiness probe is green; otherwise a partial cold start could route an event
-  into a sidecar that has not opened its dependencies.
+- **Future sidecar readiness gating**: if a sidecar topology is introduced, the primary container
+   should not accept events until every sidecar is ready. This does not apply to the current
+   single-container topology.
 
 **TBD**: the concrete cold-start deadline and the exact cold-start-metric name / definition.
 
@@ -61,6 +65,10 @@ the catalog is populated from two sources - in order:
 2. **Autonomous collectors** (upstream) - after the first successful collector run, upstream
    sources are ingested at their configured cadence per
    [rule-catalog-collection.md](../rules-and-detection/rule-catalog-collection.md).
+
+Upstream currently ships `rule-catalog/catalog/`, generic profiles, source manifests, and
+`tools/seed_p1_manifest.yaml`. A fork can use them without customer-specific values or add its own
+overlay or seed. The deployment must bind the collector schedule separately.
 
 Rules that apply to the day-zero catalog:
 
@@ -98,8 +106,10 @@ Concrete event types and filter expressions are **TBD** and captured in
 
 ## Model Provisioning Bootstrap
 
-Before T2 can run, the capability→deployment mapping must be resolved. The deployment pipeline
-runs the resolver before `terraform apply`; this is not a manual runtime step:
+Before T2 can run, the capability→deployment mapping must be resolved. The resolver CLI and schema
+are implemented, but `deploy-dev.yml` does not currently run the resolver before `terraform apply`.
+CI materializes the `RESOLVED_MODELS_JSON` repository variable as `resolved-models.json`, and the
+runtime and read API load a configured filesystem path:
 
 1. **Resolver runs from `rule-catalog/llm-registry.yaml`** - reads preferences per
    capability, queries the Azure OpenAI / Foundry catalog for the target region, and
@@ -108,9 +118,9 @@ runs the resolver before `terraform apply`; this is not a manual runtime step:
    `t2.reasoner.secondary.publisher`, or the bootstrap aborts (no silent same-vendor
    fallback). Fork's `llm.mixed_model_mode` (`azure-foundry` / `external` / `hil-only`)
    selects the strategy.
-3. **`resolved-models.json` written to Key Vault** - capability → `{deployment, family,
-   version, publisher}`. Every subsequent audit entry names the exact model that decided
-   the case.
+3. **Provide `resolved-models.json` as a protected deployment artifact** - records capability →
+   `{deployment, family, version, publisher}`. Terraform does not currently store this manifest
+   as a Key Vault secret; a configured path or CI variable is the deployment boundary.
 4. **Weekly reconciler follows as a deferred increment** - until W-I in
    [dev-and-deploy-parity.md](../deployment/dev-and-deploy-parity.md) lands, model changes are
    reviewed through an explicit registry PR. The reconciler will watch for newer families and
@@ -141,6 +151,11 @@ Rules that apply throughout:
 - The kill-switch is verified reachable before D+7 ends.
 
 ## HIL Approver Bootstrap
+
+> **Current boundary**: The role/group resolver and Teams/Slack delivery adapters are implemented,
+> but Teams SSO OBO approval callbacks, group-connected audience derivation, governance PR quorum
+> CI, and the dry-run HIL bootstrap are not wired end to end. The BreakGlass role has no runtime
+> HIL approval capability. The steps below are deployment targets for a fork.
 
 Before any enforce-mode rule can be promoted, the approver group MUST be provisioned. If no
 approver exists, high-risk findings queue and alert via the fallback channel; **they never
@@ -179,12 +194,15 @@ Steps (fork responsibility):
 The [autonomous rule discovery loop](../rules-and-detection/rule-catalog-collection.md#autonomous-rule-discovery) is
 **disabled on day zero**. It MUST NOT run before all of the following:
 
+> Upstream does not currently provide a startup coordinator that evaluates all of these conditions
+> and enables the loop automatically. The conditions below are the target activation-gate contract.
+
 1. The audit log has accumulated at least **`N` shadow decisions**, giving the observe stage a
    real baseline. `N` is configurable; **TBD** - recommended in the low thousands.
 2. At least one collector has run to success (proves the wire-up + provenance).
 3. The mixed-model cross-check target and the deterministic verifier are healthy.
 4. Post-deploy smoke tests are green
-   ([operating-and-verification.md](operating-and-verification.md#post-deploy-smoke-tests)).
+   ([operating-and-verification.md](operating-and-verification.md#post-deploy-smoke-test-contract)).
 
 Once enabled, the loop runs on a configured cadence. A candidate rule from the loop is inert
 until it passes the full quality gate - the loop cannot mutate the catalog directly.
