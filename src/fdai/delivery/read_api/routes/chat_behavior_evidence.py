@@ -45,10 +45,22 @@ _BEHAVIOR_INTENT = re.compile(
     "|어떻게|왜|언제|어떤|방식|설명|생성|중복|개입|묶",
     re.IGNORECASE,
 )
+_OPERATIONAL_STATE_INTENT = re.compile(
+    r"\b(?:active|open|closed|status|count|recent|current|pending|resolved|how many)\b"
+    r"|활성|열린|종료|상태|개수|최근|현재|대기|해결|몇\s*개",
+    re.IGNORECASE,
+)
+_BARE_DEFINITION_INTENT = re.compile(
+    r"^\s*(?:what\s+is|define|meaning\s+of)\s+(?:an?\s+)?(?:issue|incident)\s*\??\s*$"
+    r"|^\s*(?:issue|incident)(?:의)?\s*(?:뜻|의미|정의)(?:은|는|이|가)?\s*\??\s*$",
+    re.IGNORECASE,
+)
 
 
 def is_behavior_question(prompt: str) -> bool:
     """Return whether the prompt asks about an indexed system behavior."""
+    if _OPERATIONAL_STATE_INTENT.search(prompt) or _BARE_DEFINITION_INTENT.search(prompt):
+        return False
     return bool(_BEHAVIOR_SUBJECT.search(prompt) and _BEHAVIOR_INTENT.search(prompt))
 
 
@@ -59,6 +71,8 @@ class BehaviorEvidenceResolver:
         self._index = index
 
     async def resolve(self, prompt: str) -> Mapping[str, Any] | None:
+        if not is_behavior_question(prompt):
+            return None
         results = tuple(await self._index.search(prompt, k=5))
         if not results:
             return None
@@ -124,6 +138,8 @@ class RepositoryBehaviorEvidenceResolver:
         self._lock = asyncio.Lock()
 
     async def resolve(self, prompt: str) -> Mapping[str, Any] | None:
+        if not is_behavior_question(prompt):
+            return None
         await self._ensure_ready()
         if self._resolver is None:
             return {

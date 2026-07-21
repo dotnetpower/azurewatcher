@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
 from starlette.applications import Starlette
@@ -51,6 +52,69 @@ class _NoCallBackend:
     ) -> dict[str, Any]:
         self.calls += 1
         raise AssertionError("system-health fast path must not call the model backend")
+
+
+class _RecordingBackend:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def answer(self, **kwargs: object) -> dict[str, str]:
+        self.calls += 1
+        return {"answer": "fallback", "model": "test"}
+
+
+@dataclass(frozen=True, slots=True)
+class HealthWeaknessCase:
+    prompt: str
+    expects_health: bool
+    korean: bool = False
+
+
+HEALTH_WEAKNESS_CASES = (
+    HealthWeaknessCase("Is the overall system healthy?", True),
+    HealthWeaknessCase("Is everything working?", True),
+    HealthWeaknessCase("control plane status", True),
+    HealthWeaknessCase("system health", True),
+    HealthWeaknessCase("overall status", True),
+    HealthWeaknessCase("Is the system running?", True),
+    HealthWeaknessCase("전체 시스템 상태 어때?", True, korean=True),
+    HealthWeaknessCase("전반적인 동작 상태는?", True, korean=True),
+    HealthWeaknessCase("시스템 정상 작동해?", True, korean=True),
+    HealthWeaknessCase("control plane operating?", True),
+    HealthWeaknessCase("everything running?", True),
+    HealthWeaknessCase("overall health?", True),
+    HealthWeaknessCase("Is this upload button working?", False),
+    HealthWeaknessCase("VM status", False),
+    HealthWeaknessCase("database health", False),
+    HealthWeaknessCase("storage account status", False),
+    HealthWeaknessCase("system architecture overview", False),
+    HealthWeaknessCase("restart system", False),
+    HealthWeaknessCase("system health policy", False),
+    HealthWeaknessCase("overall cost status", False),
+)
+
+HEALTH_RUBRIC_NAMES = (
+    "intent-classification",
+    "json-http-success",
+    "authority-selection",
+    "health-model-selection",
+    "terminal-trust",
+    "model-skipped",
+    "nonempty-answer",
+    "locale-aligned",
+    "event-count-present",
+    "approval-backlog-present",
+    "shadow-share-present",
+    "enforce-share-present",
+    "latest-record-present",
+    "bounded-evidence-claim",
+    "no-global-health-inference",
+    "no-failure-inference",
+    "no-execution-claim",
+    "bounded-answer",
+    "source-label",
+    "json-sse-parity",
+)
 
 
 async def _allow(_: Request) -> str:
@@ -191,3 +255,105 @@ def test_stream_route_returns_canonical_health_without_model_call() -> None:
     assert done["verification"]["authority"] == "server_read_model"
     assert done["verification"]["status"] != "unverified"
     assert backend.calls == 0
+
+
+def test_twenty_health_weaknesses_pass_twenty_answer_rubrics() -> None:
+    backend = _RecordingBackend()
+    tools = SystemHealthChatTools(_model())
+    app = Starlette(
+        routes=[
+            make_chat_route(
+                backend=backend,
+                authorize=_allow,
+                tool_resolver=tools,
+            ),
+            make_chat_stream_route(
+                backend=backend,
+                authorize=_allow,
+                tool_resolver=tools,
+            ),
+        ]
+    )
+    failures: list[str] = []
+    passed = 0
+    total = len(HEALTH_WEAKNESS_CASES) * len(HEALTH_RUBRIC_NAMES)
+
+    with TestClient(app) as client:
+        for case_number, case in enumerate(HEALTH_WEAKNESS_CASES, 1):
+            calls_before = backend.calls
+            response = client.post(
+                "/chat",
+                json={"prompt": case.prompt, "view_context": {}},
+            )
+            payload = response.json()
+            done = None
+            if case.expects_health:
+                stream_response = client.post(
+                    "/chat/stream",
+                    json={"prompt": case.prompt, "view_context": {}},
+                )
+                done = _done_event(stream_response.text)
+            results = _score_health_answer(
+                case,
+                status_code=response.status_code,
+                payload=payload,
+                stream_done=done,
+                model_calls=backend.calls - calls_before,
+            )
+            assert len(results) == len(HEALTH_RUBRIC_NAMES)
+            for rubric, result in zip(HEALTH_RUBRIC_NAMES, results, strict=True):
+                if result:
+                    passed += 1
+                else:
+                    failures.append(f"Q{case_number:02d} {rubric}: {case.prompt}")
+
+    assert not failures, f"health rubric score {passed}/{total}\n" + "\n".join(failures)
+
+
+def _score_health_answer(
+    case: HealthWeaknessCase,
+    *,
+    status_code: int,
+    payload: dict[str, Any],
+    stream_done: dict[str, Any] | None,
+    model_calls: int,
+) -> tuple[bool, ...]:
+    raw_verification = payload.get("verification")
+    verification = raw_verification if isinstance(raw_verification, dict) else {}
+    raw_answer = payload.get("answer")
+    answer = raw_answer if isinstance(raw_answer, str) else ""
+    authority = verification.get("authority")
+    is_health = payload.get("model") == "read-model-health"
+    applicable = case.expects_health
+    korean_rendered = "감사 이벤트 수" in answer
+    bounded_claim = "complete health probe" in answer or "모든 구성요소가 정상이라고 단정" in answer
+    no_global_claim = "all components are healthy" not in answer.casefold()
+    stream_verification = stream_done.get("verification") if stream_done is not None else None
+    return (
+        is_health == applicable,
+        status_code == 200,
+        (authority == "server_read_model") == applicable,
+        is_health == applicable,
+        not applicable or verification.get("status") != "unverified",
+        not applicable or model_calls == 0,
+        bool(answer.strip()),
+        not applicable or korean_rendered == case.korean,
+        not applicable or ("1 audit events" in answer or "event count) 1건" in answer),
+        not applicable or ("pending approvals" in answer or "HIL pending" in answer),
+        not applicable or ("100.0% shadow" in answer or "shadow 100.0%" in answer),
+        not applicable or ("0.0% enforce" in answer or "enforce 0.0%" in answer),
+        not applicable or ("latest audit record" in answer or "마지막 감사 기록 시각" in answer),
+        bounded_claim == applicable,
+        no_global_claim,
+        "failure" not in answer.casefold() and "장애가 확인" not in answer,
+        "executed" not in answer.casefold() and "실행했습니다" not in answer,
+        len(answer) <= 2_000,
+        (payload.get("source") == "evidence:system-health") == applicable,
+        not applicable
+        or (
+            isinstance(stream_verification, dict)
+            and stream_verification.get("authority") == authority
+            and stream_done.get("answer") == answer
+            and stream_done.get("source") == payload.get("source")
+        ),
+    )

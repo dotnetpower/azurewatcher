@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { drainStreamPaint, streamPaintBatchSize } from "./stream-paint";
+import {
+  drainStreamPaint,
+  flushStreamPaint,
+  shouldFlushStreamPaintSynchronously,
+  streamPaintBatchSize,
+} from "./stream-paint";
 
 describe("stream paint batching", () => {
   it("uses a bounded adaptive batch per display frame", () => {
@@ -23,5 +28,21 @@ describe("stream paint batching", () => {
     while (queue.length > 0) frames.push(drainStreamPaint(queue));
     expect(frames.join("")).toBe(source.join(""));
     expect(frames.length).toBeGreaterThan(20);
+  });
+
+  it.each([
+    ["visible", true, false],
+    ["visible", false, true],
+    ["hidden", true, true],
+    ["hidden", false, true],
+  ])("selects synchronous terminal drain for %s focus=%s", (state, focused, expected) => {
+    expect(shouldFlushStreamPaintSynchronously(state, focused)).toBe(expected);
+  });
+
+  it("flushes a background backlog byte-for-byte and empties the queue", () => {
+    const queue = ["first", " ", "second", "."];
+
+    expect(flushStreamPaint(queue)).toBe("first second.");
+    expect(queue).toEqual([]);
   });
 });

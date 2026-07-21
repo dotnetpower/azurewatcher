@@ -18,7 +18,11 @@ import {
 } from "./conversation-sessions";
 import type { ViewSnapshot } from "./context";
 import { record as recordHistory, type DraftHistory } from "./draft-history";
-import { drainStreamPaint } from "./stream-paint";
+import {
+  drainStreamPaint,
+  flushStreamPaint,
+  shouldFlushStreamPaintSynchronously,
+} from "./stream-paint";
 
 const MIN_PREPARING_VISIBLE_MS = 420;
 
@@ -296,6 +300,15 @@ export function useCommandDeckSubmit({
       };
       const waitForPaintDrain = async () => {
         if (paintQueue.length === 0 && paintFrame === null) return;
+        if (shouldFlushStreamPaintSynchronously(document.visibilityState, document.hasFocus())) {
+          if (paintFrame !== null) {
+            cancelAnimationFrame(paintFrame);
+            paintFrame = null;
+          }
+          visibleAcc += flushStreamPaint(paintQueue);
+          resolvePaintDrain();
+          return;
+        }
         await new Promise<void>((resolve) => {
           paintDrainResolve = resolve;
           scheduleStreamPaint();

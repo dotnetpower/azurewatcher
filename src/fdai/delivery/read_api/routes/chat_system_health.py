@@ -20,6 +20,10 @@ _SYSTEM_HEALTH: Final = re.compile(
     "|\uc2dc\uc2a4\ud15c.{0,20}(?:\uac74\uac15|\uc815\uc0c1|\uc0c1\ud0dc|\uc798\\s*(?:\ub3d9\uc791|\uc791\ub3d9))",
     re.IGNORECASE,
 )
+_NON_HEALTH_CONTEXT: Final = re.compile(
+    r"\b(?:policy|cost|budget|billing|price|pricing)\b|정책|비용|예산|청구|가격",
+    re.IGNORECASE,
+)
 
 
 class ChatToolResolver(Protocol):
@@ -44,7 +48,7 @@ class SystemHealthChatTools:
         *,
         principal_id: str,
     ) -> dict[str, Any] | None:
-        if _SYSTEM_HEALTH.search(prompt):
+        if _SYSTEM_HEALTH.search(prompt) and not _NON_HEALTH_CONTEXT.search(prompt):
             metrics = await self.read_model.dashboard_metrics()
             return {
                 "tool": "get_system_health",

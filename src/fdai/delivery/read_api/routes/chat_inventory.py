@@ -12,9 +12,10 @@ from fdai.delivery.read_api.routes.chat_system_health import ChatToolResolver
 from fdai.delivery.read_api.routes.inventory_graph import InventoryGraphProvider
 
 _RESOURCE_INTENT: Final = re.compile(
-    r"\b(?:azure\s+)?(?:resources?|inventory|virtual machines?|vms?|storage accounts?|"
+    r"\b(?:azure\s+)?(?:resources?|assets?|inventory|virtual machines?|vms?|storage accounts?|"
     r"databases?|postgres(?:ql)?|sql databases?|aks|kubernetes clusters?|vnets?|"
-    r"virtual networks?|managed identities|key vaults?|resource groups?|public ips?|nsgs?)\b"
+    r"virtual networks?|managed identit(?:y|ies)|key vaults?|resource groups?|public ips?|"
+    r"nsgs?)\b"
     r"|Azure\s*리소스|인벤토리|가상\s*머신|스토리지\s*계정|데이터베이스|"
     r"쿠버네티스|클러스터|가상\s*네트워크|관리형\s*ID|키\s*볼트|리소스\s*그룹|"
     r"공인\s*IP|네트워크\s*보안\s*그룹",
@@ -22,9 +23,18 @@ _RESOURCE_INTENT: Final = re.compile(
 )
 _QUESTION_INTENT: Final = re.compile(
     r"\b(?:how many|count|list|show|which|what|where|find|named|location|status|"
-    r"group|types?|depend|attach|connect)\b"
+    r"group|types?|summary|exist|depend|attach|connect)\b|\?"
     r"|몇\s*개|개수|목록|보여|어떤|어디|찾아|이름|위치|상태|그룹|종류|유형|"
-    r"의존|연결|붙어",
+    r"의존|연결|붙어|뭐|있어",
+    re.IGNORECASE,
+)
+_MUTATION_INTENT: Final = re.compile(
+    r"\b(?:create|delete|drop|restart|scale|restore|update)\b"
+    r"|생성|삭제|재시작|스케일|복구|수정",
+    re.IGNORECASE,
+)
+_DIAGNOSIS_INTENT: Final = re.compile(
+    r"\b(?:why|cause|latency|slow)\b|왜|원인|지연|느려",
     re.IGNORECASE,
 )
 _COUNT_INTENT: Final = re.compile(r"\b(?:how many|count)\b|몇\s*개|개수", re.IGNORECASE)
@@ -100,7 +110,12 @@ class InventoryChatTools:
 def needs_inventory_evidence(prompt: str) -> bool:
     """Return whether a question asks for observed Azure resource inventory."""
 
-    return bool(_RESOURCE_INTENT.search(prompt) and _QUESTION_INTENT.search(prompt))
+    return bool(
+        not _MUTATION_INTENT.search(prompt)
+        and not _DIAGNOSIS_INTENT.search(prompt)
+        and _RESOURCE_INTENT.search(prompt)
+        and _QUESTION_INTENT.search(prompt)
+    )
 
 
 def _project_inventory_result(prompt: str, graph: Mapping[str, Any]) -> dict[str, Any]:

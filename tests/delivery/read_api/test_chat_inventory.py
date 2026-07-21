@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,7 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.testclient import TestClient
 
-from fdai.delivery.read_api.routes.chat import make_chat_route
+from fdai.delivery.read_api.routes.chat import make_chat_route, make_chat_stream_route
 from fdai.delivery.read_api.routes.chat_behavior_evidence import (
     RepositoryBehaviorEvidenceResolver,
 )
@@ -129,6 +130,14 @@ class AzureQuestion:
     excluded: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class InventoryWeaknessCase:
+    prompt: str
+    expects_inventory: bool
+    expected: tuple[str, ...] = ()
+    korean: bool = False
+
+
 CASES = (
     AzureQuestion(
         "Azure 리소스는 몇 개야?",
@@ -158,6 +167,52 @@ CASES = (
         ("vnet-app --depends_on--> vm-app", "pip-app --attached_to--> vm-app"),
     ),
     AzureQuestion("이름이 vm-job인 Azure 리소스를 찾아줘", ("vm-job", "stopped"), ("vm-app",)),
+)
+
+INVENTORY_WEAKNESS_CASES = (
+    InventoryWeaknessCase("what Azure assets exist?", True, ("vm-app", "storage-app")),
+    InventoryWeaknessCase("Azure resource inventory?", True, ("13 of 13 resources",)),
+    InventoryWeaknessCase("Azure 리소스 뭐 있어?", True, ("vm-app",), korean=True),
+    InventoryWeaknessCase("show postgres servers", True, ("postgres-data",)),
+    InventoryWeaknessCase("where are storage accounts?", True, ("storage-app",)),
+    InventoryWeaknessCase("how many Kubernetes clusters?", True, ("1 of 13",)),
+    InventoryWeaknessCase("list VMs in resource group rg-app", True, ("vm-app", "vm-job")),
+    InventoryWeaknessCase("resource inventory summary", True, ("compute.vm",)),
+    InventoryWeaknessCase("show key vaults", True, ("vault-app",)),
+    InventoryWeaknessCase("managed identity count", True, ("1 of 13",)),
+    InventoryWeaknessCase("public IPs?", True, ("pip-app",)),
+    InventoryWeaknessCase("NSG list", True, ("nsg-app",)),
+    InventoryWeaknessCase("what is Kubernetes?", False),
+    InventoryWeaknessCase("explain managed identity", False),
+    InventoryWeaknessCase("restart the VM", False),
+    InventoryWeaknessCase("create a resource group", False),
+    InventoryWeaknessCase("why is the database slow?", False),
+    InventoryWeaknessCase("database backup policy", False),
+    InventoryWeaknessCase("storage account encryption policy", False),
+    InventoryWeaknessCase("compare VM and storage architecture", False),
+)
+
+INVENTORY_RUBRIC_NAMES = (
+    "intent-classification",
+    "json-http-success",
+    "authority-selection",
+    "reason-code",
+    "terminal-trust",
+    "model-routing",
+    "nonempty-answer",
+    "locale-aligned",
+    "matched-count-bounded",
+    "active-view-present",
+    "source-present",
+    "snapshot-present",
+    "freshness-present",
+    "requested-resource-relevant",
+    "sensitive-fields-excluded",
+    "evidence-ref-count",
+    "evidence-ref-prefix",
+    "no-execution-claim",
+    "bounded-answer",
+    "json-sse-parity",
 )
 
 
@@ -228,3 +283,116 @@ def test_inventory_provider_failure_is_unverified_and_fail_closed() -> None:
     assert payload["verification"]["reason_code"] == "inventory_evidence_unavailable"
     assert "확정하지 않았습니다" in payload["answer"]
     assert backend.calls == 0
+
+
+def test_twenty_inventory_weaknesses_pass_twenty_answer_rubrics() -> None:
+    backend = RecordingBackend()
+    tools = InventoryChatTools(_provider)
+    app = Starlette(
+        routes=[
+            make_chat_route(
+                backend=backend,
+                authorize=_allow,
+                behavior_resolver=RepositoryBehaviorEvidenceResolver(REPO_ROOT),
+                tool_resolver=tools,
+            ),
+            make_chat_stream_route(
+                backend=backend,
+                authorize=_allow,
+                behavior_resolver=RepositoryBehaviorEvidenceResolver(REPO_ROOT),
+                tool_resolver=tools,
+            ),
+        ]
+    )
+    failures: list[str] = []
+    passed = 0
+    total = len(INVENTORY_WEAKNESS_CASES) * len(INVENTORY_RUBRIC_NAMES)
+
+    with TestClient(app) as client:
+        for case_number, case in enumerate(INVENTORY_WEAKNESS_CASES, 1):
+            calls_before = backend.calls
+            response = client.post(
+                "/chat",
+                json={"prompt": case.prompt, "view_context": {}},
+            )
+            payload = response.json()
+            done = None
+            if case.expects_inventory:
+                stream_response = client.post(
+                    "/chat/stream",
+                    json={"prompt": case.prompt, "view_context": {}},
+                )
+                done = _inventory_done_event(stream_response.text)
+            results = _score_inventory_answer(
+                case,
+                status_code=response.status_code,
+                payload=payload,
+                stream_done=done,
+                model_calls=backend.calls - calls_before,
+            )
+            assert len(results) == len(INVENTORY_RUBRIC_NAMES)
+            for rubric, result in zip(INVENTORY_RUBRIC_NAMES, results, strict=True):
+                if result:
+                    passed += 1
+                else:
+                    failures.append(f"Q{case_number:02d} {rubric}: {case.prompt}")
+
+    assert not failures, f"inventory rubric score {passed}/{total}\n" + "\n".join(failures)
+
+
+def _score_inventory_answer(
+    case: InventoryWeaknessCase,
+    *,
+    status_code: int,
+    payload: dict[str, Any],
+    stream_done: dict[str, Any] | None,
+    model_calls: int,
+) -> tuple[bool, ...]:
+    raw_verification = payload.get("verification")
+    verification = raw_verification if isinstance(raw_verification, dict) else {}
+    raw_answer = payload.get("answer")
+    answer = raw_answer if isinstance(raw_answer, str) else ""
+    authority = verification.get("authority")
+    refs = verification.get("evidence_refs")
+    safe_refs = refs if isinstance(refs, list) else []
+    is_inventory = authority == "server_inventory_graph"
+    applicable = case.expects_inventory
+    stream_verification = stream_done.get("verification") if stream_done is not None else None
+    return (
+        is_inventory == applicable,
+        status_code == 200,
+        is_inventory == applicable,
+        not applicable or verification.get("reason_code") == "inventory_snapshot_grounded",
+        not applicable or verification.get("status") in {"verified", "corrected"},
+        not applicable or model_calls == 0,
+        bool(answer.strip()),
+        not applicable or ("근거:" in answer) == case.korean,
+        not applicable or ("of 13" in answer or "13개 중" in answer),
+        not applicable or "all-test-resources" in answer,
+        not applicable or "azure-resource-graph" in answer,
+        not applicable or "2026-07-20T10:00:00Z" in answer,
+        not applicable or "fresh" in answer,
+        not applicable or all(value in answer for value in case.expected),
+        "must-not-enter-chat-evidence" not in answer,
+        not applicable or len(safe_refs) == 1,
+        not applicable or all(str(ref).startswith("inventory:") for ref in safe_refs),
+        "executed" not in answer.casefold() and "실행했습니다" not in answer,
+        len(answer) <= 5_000,
+        not applicable
+        or (
+            isinstance(stream_verification, dict)
+            and stream_verification.get("authority") == authority
+            and stream_done.get("answer") == answer
+        ),
+    )
+
+
+def _inventory_done_event(body: str) -> dict[str, Any] | None:
+    for block in body.split("\n\n"):
+        if not block.startswith("event: done\n"):
+            continue
+        data = next(line[6:] for line in block.splitlines() if line.startswith("data: "))
+        payload = json.loads(data)
+        assert isinstance(payload, dict)
+        return payload
+    return None
