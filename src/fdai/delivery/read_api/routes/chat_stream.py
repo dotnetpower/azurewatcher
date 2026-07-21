@@ -55,7 +55,12 @@ from fdai.delivery.read_api.routes.chat_evidence_enrichment import (
     _with_tool_evidence,
     _with_web_evidence,
 )
-from fdai.delivery.read_api.routes.chat_history import append_assistant_turn, append_operator_turn
+from fdai.delivery.read_api.routes.chat_history import (
+    append_assistant_turn,
+    append_operator_turn,
+    completed_replay_payload,
+    replay_metadata,
+)
 from fdai.delivery.read_api.routes.chat_prompt import (
     _concept_answer,
     _ontology_browse_answer,
@@ -207,6 +212,7 @@ def make_chat_stream_route(
                 ) from exc
         try:
             operator_turn = None
+            completed_payload: dict[str, Any] | None = None
             if conversation_history_store is not None:
                 try:
                     operator_turn = await append_operator_turn(
@@ -223,6 +229,12 @@ def make_chat_stream_route(
                         status_code=409,
                         detail="chat request id conflicts with an existing turn",
                     ) from exc
+                completed_turn = await conversation_history_store.get_turn_by_idempotency(
+                    principal_id=user_id,
+                    idempotency_key=f"{request_id}:assistant",
+                )
+                if completed_turn is not None:
+                    completed_payload = completed_replay_payload(completed_turn)
         except Exception:
             if busy_input_coordinator is not None and active_turn is not None:
                 await busy_input_coordinator.finish_turn(
@@ -254,6 +266,9 @@ def make_chat_stream_route(
                 )
 
             try:
+                if completed_payload is not None:
+                    yield frame("done", completed_payload)
+                    return
                 yield frame(
                     "status",
                     {
@@ -524,6 +539,37 @@ def make_chat_stream_route(
                         },
                     )
                 answer_planning = await planning_metadata(planning_task)
+                done_payload = {
+                    "answer": verification.answer,
+                    "model": terminal_model,
+                    "router": terminal_router,
+                    "usage": terminal_usage,
+                    "source": (
+                        f"evidence:{verification.status}"
+                        if evidence_fast_path
+                        else (
+                            "evidence:ontology-snapshot"
+                            if ontology_answer is not None
+                            else (
+                                "evidence:system-health"
+                                if health_answer is not None
+                                else (
+                                    "evidence:fdai-glossary" if concept_answer is not None else None
+                                )
+                            )
+                        )
+                    ),
+                    "latency_ms": int((time.monotonic() - started) * 1000),
+                    "verification": verification.to_dict(),
+                    "delegation": delegation,
+                    "web_search": _web_search_summary(enriched_context),
+                    "answer_plan": answer_plan.to_dict(),
+                    "answer_planning": answer_planning,
+                    "code_artifacts": [
+                        artifact.to_dict()
+                        for artifact in extract_grounded_code(verification.answer)
+                    ],
+                }
                 if conversation_history_store is not None:
                     assistant_turn = await append_assistant_turn(
                         store=conversation_history_store,
@@ -532,10 +578,14 @@ def make_chat_stream_route(
                         request_id=request_id,
                         content=verification.answer,
                         recorded_at=datetime.now(tz=UTC),
-                        metadata=_turn_metadata(
+                        metadata=replay_metadata(
                             model=str(terminal_model or "unknown"),
-                            view_context=enriched_context,
-                            answer_planning=answer_planning,
+                            payload=done_payload,
+                            additional=_turn_metadata(
+                                model=str(terminal_model or "unknown"),
+                                view_context=enriched_context,
+                                answer_planning=answer_planning,
+                            ),
                         ),
                         ontology_projector=user_context_ontology_projector,
                     )
@@ -551,39 +601,7 @@ def make_chat_stream_route(
                         )
                 yield frame(
                     "done",
-                    {
-                        "answer": verification.answer,
-                        "model": terminal_model,
-                        "router": terminal_router,
-                        "usage": terminal_usage,
-                        "source": (
-                            f"evidence:{verification.status}"
-                            if evidence_fast_path
-                            else (
-                                "evidence:ontology-snapshot"
-                                if ontology_answer is not None
-                                else (
-                                    "evidence:system-health"
-                                    if health_answer is not None
-                                    else (
-                                        "evidence:fdai-glossary"
-                                        if concept_answer is not None
-                                        else None
-                                    )
-                                )
-                            )
-                        ),
-                        "latency_ms": int((time.monotonic() - started) * 1000),
-                        "verification": verification.to_dict(),
-                        "delegation": delegation,
-                        "web_search": _web_search_summary(enriched_context),
-                        "answer_plan": answer_plan.to_dict(),
-                        "answer_planning": answer_planning,
-                        "code_artifacts": [
-                            artifact.to_dict()
-                            for artifact in extract_grounded_code(verification.answer)
-                        ],
-                    },
+                    done_payload,
                 )
             except ChatTurnInterruptedError:
                 yield frame(

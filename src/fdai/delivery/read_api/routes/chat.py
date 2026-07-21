@@ -88,7 +88,12 @@ from fdai.delivery.read_api.routes.chat_evidence_enrichment import (
     _with_tool_evidence,
     _with_web_evidence,
 )
-from fdai.delivery.read_api.routes.chat_history import append_assistant_turn, append_operator_turn
+from fdai.delivery.read_api.routes.chat_history import (
+    append_assistant_turn,
+    append_operator_turn,
+    completed_replay_payload,
+    replay_metadata,
+)
 from fdai.delivery.read_api.routes.chat_prompt import (
     _AGENT_EVIDENCE_DIRECTIVE,
     _AGENT_NAME_TOKEN,
@@ -331,6 +336,18 @@ def make_chat_route(
                         status_code=409,
                         detail="chat request id conflicts with an existing turn",
                     ) from exc
+                completed_turn = await conversation_history_store.get_turn_by_idempotency(
+                    principal_id=user_id,
+                    idempotency_key=f"{request_id}:assistant",
+                )
+                if completed_turn is not None:
+                    if busy_input_coordinator is not None and active_turn is not None:
+                        await busy_input_coordinator.finish_turn(
+                            session_id=session_id,
+                            turn_id=request_id,
+                            principal_id=user_id,
+                        )
+                    return JSONResponse(completed_replay_payload(completed_turn))
             view_context = await _with_compiled_user_policy(
                 view_context,
                 user_id=user_id,
@@ -544,10 +561,14 @@ def make_chat_route(
                 request_id=request_id,
                 content=verification.answer,
                 recorded_at=datetime.now(tz=UTC),
-                metadata=_turn_metadata(
+                metadata=replay_metadata(
                     model=str(reply.get("model") or "unknown"),
-                    view_context=view_context,
-                    answer_planning=answer_planning,
+                    payload=enriched,
+                    additional=_turn_metadata(
+                        model=str(reply.get("model") or "unknown"),
+                        view_context=view_context,
+                        answer_planning=answer_planning,
+                    ),
                 ),
                 ontology_projector=user_context_ontology_projector,
             )

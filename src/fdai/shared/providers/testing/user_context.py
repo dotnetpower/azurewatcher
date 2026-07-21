@@ -88,6 +88,14 @@ class InMemoryConversationHistoryStore:
             )
         return record
 
+    async def get_turn_by_idempotency(
+        self,
+        *,
+        principal_id: str,
+        idempotency_key: str,
+    ) -> ConversationTurnRecord | None:
+        return self._turn_keys.get((principal_id, idempotency_key))
+
     async def list_turns(
         self, *, principal_id: str, conversation_id: str, limit: int = 200
     ) -> tuple[ConversationTurnRecord, ...]:
@@ -244,6 +252,7 @@ def _same_turn(
     *,
     ignore_index: bool,
 ) -> bool:
+    candidate = replace(candidate, recorded_at=existing.recorded_at)
     if ignore_index:
         candidate = replace(candidate, turn_index=existing.turn_index)
     return existing == candidate

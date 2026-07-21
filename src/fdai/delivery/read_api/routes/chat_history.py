@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
 from datetime import datetime
+from typing import Any
 
 from fdai.core.user_context_projection import UserContextOntologyProjector
 from fdai.shared.providers.user_context import (
@@ -11,6 +14,8 @@ from fdai.shared.providers.user_context import (
     ConversationTurnRecord,
     ConversationTurnRole,
 )
+
+_REPLAY_PAYLOAD_KEY = "replay_payload"
 
 
 async def append_operator_turn(
@@ -101,4 +106,42 @@ async def append_assistant_turn(
     return stored
 
 
-__all__ = ["append_assistant_turn", "append_operator_turn"]
+def replay_metadata(
+    *,
+    model: str,
+    payload: Mapping[str, Any],
+    additional: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    metadata = dict(additional or {})
+    metadata["model"] = model
+    metadata[_REPLAY_PAYLOAD_KEY] = json.dumps(
+        payload,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return metadata
+
+
+def completed_replay_payload(turn: ConversationTurnRecord) -> dict[str, Any]:
+    raw = turn.metadata.get(_REPLAY_PAYLOAD_KEY)
+    if isinstance(raw, str):
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            payload = None
+        if isinstance(payload, dict) and payload.get("answer") == turn.content:
+            return payload
+    return {
+        "answer": turn.content,
+        "model": str(turn.metadata.get("model") or "unknown"),
+        "source": "conversation-history",
+    }
+
+
+__all__ = [
+    "append_assistant_turn",
+    "append_operator_turn",
+    "completed_replay_payload",
+    "replay_metadata",
+]

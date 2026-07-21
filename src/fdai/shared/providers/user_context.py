@@ -176,6 +176,13 @@ class ConversationHistoryStore(Protocol):
         allocate_index: bool = False,
     ) -> ConversationTurnRecord: ...
 
+    async def get_turn_by_idempotency(
+        self,
+        *,
+        principal_id: str,
+        idempotency_key: str,
+    ) -> ConversationTurnRecord | None: ...
+
     async def list_turns(
         self, *, principal_id: str, conversation_id: str, limit: int = 200
     ) -> Sequence[ConversationTurnRecord]: ...

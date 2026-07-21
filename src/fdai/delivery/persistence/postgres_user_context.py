@@ -138,10 +138,11 @@ class PostgresConversationHistoryStore(_PostgresBase):
             await self._timeout(connection)
             existing = await self._turn_by_idempotency_optional(connection, record)
             if existing is not None:
-                comparable = (
-                    replace(record, turn_index=existing.turn_index) if allocate_index else record
-                )
-                if existing != comparable:
+                if not _same_idempotent_turn(
+                    existing,
+                    record,
+                    ignore_index=allocate_index,
+                ):
                     raise UserContextConflictError(
                         f"turn idempotency key {record.idempotency_key!r} conflicts"
                     )
@@ -186,7 +187,11 @@ class PostgresConversationHistoryStore(_PostgresBase):
                 ) from exc
             if await cursor.fetchone() is None:
                 existing = await self._turn_by_idempotency(connection, record)
-                if existing != record:
+                if not _same_idempotent_turn(
+                    existing,
+                    record,
+                    ignore_index=allocate_index,
+                ):
                     raise UserContextConflictError(
                         f"turn idempotency key {record.idempotency_key!r} conflicts"
                     )
@@ -197,6 +202,23 @@ class PostgresConversationHistoryStore(_PostgresBase):
                 (record.recorded_at, record.principal_id, record.conversation_id),
             )
         return record
+
+    async def get_turn_by_idempotency(
+        self,
+        *,
+        principal_id: str,
+        idempotency_key: str,
+    ) -> ConversationTurnRecord | None:
+        async with await self._connect() as connection:
+            await self._timeout(connection)
+            cursor = await connection.execute(
+                "SELECT principal_id, conversation_id, turn_id, turn_index, role, content, "
+                "recorded_at, idempotency_key, metadata FROM conversation_turn "
+                "WHERE principal_id = %s AND idempotency_key = %s",
+                (principal_id, idempotency_key),
+            )
+            row = await cursor.fetchone()
+            return _turn(row) if row is not None else None
 
     async def _turn_by_idempotency(
         self, connection: psycopg.AsyncConnection[Any], record: ConversationTurnRecord
@@ -326,6 +348,18 @@ class PostgresConversationHistoryStore(_PostgresBase):
                 (before, limit),
             )
             return tuple(_conversation(row) for row in await cursor.fetchall())
+
+
+def _same_idempotent_turn(
+    existing: ConversationTurnRecord,
+    candidate: ConversationTurnRecord,
+    *,
+    ignore_index: bool,
+) -> bool:
+    candidate = replace(candidate, recorded_at=existing.recorded_at)
+    if ignore_index:
+        candidate = replace(candidate, turn_index=existing.turn_index)
+    return existing == candidate
 
 
 class PostgresUserPreferenceStore(_PostgresBase):

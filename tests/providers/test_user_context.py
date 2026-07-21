@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -44,7 +45,7 @@ async def test_conversation_history_is_principal_scoped_and_idempotent() -> None
     )
 
     assert await store.append_turn(turn) == turn
-    assert await store.append_turn(turn) == turn
+    assert await store.append_turn(replace(turn, recorded_at=NOW + timedelta(seconds=1))) == turn
     assert (
         await store.list_turns(
             principal_id="principal-b", conversation_id=conversation.conversation_id
