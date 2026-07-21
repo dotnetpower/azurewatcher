@@ -7,10 +7,13 @@ import { SettingsDisplaySections } from "./settings.display";
 
 export { SegmentedControl, SettingRow } from "./settings.controls";
 export {
+  claimSettingsDelete,
+  claimSettingsMutation,
   contextWithSavedPreference,
   defaultTimezone,
   isValidTimezone,
   parseBriefingHour,
+  releaseSettingsMutation,
 } from "./settings.model";
 
 interface Props { readonly client: ReadApiClient }

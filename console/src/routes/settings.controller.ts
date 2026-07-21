@@ -24,10 +24,13 @@ import {
   type UserPreferencePayload,
 } from "../user-context-client";
 import {
+  claimSettingsDelete,
+  claimSettingsMutation,
   contextWithSavedPreference,
   defaultTimezone,
   isValidTimezone,
   parseBriefingHour,
+  releaseSettingsMutation,
   setLocaleOverride,
 } from "./settings.model";
 
@@ -46,6 +49,19 @@ export function useSettingsController(client: ReadApiClient) {
   const [pendingDeletes, setPendingDeletes] = useState<ReadonlySet<string>>(new Set());
   const refreshGeneration = useRef(0);
   const briefingIntent = useRef<MutationIntentIdentity | null>(null);
+  const mutationInFlight = useRef(false);
+  const pendingDeleteClaims = useRef(new Set<string>());
+
+  const beginMutation = (): boolean => {
+    if (!claimSettingsMutation(mutationInFlight)) return false;
+    setSavingContext(true);
+    return true;
+  };
+
+  const finishMutation = (): void => {
+    releaseSettingsMutation(mutationInFlight);
+    setSavingContext(false);
+  };
 
   useEffect(() => {
     const syncPreferences = () => setPreferences(readConsolePreferences());
@@ -112,7 +128,7 @@ export function useSettingsController(client: ReadApiClient) {
   };
 
   const reset = async (): Promise<void> => {
-    setSavingContext(true);
+    if (!beginMutation()) return;
     try {
       if (serverContext?.preference !== null && serverContext?.preference !== undefined) {
         await deleteUserPreference();
@@ -122,7 +138,7 @@ export function useSettingsController(client: ReadApiClient) {
       window.location.reload();
     } catch (error) {
       setContextError(error instanceof Error ? error.message : String(error));
-      setSavingContext(false);
+      finishMutation();
     }
   };
 
@@ -141,7 +157,7 @@ export function useSettingsController(client: ReadApiClient) {
       setContextError(t("settings.contextTimezoneInvalid"));
       return;
     }
-    setSavingContext(true);
+    if (!beginMutation()) return;
     let preferenceSaved = false;
     try {
       const savedPreference = await putUserPreference({
@@ -177,7 +193,7 @@ export function useSettingsController(client: ReadApiClient) {
       const detail = error instanceof Error ? error.message : String(error);
       setContextError(preferenceSaved ? t("settings.contextPartialSave", { error: detail }) : detail);
     } finally {
-      setSavingContext(false);
+      finishMutation();
     }
   };
 
@@ -191,7 +207,7 @@ export function useSettingsController(client: ReadApiClient) {
       setContextError(t("settings.contextTimezoneInvalid"));
       return;
     }
-    setSavingContext(true);
+    if (!beginMutation()) return;
     try {
       const identity = identityForMutationIntent(
         briefingIntent.current,
@@ -215,13 +231,13 @@ export function useSettingsController(client: ReadApiClient) {
     } catch (error) {
       setContextError(error instanceof Error ? error.message : String(error));
     } finally {
-      setSavingContext(false);
+      finishMutation();
     }
   };
 
   const enableOpeningBriefing = async (): Promise<void> => {
     if (latestSourceTurnId === null) return;
-    setSavingContext(true);
+    if (!beginMutation()) return;
     try {
       await putConversationPolicy({
         policy_id: "opening-briefing",
@@ -243,13 +259,13 @@ export function useSettingsController(client: ReadApiClient) {
     } catch (error) {
       setContextError(error instanceof Error ? error.message : String(error));
     } finally {
-      setSavingContext(false);
+      finishMutation();
     }
   };
 
   const removeOpeningBriefing = async (): Promise<void> => {
     if (openingPolicy === null) return;
-    setSavingContext(true);
+    if (!beginMutation()) return;
     try {
       await deleteConversationPolicy(openingPolicy.policy_id, openingPolicy.revision);
       await refreshContext();
@@ -257,11 +273,12 @@ export function useSettingsController(client: ReadApiClient) {
     } catch (error) {
       setContextError(error instanceof Error ? error.message : String(error));
     } finally {
-      setSavingContext(false);
+      finishMutation();
     }
   };
 
   const withPendingDelete = async (key: string, operation: () => Promise<void>) => {
+    if (!claimSettingsDelete(pendingDeleteClaims.current, key)) return;
     setPendingDeletes((current) => new Set(current).add(key));
     setContextError(null);
     try {
@@ -269,6 +286,7 @@ export function useSettingsController(client: ReadApiClient) {
     } catch (error) {
       setContextError(error instanceof Error ? error.message : String(error));
     } finally {
+      pendingDeleteClaims.current.delete(key);
       setPendingDeletes((current) => {
         const next = new Set(current);
         next.delete(key);

@@ -1,6 +1,26 @@
 import type { ConsolePreferences } from "../preferences";
 import type { UserContextPayload, UserPreferencePayload } from "../user-context-client";
 
+export interface SettingsMutationLock {
+  current: boolean;
+}
+
+export function claimSettingsMutation(lock: SettingsMutationLock): boolean {
+  if (lock.current) return false;
+  lock.current = true;
+  return true;
+}
+
+export function releaseSettingsMutation(lock: SettingsMutationLock): void {
+  lock.current = false;
+}
+
+export function claimSettingsDelete(claims: Set<string>, key: string): boolean {
+  if (claims.has(key)) return false;
+  claims.add(key);
+  return true;
+}
+
 export function contextWithSavedPreference(
   context: UserContextPayload | null,
   preference: UserPreferencePayload,

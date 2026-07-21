@@ -1,7 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { contextWithSavedPreference, isValidTimezone, parseBriefingHour } from "./settings";
+import {
+  claimSettingsDelete,
+  claimSettingsMutation,
+  contextWithSavedPreference,
+  isValidTimezone,
+  parseBriefingHour,
+  releaseSettingsMutation,
+} from "./settings";
 
 describe("General Settings validation", () => {
+  it("claims one context mutation synchronously", () => {
+    const lock = { current: false };
+    expect(claimSettingsMutation(lock)).toBe(true);
+    expect(claimSettingsMutation(lock)).toBe(false);
+    releaseSettingsMutation(lock);
+    expect(claimSettingsMutation(lock)).toBe(true);
+  });
+
+  it("deduplicates pending deletes by resource key", () => {
+    const claims = new Set<string>();
+    expect(claimSettingsDelete(claims, "memory:one")).toBe(true);
+    expect(claimSettingsDelete(claims, "memory:one")).toBe(false);
+    expect(claimSettingsDelete(claims, "memory:two")).toBe(true);
+  });
+
   it("keeps the successful preference revision after a later partial-save failure", () => {
     const context = {
       preference: { revision: 3 },
