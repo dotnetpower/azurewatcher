@@ -43,6 +43,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
+from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -235,7 +236,10 @@ class ShadowExecutor:
                 cached=cached,
             )
 
-        async with self._resource_lock.acquire(action.target_resource_ref):
+        async with AsyncExitStack() as locks:
+            await locks.enter_async_context(
+                self._resource_lock.acquire(_idempotency_lock_key(action.idempotency_key))
+            )
             cached = self._dedupe.get(action.idempotency_key)
             if cached is not None:
                 return await self._deduplicated_or_conflict(
@@ -243,6 +247,9 @@ class ShadowExecutor:
                     rule=rule,
                     cached=cached,
                 )
+            await locks.enter_async_context(
+                self._resource_lock.acquire(_resource_lock_key(action.target_resource_ref))
+            )
 
             # Durable L2 guard: a prior mutation recorded under this key
             # (possibly by an earlier process, before a restart) is
@@ -479,6 +486,15 @@ def _execution_fingerprint(*, action: Action, rule: Rule) -> str:
     }
     canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _idempotency_lock_key(key: str) -> str:
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    return f"fdai:idempotency:{digest}"
+
+
+def _resource_lock_key(resource_ref: str) -> str:
+    return f"fdai:resource:{resource_ref}"
 
 
 def _build_remediation_pr(*, action: Action, rule: Rule, patch: str) -> RemediationPr:

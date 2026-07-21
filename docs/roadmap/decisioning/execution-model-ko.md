@@ -1,7 +1,7 @@
 ---
 title: Execution 모델
 translation_of: execution-model.md
-translation_source_sha: 3a3f27f2e406df0b50400be5c88fd7ce1a2ab42a
+translation_source_sha: 9cf12f721453ba68a0ad644ae37b9a7845e88f9b
 translation_revised: 2026-07-21
 ---
 
@@ -779,6 +779,8 @@ ActionType migration record와 일치합니다.
 - **Idempotency collision** - executor는 각 key를 deterministic action fingerprint에
   binding합니다. 다른 action, target, rule version 또는 safety contract에 같은 key를
   재사용하면 audited conflict로 fail closed하며 기존 성공 receipt를 교체하지 않습니다.
+  같은 key 요청은 서로 다른 resource를 대상으로 동시에 도착해도 resource lock보다 먼저
+  직렬화됩니다.
 - **PR-native + PR-manual auto-merge 정책** - adapter 가 emit 하는
   label set 에 대한 contract test; label 매트릭스 assert.
 - **RiskDecision 은 authority 를 upgrade 할 수 없음** - property test:

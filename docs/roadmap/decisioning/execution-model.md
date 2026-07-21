@@ -802,7 +802,8 @@ migration record in [action-ontology.md § 10](action-ontology.md#10-migration-r
   exactly one mutation.
 - **Idempotency collision** - the executor binds each key to a deterministic action fingerprint.
   Reusing a key with a different action, target, rule version, or safety contract fails closed as
-  an audited conflict and never replaces the original successful receipt.
+  an audited conflict and never replaces the original successful receipt. Same-key requests are
+  serialized before resource locking, including concurrent requests for different resources.
 - **PR-native + PR-manual auto-merge policy** - contract tests over
   the label sets the adapter emits; the label matrix is asserted.
 - **RiskDecision cannot upgrade authority** - property test:

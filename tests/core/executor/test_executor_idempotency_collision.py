@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from fdai.core.executor import ExecutorOutcome, ShadowExecutor, TemplateRenderer
 from fdai.core.executor.lock import ResourceLockManager
 from fdai.shared.contracts.models import Action
+from fdai.shared.providers.remediation_pr import PublishReceipt, RemediationPr
 from fdai.shared.providers.testing import InMemoryStateStore, RecordingRemediationPrPublisher
 from fdai.shared.providers.testing.idempotency import InMemoryIdempotencyStore
 from tests.core.executor.test_executor import REMEDIATION_ROOT, _action, _rule
@@ -112,3 +114,39 @@ async def test_legacy_durable_payload_without_fingerprint_fails_closed() -> None
     assert result.outcome is ExecutorOutcome.REJECTED_IDEMPOTENCY_CONFLICT
     assert publisher.records == ()
     assert len(list(audit.audit_entries)) == 1
+
+
+async def test_concurrent_same_key_different_resources_are_serialized() -> None:
+    class _BlockingPublisher(RecordingRemediationPrPublisher):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+            self.calls = 0
+
+        async def publish(self, pr: RemediationPr) -> PublishReceipt:
+            self.calls += 1
+            self.started.set()
+            await self.release.wait()
+            return await super().publish(pr)
+
+    publisher = _BlockingPublisher()
+    executor, _, audit = _executor(publisher=publisher)
+    original = _action()
+    conflicting = original.model_copy(update={"target_resource_ref": "resource:example/rg/other"})
+    first_task = asyncio.create_task(executor.execute(action=original, rule=_rule()))
+    await publisher.started.wait()
+    conflict_task = asyncio.create_task(executor.execute(action=conflicting, rule=_rule()))
+    await asyncio.sleep(0)
+
+    assert publisher.calls == 1
+    publisher.release.set()
+    first, conflict = await asyncio.gather(first_task, conflict_task)
+
+    assert first.outcome is ExecutorOutcome.PUBLISHED
+    assert conflict.outcome is ExecutorOutcome.REJECTED_IDEMPOTENCY_CONFLICT
+    assert publisher.calls == 1
+    assert [item["entry"]["outcome"] for item in audit.audit_entries] == [
+        "published",
+        "rejected_idempotency_conflict",
+    ]
