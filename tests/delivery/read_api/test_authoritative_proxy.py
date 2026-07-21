@@ -103,3 +103,25 @@ def test_proxy_requires_bearer_and_rejects_unsafe_origins() -> None:
     ):
         with pytest.raises(ValueError):
             AuthoritativeReadProxy(base_url=value)
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    (None, "Bearer ", "Basic token", "Bearer token with-space"),
+)
+def test_proxy_rejects_malformed_bearer_without_remote_request(
+    authorization: str | None,
+) -> None:
+    remote = httpx.MockTransport(
+        lambda _: pytest.fail("malformed bearer MUST NOT reach the remote API")
+    )
+    proxy = AuthoritativeReadProxy(
+        base_url="https://read.example.test",
+        client=httpx.AsyncClient(transport=remote),
+    )
+    headers = {} if authorization is None else {"authorization": authorization}
+
+    with TestClient(_app(proxy)) as client:
+        response = client.get("/audit", headers=headers)
+
+    assert response.status_code == 401

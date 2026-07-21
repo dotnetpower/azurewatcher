@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import posixpath
+import re
 from collections.abc import Mapping
 from urllib.parse import unquote, urlsplit
 
@@ -43,6 +44,7 @@ _PREFIX_PATHS: tuple[str, ...] = ("/reports/", "/views/process/")
 _FORWARDED_RESPONSE_HEADERS: frozenset[str] = frozenset(
     {"content-disposition", "content-type", "etag", "last-modified"}
 )
+_BEARER_PATTERN = re.compile(r"Bearer [A-Za-z0-9\-._~+/]+=*")
 
 
 class AuthoritativeReadProxy:
@@ -74,7 +76,7 @@ class AuthoritativeReadProxy:
         if method != "GET" or not self.handles(path):
             raise RuntimeError("authoritative read proxy received a non-allowlisted request")
         authorization = _header(scope, b"authorization")
-        if authorization is None or not authorization.startswith("Bearer "):
+        if authorization is None or _BEARER_PATTERN.fullmatch(authorization) is None:
             await _json_error(send, 401, "authoritative read proxy requires a bearer token")
             return
         query = bytes(scope.get("query_string", b"")).decode("ascii")
