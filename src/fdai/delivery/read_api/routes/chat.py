@@ -125,6 +125,7 @@ from fdai.delivery.read_api.routes.chat_prompt import (
     _is_capability_query,
     _is_concept_query,
     _locale_directive,
+    _ontology_browse_answer,
     _response_locale,
     _snapshot_json_capped,
     _trim_view_context,
@@ -386,6 +387,11 @@ def make_chat_route(
             concept_answer = (
                 _concept_answer(view_context, answer_plan) if response_locale is None else None
             )
+            ontology_answer = _ontology_browse_answer(
+                clean_prompt,
+                view_context,
+                locale=response_locale,
+            )
             if _uses_evidence_fast_path(view_context):
                 canonical = verify_answer(
                     "",
@@ -401,6 +407,18 @@ def make_chat_route(
                     "answer": verification.answer,
                     "model": "evidence-verifier",
                     "source": f"evidence:{verification.status}",
+                    "verification": verification.to_dict(),
+                }
+            elif ontology_answer is not None:
+                verification = verify_answer(
+                    ontology_answer,
+                    view_context,
+                    locale=response_locale,
+                )
+                reply = {
+                    "answer": verification.answer,
+                    "model": "ontology-snapshot",
+                    "source": "evidence:ontology-snapshot",
                     "verification": verification.to_dict(),
                 }
             elif health_answer is not None:

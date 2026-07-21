@@ -82,9 +82,11 @@ export function answer(
   }
 
   // Meta questions -------------------------------------------------------
-  if (/what.*(you|deck).*see|what.*on.*screen|current.*view/.test(q)) {
+  if (/what.*(you|deck).*see|what.*\bon\b.*\bscreen\b|current.*view/.test(q)) {
     return {
-      text: `${snapshot.routeLabel} - ${snapshot.headline}`,
+      text: snapshot.purpose
+        ? `${snapshot.routeLabel} - ${snapshot.purpose} ${snapshot.headline}`
+        : `${snapshot.routeLabel} - ${snapshot.headline}`,
       citations: snapshot.facts.slice(0, 10).map(factToCitation),
       followUps: defaultFollowUps(snapshot),
     };

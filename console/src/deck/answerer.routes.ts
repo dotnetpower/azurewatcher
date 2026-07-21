@@ -480,6 +480,83 @@ export function answerTrace(q: string, snapshot: ViewSnapshot): Answer {
 // ---------------------------------------------------------------------------
 
 export function answerOntology(q: string, snapshot: ViewSnapshot): Answer {
+  const objects = snapshot.records?.object_types ?? [];
+  const relationships = snapshot.records?.relationships ?? [];
+  const actions = snapshot.records?.action_types ?? [];
+  const selected = String(findFact(snapshot, "selected_object_type") ?? "none");
+  const listValues = (
+    rows: readonly Record<string, unknown>[],
+    ...keys: readonly string[]
+  ): string[] => rows.slice(0, 40).map((row) => {
+    for (const key of keys) {
+      const value = row[key];
+      if (typeof value === "string" && value) return value;
+    }
+    return "unknown";
+  });
+  const listCitations = (label: string, values: readonly string[]) =>
+    values.slice(0, 8).map((value) => ({ label, value }));
+
+  if (
+    /(?:how|방법|어떻게|어디).*(?:query|browse|view|조회|탐색|봐)/.test(q) ||
+    /(?:조회|탐색|봐).*(?:방법|어떻게|어디)/.test(q) ||
+    /(?:query|browse|view|조회|탐색).*(?:ontology|온톨로지)/.test(q)
+  ) {
+    return {
+      text:
+        "Use the Objects, Links, and Actions tabs to inspect the ontology data. " +
+        `Select an ObjectType such as ${selected} to browse its one-hop relationships and properties. ` +
+        "The same read-only graph is available from GET /ontology/graph; this screen does not mutate it.",
+      citations: snapshot.facts.slice(0, 4).map(factToCitation),
+      followUps: [
+        "list ontology object types",
+        "list ontology relationships",
+        "list ontology actions",
+      ],
+    };
+  }
+  if (/selected|선택/.test(q)) {
+    return {
+      text: `Selected ObjectType: ${selected}.`,
+      citations: [{ label: "selected_object_type", value: selected }],
+      followUps: [`what does ${selected} connect to?`],
+    };
+  }
+  if (/connect|relationship|relation|관계|연결/.test(q)) {
+    const related = relationships.filter((row) => row.from === selected || row.to === selected);
+    const lines = related.map((row) => `${row.link}: ${row.from} -> ${row.to}`);
+    return {
+      text: lines.length > 0
+        ? `${selected} relationships:\n${lines.map((line) => `- ${line}`).join("\n")}`
+        : `No relationships for ${selected} are present in this snapshot.`,
+      citations: listCitations("relationship", lines),
+      followUps: [],
+    };
+  }
+  if (/list|목록/.test(q) && /object|객체/.test(q)) {
+    const values = listValues(objects, "name");
+    return {
+      text: `ObjectTypes:\n${values.map((value) => `- ${value}`).join("\n")}`,
+      citations: listCitations("ObjectType", values),
+      followUps: [],
+    };
+  }
+  if (/list|목록/.test(q) && /link|relationship|링크|관계/.test(q)) {
+    const values = listValues(relationships, "link", "name");
+    return {
+      text: `LinkTypes:\n${values.map((value) => `- ${value}`).join("\n")}`,
+      citations: listCitations("LinkType", values),
+      followUps: [],
+    };
+  }
+  if (/list|목록/.test(q) && /action|액션|작업/.test(q)) {
+    const values = listValues(actions, "name");
+    return {
+      text: `ActionTypes:\n${values.map((value) => `- ${value}`).join("\n")}`,
+      citations: listCitations("ActionType", values),
+      followUps: [],
+    };
+  }
   if (/object/.test(q)) {
     return {
       text: `${findFact(snapshot, "object_type_count") ?? 0} ObjectType(s) registered.`,
@@ -492,6 +569,20 @@ export function answerOntology(q: string, snapshot: ViewSnapshot): Answer {
       text: `${findFact(snapshot, "link_type_count") ?? 0} LinkType(s) registered.`,
       citations: [{ label: "LinkTypes", value: String(findFact(snapshot, "link_type_count") ?? 0) }],
       followUps: [],
+    };
+  }
+  if (/action/.test(q)) {
+    return {
+      text: `${findFact(snapshot, "action_type_count") ?? 0} ActionType(s) registered.`,
+      citations: [{ label: "ActionTypes", value: String(findFact(snapshot, "action_type_count") ?? 0) }],
+      followUps: [],
+    };
+  }
+  if (/screen.*for|purpose|용도/.test(q)) {
+    return {
+      text: snapshot.purpose ?? `Ontology - ${snapshot.headline}.`,
+      citations: snapshot.facts.slice(0, 4).map(factToCitation),
+      followUps: defaultFollowUps(snapshot),
     };
   }
   return {

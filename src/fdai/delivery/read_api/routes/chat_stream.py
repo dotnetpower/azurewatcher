@@ -58,6 +58,7 @@ from fdai.delivery.read_api.routes.chat_evidence_enrichment import (
 from fdai.delivery.read_api.routes.chat_history import append_assistant_turn, append_operator_turn
 from fdai.delivery.read_api.routes.chat_prompt import (
     _concept_answer,
+    _ontology_browse_answer,
     _response_locale,
     _with_concept_evidence,
 )
@@ -309,13 +310,20 @@ def make_chat_stream_route(
                     if response_locale is None
                     else None
                 )
+                ontology_answer = _ontology_browse_answer(
+                    clean_prompt,
+                    enriched_context,
+                    locale=response_locale,
+                )
                 yield frame(
                     "status",
                     {
                         "phase": "generating",
                         "label": (
                             "Evidence ready; composing bounded answer"
-                            if evidence_fast_path or health_answer is not None
+                            if evidence_fast_path
+                            or ontology_answer is not None
+                            or health_answer is not None
                             else "Evidence ready; drafting answer"
                         ),
                         "authority": (
@@ -343,6 +351,11 @@ def make_chat_stream_route(
                     )
                     provisional_answer = canonical.answer
                     terminal_model = "evidence-verifier"
+                    for chunk in _chunk_answer_for_stream(provisional_answer):
+                        yield frame("token", {"delta": chunk})
+                elif ontology_answer is not None:
+                    provisional_answer = ontology_answer
+                    terminal_model = "ontology-snapshot"
                     for chunk in _chunk_answer_for_stream(provisional_answer):
                         yield frame("token", {"delta": chunk})
                 elif health_answer is not None:
@@ -541,10 +554,16 @@ def make_chat_stream_route(
                             f"evidence:{verification.status}"
                             if evidence_fast_path
                             else (
-                                "evidence:system-health"
-                                if health_answer is not None
+                                "evidence:ontology-snapshot"
+                                if ontology_answer is not None
                                 else (
-                                    "evidence:fdai-glossary" if concept_answer is not None else None
+                                    "evidence:system-health"
+                                    if health_answer is not None
+                                    else (
+                                        "evidence:fdai-glossary"
+                                        if concept_answer is not None
+                                        else None
+                                    )
                                 )
                             )
                         ),

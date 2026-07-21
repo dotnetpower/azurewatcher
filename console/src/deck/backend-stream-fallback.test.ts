@@ -24,6 +24,27 @@ function snap(): ViewSnapshot {
   };
 }
 
+function ontologySnap(): ViewSnapshot {
+  return {
+    routeId: "ontology",
+    routeLabel: "Ontology",
+    purpose: "Browse ObjectTypes, LinkTypes, and ActionTypes registered on this deployment.",
+    headline: "28 ObjectTypes - 45 LinkTypes - 40 ActionTypes",
+    capturedAt: "2026-07-21T00:00:00Z",
+    facts: [
+      { key: "selected_object_type", value: "Agent" },
+      { key: "object_type_count", value: 28 },
+      { key: "link_type_count", value: 45 },
+      { key: "action_type_count", value: 40 },
+    ],
+    records: {
+      object_types: [{ name: "Agent" }, { name: "Issue" }],
+      relationships: [{ link: "owns", from: "Agent", to: "Resource" }],
+      action_types: [{ name: "restart-service" }],
+    },
+  };
+}
+
 describe("askBackendStream fallback typewriter", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -268,6 +289,28 @@ describe("askBackendStream fallback typewriter", () => {
 
     expect(reply.text).toBe("Partial answer");
     expect(reply.source).toBe("partial (stream error)");
+  });
+
+  test("answers ontology query guidance when an empty stream ends in error", async () => {
+    const body = 'event: error\ndata: {"detail":"upstream reset"}\n\n';
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200 })));
+    const mod = await import("./backend");
+    mod.fallbackTypewriter.intervalMs = 0;
+
+    const deltas: string[] = [];
+    const reply = await mod.askBackendStream(
+      "온톨로지 데이터를 조회할수 있는 방법이 있어?",
+      ontologySnap(),
+      [],
+      { onToken: (delta) => deltas.push(delta) },
+    );
+
+    expect(reply.source).toBe("deterministic (stream error)");
+    expect(reply.text).toContain("Objects, Links, and Actions");
+    expect(reply.text).toContain("GET /ontology/graph");
+    expect(reply.text).toContain("Agent");
+    expect(reply.text).not.toBe("Ontology - 28 ObjectTypes - 45 LinkTypes - 40 ActionTypes.");
+    expect(deltas.join("")).toBe(reply.text);
   });
 
   test("applies one monotonic verified revision to the provisional answer", async () => {

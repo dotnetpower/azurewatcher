@@ -343,6 +343,59 @@ describe("deck-meta (help / what can I do here)", () => {
   });
 });
 
+describe("ontology fallback questions", () => {
+  const ontology: ViewSnapshot = {
+    routeId: "ontology",
+    routeLabel: "Ontology",
+    purpose: "Browse ObjectTypes, LinkTypes, and ActionTypes registered on this deployment.",
+    headline: "28 ObjectTypes - 45 LinkTypes - 40 ActionTypes",
+    capturedAt: "2026-07-21T00:00:00Z",
+    facts: [
+      { key: "selected_object_type", value: "Agent" },
+      { key: "object_type_count", value: 28 },
+      { key: "link_type_count", value: 45 },
+      { key: "action_type_count", value: 40 },
+    ],
+    records: {
+      object_types: [{ name: "Agent" }, { name: "Issue" }],
+      relationships: [
+        { link: "owns", from: "Agent", to: "Resource" },
+        { link: "raises", from: "Agent", to: "Issue" },
+      ],
+      action_types: [{ name: "restart-service", category: "ops" }],
+    },
+  };
+
+  test.each([
+    ["온톨로지 데이터를 조회할수 있는 방법이 있어?", ["Objects", "Links", "Actions", "Agent"]],
+    ["how can I query ontology data?", ["Objects", "Links", "Actions"]],
+    ["온톨로지 데이터는 어디서 봐?", ["Objects", "Links", "Actions"]],
+    ["how do I browse the ontology?", ["Objects", "Links", "Actions"]],
+    ["list ontology object types", ["Agent", "Issue"]],
+    ["온톨로지 객체 목록", ["Agent", "Issue"]],
+    ["list ontology relationships", ["owns", "raises"]],
+    ["온톨로지 링크 목록", ["owns", "raises"]],
+    ["list ontology actions", ["restart-service"]],
+    ["온톨로지 액션 목록", ["restart-service"]],
+    ["what is selected in ontology?", ["Agent"]],
+    ["선택된 온톨로지 객체는?", ["Agent"]],
+    ["how many ObjectTypes?", ["28"]],
+    ["how many LinkTypes?", ["45"]],
+    ["how many ActionTypes?", ["40"]],
+    ["what does Agent connect to?", ["Resource", "Issue"]],
+    ["Agent 관계를 보여줘", ["owns", "raises"]],
+    ["what is this ontology screen for?", ["Browse ObjectTypes"]],
+    ["restart the service", ["28 ObjectTypes"]],
+    ["database health", ["28 ObjectTypes"]],
+  ])("answers %s from ontology snapshot records", (query, expected) => {
+    const result = answer(query, ontology);
+
+    for (const fragment of expected) expect(result.text).toContain(fragment);
+    expect(result.text).not.toContain("undefined");
+    expect(result.citations.length).toBeGreaterThan(0);
+  });
+});
+
 describe("catalog list resolvers (list agents / tiers / roles / verticals)", () => {
   test("'list the agents' returns the 15 pantheon members", () => {
     const a = answer("list the agents", null);

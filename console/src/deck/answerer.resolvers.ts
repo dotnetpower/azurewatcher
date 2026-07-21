@@ -203,14 +203,17 @@ export function resolveDeckMeta(q: string, snapshot: ViewSnapshot): Answer | nul
 
   // "What can I do here?" - per-route action hint (deterministic; the LLM
   // path additionally injects the RBAC capability block).
-  if (/\bwhat can i do (here|on (this|the) (page|screen))\b|\bwhat.*(can i do here)\b|\bwhat.*this (page|screen) for\b/.test(q)) {
+  if (/\bwhat can i do (here|on (this|the) (page|screen))\b|\bwhat.*(can i do here)\b|\bwhat.*this(?: [a-z0-9_-]+){0,3} (page|screen) for\b/.test(q)) {
     const hint = ROUTE_ACTION_HINTS[snapshot.routeId];
+    const purpose = snapshot.purpose ? `${snapshot.purpose} ` : "";
     const generic =
       "This console is read-only: you can search, filter, and drill into rows to " +
       "understand an incident; nothing executes from a button here. Approvals happen " +
       "in Teams/ChatOps, and changes are delivered as governance PRs.";
     return {
-      text: hint ? `${hint} ${generic}` : `${snapshot.routeLabel}: ${generic}`,
+      text: hint
+        ? `${purpose}${hint} ${generic}`
+        : `${purpose || `${snapshot.routeLabel}: `}${generic}`,
       citations: [{ label: "route", value: snapshot.routeLabel }],
       followUps: ["what requires approval?", "what does an Approver do?"],
     };

@@ -615,6 +615,78 @@ def test_records_diet_applies_in_build_messages() -> None:
     assert f"rule-{DEFAULT_MAX_RECORDS_PER_KEY:04d}" not in system
 
 
+def test_ontology_browse_prompt_projects_verbose_records_without_mutating_snapshot() -> None:
+    action_description = "description-" + "x" * 300
+    context = {
+        "routeId": "ontology",
+        "routeLabel": "Ontology",
+        "headline": "28 ObjectTypes - 45 LinkTypes - 40 ActionTypes",
+        "facts": [
+            {"key": "object_type_count", "value": 28},
+            {"key": "link_type_count", "value": 45},
+            {"key": "action_type_count", "value": 40},
+        ],
+        "records": {
+            "object_types": [
+                {"name": f"Object{index}", "description": "object detail"} for index in range(28)
+            ],
+            "relationships": [
+                {
+                    "link": f"link-{index}",
+                    "from": "Agent",
+                    "to": f"Object{index % 28}",
+                    "description": "relationship detail",
+                }
+                for index in range(45)
+            ],
+            "action_types": [
+                {
+                    "name": f"action-{index}",
+                    "category": "ops",
+                    "operation": "invoke-provider",
+                    "rollback_contract": "scripted",
+                    "description": action_description,
+                }
+                for index in range(40)
+            ],
+        },
+    }
+    original = json.dumps(context, sort_keys=True)
+
+    trimmed = _trim_view_context(
+        context,
+        prompt="\uc628\ud1a8\ub85c\uc9c0 \ub370\uc774\ud130\ub97c "
+        "\uc870\ud68c\ud560\uc218 \uc788\ub294 \ubc29\ubc95\uc774 \uc788\uc5b4?",
+    )
+    system = _system_of(
+        _build_messages(
+            "\uc628\ud1a8\ub85c\uc9c0 \ub370\uc774\ud130\ub97c "
+            "\uc870\ud68c\ud560\uc218 \uc788\ub294 \ubc29\ubc95\uc774 \uc788\uc5b4?",
+            context,
+            [],
+        )
+    )
+
+    assert trimmed["_ontology_browse_projection"] is True
+    assert trimmed["records"]["object_types"][0] == {"name": "Object0"}
+    assert trimmed["records"]["relationships"][0] == {
+        "link": "link-0",
+        "from": "Agent",
+        "to": "Object0",
+    }
+    assert trimmed["records"]["action_types"][0] == {
+        "name": "action-0",
+        "category": "ops",
+    }
+    assert "Object27" in system
+    assert "link-39" in system
+    assert "action-39" in system
+    assert action_description not in system
+    assert "rollback_contract" not in system
+    assert len(system) < 20_000
+    assert json.dumps(context, sort_keys=True) == original
+
+
 # ---------------------------------------------------------------------------
 # Upstream error mapping - content-policy block vs genuine outage
 # ---------------------------------------------------------------------------

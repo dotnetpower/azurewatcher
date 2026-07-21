@@ -49,6 +49,13 @@ DEFAULT_MAX_RECORDS_PER_KEY: Final[int] = 40
 DEFAULT_MAX_EXPLANATION_ITEMS: Final[int] = 24
 
 
+_ONTOLOGY_BROWSE_INTENT: Final = re.compile(
+    r"(?:\b(?:how|where)\b|방법|어떻게|어디).*(?:\b(?:query|browse|view)\b|조회|탐색|봐)"
+    r"|(?:\b(?:query|browse|view)\b|조회|탐색|봐).*(?:\bontology\b|온톨로지|방법|어떻게|어디)",
+    re.IGNORECASE,
+)
+
+
 DEFAULT_MAX_LIFECYCLE_CRITERIA: Final[int] = 12
 
 
@@ -284,7 +291,10 @@ def _is_capability_query(prompt: str) -> bool:
 
 
 def _trim_view_context(
-    view_context: dict[str, Any], *, max_records: int = DEFAULT_MAX_RECORDS_PER_KEY
+    view_context: dict[str, Any],
+    *,
+    max_records: int = DEFAULT_MAX_RECORDS_PER_KEY,
+    prompt: str | None = None,
 ) -> dict[str, Any]:
     """Cap each ``records`` array to a representative sample.
 
@@ -315,7 +325,49 @@ def _trim_view_context(
             context["records"] = trimmed
             context["_records_truncated"] = True
             context["_records_meta"] = meta
-    return _trim_explanations(context)
+    context = _trim_explanations(context)
+    if (
+        prompt is not None
+        and str(context.get("routeId") or "").casefold() == "ontology"
+        and _ONTOLOGY_BROWSE_INTENT.search(prompt)
+    ):
+        context = _project_ontology_browse_context(context)
+    return context
+
+
+def _project_ontology_browse_context(view_context: dict[str, Any]) -> dict[str, Any]:
+    """Keep only ontology identity fields needed for browse/query guidance."""
+
+    records = view_context.get("records")
+    if not isinstance(records, dict):
+        return view_context
+    field_names: dict[str, tuple[str, ...]] = {
+        "selected_object_types": ("name", "key", "description"),
+        "selected_relationships": ("link", "from", "to", "cardinality", "causal"),
+        "object_types": ("name",),
+        "relationships": ("link", "from", "to"),
+        "action_types": ("name", "category"),
+    }
+    projected: dict[str, Any] = {}
+    for key, rows in records.items():
+        if not isinstance(rows, list):
+            projected[key] = rows
+            continue
+        allowed = field_names.get(key)
+        if allowed is None:
+            projected[key] = rows
+            continue
+        projected[key] = [
+            {field: row[field] for field in allowed if field in row}
+            if isinstance(row, dict)
+            else row
+            for row in rows
+        ]
+    return {
+        **view_context,
+        "records": projected,
+        "_ontology_browse_projection": True,
+    }
 
 
 def _trim_explanations(view_context: dict[str, Any]) -> dict[str, Any]:
@@ -482,6 +534,47 @@ def _response_locale(prompt: str, view_context: dict[str, Any]) -> str | None:
     return _extract_locale(view_context)
 
 
+def _ontology_browse_answer(
+    prompt: str,
+    view_context: dict[str, Any],
+    *,
+    locale: str | None,
+) -> str | None:
+    """Render ontology query guidance from the current screen snapshot."""
+
+    if str(view_context.get("routeId") or "").casefold() != "ontology":
+        return None
+    if not _ONTOLOGY_BROWSE_INTENT.search(prompt):
+        return None
+    facts = view_context.get("facts")
+    fact_values = (
+        {
+            str(item.get("key")): item.get("value")
+            for item in facts
+            if isinstance(item, dict) and isinstance(item.get("key"), str)
+        }
+        if isinstance(facts, list)
+        else {}
+    )
+    selected = str(fact_values.get("selected_object_type") or "none")
+    objects = fact_values.get("object_type_count", "unknown")
+    links = fact_values.get("link_type_count", "unknown")
+    actions = fact_values.get("action_type_count", "unknown")
+    if locale and locale.casefold().startswith("ko"):
+        return (
+            "온톨로지 화면에서 객체, 링크, 작업 탭을 선택해 데이터를 조회할 수 있습니다. "
+            f"현재 ObjectType {objects}개, LinkType {links}개, ActionType {actions}개가 보이며 "
+            f"선택된 ObjectType은 {selected}입니다. 객체를 선택하면 직접 연결 관계와 속성을 "
+            "확인할 수 있습니다. 이 화면은 읽기 전용입니다."
+        )
+    return (
+        "Use the Objects, Links, and Actions tabs to inspect ontology data. "
+        f"The current snapshot shows {objects} ObjectTypes, {links} LinkTypes, and "
+        f"{actions} ActionTypes; the selected ObjectType is {selected}. Select an object "
+        "to inspect its one-hop relationships and properties. This screen is read-only."
+    )
+
+
 def _build_messages(
     prompt: str,
     view_context: dict[str, Any],
@@ -497,7 +590,7 @@ def _build_messages(
     """
     view_context = dict(view_context)
     compiled_policy = view_context.pop(_COMPILED_USER_POLICY_KEY, None)
-    view_context = _trim_view_context(view_context)
+    view_context = _trim_view_context(view_context, prompt=prompt)
     if not isinstance(view_context.get("_answer_plan"), dict):
         plan = build_answer_plan(prompt, route_id=str(view_context.get("routeId") or "") or None)
         view_context = {**view_context, "_answer_plan": plan.to_dict()}
@@ -563,6 +656,7 @@ __all__ = [
     "_CONCEPT_EVIDENCE_DIRECTIVE",
     "_EXPLANATION_DIRECTIVE",
     "_GLOSSARY",
+    "_ontology_browse_answer",
     "_OPERATIONAL_EVIDENCE_DIRECTIVE",
     "_SCREEN_EXPLANATION_DIRECTIVE",
     "_SYSTEM_PROMPT",
