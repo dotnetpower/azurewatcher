@@ -125,3 +125,18 @@ def test_proxy_rejects_malformed_bearer_without_remote_request(
         response = client.get("/audit", headers=headers)
 
     assert response.status_code == 401
+
+
+@pytest.mark.parametrize("scheme", ("Bearer", "bearer", "BEARER"))
+def test_proxy_accepts_case_insensitive_bearer_scheme(scheme: str) -> None:
+    proxy = AuthoritativeReadProxy(
+        base_url="https://read.example.test",
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"ok": True}))
+        ),
+    )
+
+    with TestClient(_app(proxy)) as client:
+        response = client.get("/audit", headers={"authorization": f"{scheme} token"})
+
+    assert response.status_code == 200

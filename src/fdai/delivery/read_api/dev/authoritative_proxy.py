@@ -44,7 +44,7 @@ _PREFIX_PATHS: tuple[str, ...] = ("/reports/", "/views/process/")
 _FORWARDED_RESPONSE_HEADERS: frozenset[str] = frozenset(
     {"content-disposition", "content-type", "etag", "last-modified"}
 )
-_BEARER_PATTERN = re.compile(r"Bearer [A-Za-z0-9\-._~+/]+=*")
+_BEARER_PATTERN = re.compile(r"Bearer [A-Za-z0-9\-._~+/]+=*", re.IGNORECASE)
 
 
 class AuthoritativeReadProxy:
