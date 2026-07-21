@@ -1,7 +1,7 @@
 ---
 title: 사용자 RBAC와 Entra 아이덴티티
 translation_of: user-rbac-and-identity.md
-translation_source_sha: 073572afdfe94d4fe0feba0365bfe5c6c681ba92
+translation_source_sha: 0d1e1a98468a4a3673fd2ebcafb6a6361dbc0e81
 translation_revised: 2026-07-21
 ---
 
@@ -351,6 +351,10 @@ manifest template, 사람 OID와 GitHub 로그인 mapping provider 및 governanc
   기다립니다. 토큰 획득이 멈추면 현재 패널을 계속 로드 상태로 두지 않고 재시도 작업이 있는
   인증 오류를 표시합니다. 포크의 아이덴티티 정책에 다른 제한 시간이 필요한 경우
   `VITE_AUTH_TOKEN_TIMEOUT_MS`를 양의 정수로 설정할 수 있습니다.
+- **만료된 API 세션**: 구성된 read 또는 ingestion API가 `401`을 반환하면 현재 data surface를
+  닫고 전체 화면 sign-in recovery view로 전환합니다. Standard read, chat, workflow, command,
+  SSE stream에 동일하게 적용합니다. Identity provider 요청과 `403` access decision은 이 전환을
+  시작하지 않습니다.
 - **사인아웃**: `/logout?post_logout_redirect_uri=...` 이 콘솔 세션과 테넌트의 Entra 세션
   모두 클리어.
 

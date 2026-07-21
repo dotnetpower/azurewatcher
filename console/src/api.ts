@@ -12,6 +12,7 @@ import {
   isOptionalReadApiUnavailable,
   ReadApiError,
   ReadApiTransport,
+  type ReadApiTransportOptions,
 } from "./api-transport";
 import { IamApiClient } from "./api-iam-client";
 import { InsightsApiClient } from "./api-insights-client";
@@ -51,8 +52,12 @@ export class ReadApiClient {
   readonly #iam: IamApiClient;
   readonly #reporting: ReportingApiClient;
 
-  constructor(config: ConsoleConfig, auth: AuthContext) {
-    this.#transport = new ReadApiTransport(config, auth);
+  constructor(
+    config: ConsoleConfig,
+    auth: AuthContext,
+    options: ReadApiTransportOptions = {},
+  ) {
+    this.#transport = new ReadApiTransport(config, auth, options);
     this.#operations = new OperationsApiClient(this.#transport);
     this.#insights = new InsightsApiClient(this.#transport);
     this.#iam = new IamApiClient(this.#transport);

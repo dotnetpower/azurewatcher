@@ -13,16 +13,27 @@ export class ReadApiError extends Error {
 }
 
 export function isOptionalReadApiUnavailable(error: unknown): error is ReadApiError {
-  return error instanceof ReadApiError && (error.status === 404 || error.status === 501);
+  return error instanceof ReadApiError
+    && (error.status === 404 || error.status === 501 || error.status === 503);
+}
+
+export interface ReadApiTransportOptions {
+  readonly onUnauthorized?: (error: ReadApiError) => void;
 }
 
 export class ReadApiTransport {
   readonly #config: ConsoleConfig;
   readonly #auth: AuthContext;
+  readonly #onUnauthorized: ((error: ReadApiError) => void) | undefined;
 
-  constructor(config: ConsoleConfig, auth: AuthContext) {
+  constructor(
+    config: ConsoleConfig,
+    auth: AuthContext,
+    options: ReadApiTransportOptions = {},
+  ) {
     this.#config = config;
     this.#auth = auth;
+    this.#onUnauthorized = options.onUnauthorized;
   }
 
   get baseUrl(): string {
@@ -34,20 +45,33 @@ export class ReadApiTransport {
   };
 
   async #authorizationHeader(): Promise<string | null> {
-    const authHeader = await withTimeout(
-      this.#auth.getAuthorizationHeader(),
-      this.#config.authTokenTimeoutMs,
-      () => new ReadApiError(
-        401,
-        "Authentication token request timed out. Retry or sign in again.",
-      ),
-    );
+    let authHeader: string | null;
+    try {
+      authHeader = await withTimeout(
+        this.#auth.getAuthorizationHeader(),
+        this.#config.authTokenTimeoutMs,
+        () => new ReadApiError(
+          401,
+          "Authentication token request timed out. Retry or sign in again.",
+        ),
+      );
+    } catch (error) {
+      if (error instanceof ReadApiError && error.status === 401) {
+        this.#onUnauthorized?.(error);
+      }
+      throw error;
+    }
     if (
       authHeader === null
       && this.#auth.account !== null
       && this.#auth.localAzureCli !== true
     ) {
-      throw new ReadApiError(401, "Authentication token unavailable for signed-in account.");
+      const error = new ReadApiError(
+        401,
+        "Authentication token unavailable for signed-in account.",
+      );
+      this.#onUnauthorized?.(error);
+      throw error;
     }
     return authHeader;
   }
@@ -89,7 +113,9 @@ export class ReadApiTransport {
       } catch {
         /* body was not JSON - fall through */
       }
-      throw new ReadApiError(response.status, message);
+      const error = new ReadApiError(response.status, message);
+      if (response.status === 401) this.#onUnauthorized?.(error);
+      throw error;
     }
     return response;
   }

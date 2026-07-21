@@ -37,6 +37,7 @@ afterEach(() => {
 describe("read API authentication boundary", () => {
   test("fails closed when a signed-in Entra account has no bearer token", async () => {
     const fetchMock = vi.fn();
+    const onUnauthorized = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const transport = new ReadApiTransport(config, auth({
       account: {
@@ -44,12 +45,15 @@ describe("read API authentication boundary", () => {
         localAccountId: "user-1",
         username: "user@example.com",
       },
-    }));
+    }), { onUnauthorized });
 
     await expect(transport.getJson("/iam/self")).rejects.toEqual(
       expect.objectContaining<Partial<ReadApiError>>({ status: 401 }),
     );
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(onUnauthorized).toHaveBeenCalledWith(
+      expect.objectContaining<Partial<ReadApiError>>({ status: 401 }),
+    );
   });
 
   test("fails closed when silent token acquisition stalls", async () => {
@@ -103,5 +107,24 @@ describe("read API authentication boundary", () => {
     }));
 
     await expect(transport.getJson("/healthz")).resolves.toEqual({ ok: true });
+  });
+
+  test("reports an HTTP 401 through the authentication boundary", async () => {
+    const onUnauthorized = vi.fn();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(
+      { error: { status: 401, message: "Authorization header missing" } },
+      { status: 401 },
+    )));
+    const transport = new ReadApiTransport(config, auth(), { onUnauthorized });
+
+    await expect(transport.getJson("/kpi")).rejects.toEqual(
+      expect.objectContaining<Partial<ReadApiError>>({ status: 401 }),
+    );
+    expect(onUnauthorized).toHaveBeenCalledWith(
+      expect.objectContaining<Partial<ReadApiError>>({
+        status: 401,
+        message: "Authorization header missing",
+      }),
+    );
   });
 });

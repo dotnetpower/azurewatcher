@@ -3,6 +3,7 @@ import { lazy, Suspense } from "preact/compat";
 import { ReadApiClient } from "./api";
 import type { AuthContext } from "./auth";
 import { initAuth } from "./auth";
+import { observeUnauthorizedApiResponses } from "./auth-response";
 import {
   shouldAllowLocalDevBypass,
   shouldLoadIamSelf,
@@ -114,6 +115,7 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
+    let stopObservingUnauthorized = () => {};
     (async () => {
       try {
         const config = loadConfig();
@@ -122,7 +124,32 @@ export function App() {
           clearLocalAuthBypass();
           if (!cancelled) setLocalDevBypass(false);
         }
-        const client = new ReadApiClient(config, auth);
+        let client: ReadApiClient;
+        client = new ReadApiClient(config, auth, {
+          onUnauthorized: (error) => {
+            if (cancelled) return;
+            setState({
+              status: "access-error",
+              config,
+              auth,
+              client,
+              error: error.message,
+            });
+          },
+        });
+        stopObservingUnauthorized = observeUnauthorizedApiResponses(
+          [config.readApiBaseUrl, config.ingestionApiBaseUrl],
+          (error) => {
+            if (cancelled) return;
+            setState({
+              status: "access-error",
+              config,
+              auth,
+              client,
+              error: error.message,
+            });
+          },
+        );
         let iamSelf: IamSelfStatus | undefined;
         if (shouldLoadIamSelf(auth)) {
           try {
@@ -169,6 +196,7 @@ export function App() {
     })();
     return () => {
       cancelled = true;
+      stopObservingUnauthorized();
       setChatAuth(null);
       setUserContextAuth(null);
     };

@@ -363,6 +363,10 @@ recommendations; a fork tunes them via Conditional Access.
   retry action instead of leaving the current panel loading indefinitely. A fork can set
   `VITE_AUTH_TOKEN_TIMEOUT_MS` to a positive integer when its identity policy needs a
   different bound.
+- **Expired API session**: a `401` from the configured read or ingestion API closes the current
+  data surface and switches to the full-screen sign-in recovery view. This applies to standard
+  reads, chat, workflows, commands, and SSE streams. Identity-provider requests and `403` access
+  decisions don't trigger this transition.
 - **Sign-out**: `/logout?post_logout_redirect_uri=...` clears both console session and the
   Entra session for the tenant.
 
