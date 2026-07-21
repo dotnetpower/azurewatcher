@@ -1,6 +1,5 @@
+import { defineConfig, loadEnv } from "vite";
 import preact from "@preact/preset-vite";
-import { loadEnv } from "vite";
-import { defineConfig } from "vitest/config";
 
 // Console SPA build config.
 //
@@ -29,9 +28,6 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5273,
       strictPort: true,
-    },
-    test: {
-      exclude: ["tests/e2e/**", "node_modules/**", "dist/**"],
     },
   };
 });
