@@ -163,6 +163,18 @@ class EventHubsKafkaBus(EventBus):
                 await self._producer.stop()
                 self._producer = None
 
+    async def _discard_failed_producer(
+        self,
+        producer: AIOKafkaProducer,
+        *,
+        operation: str,
+    ) -> None:
+        async with self._producer_lock:
+            if self._producer is not producer:
+                return
+            self._producer = None
+            await _stop_after_failure(producer, operation=operation)
+
     async def publish(
         self,
         topic: str,
@@ -170,11 +182,15 @@ class EventHubsKafkaBus(EventBus):
         payload: Mapping[str, Any],
     ) -> PublishReceipt:
         producer = await self._get_producer()
-        record_meta = await producer.send_and_wait(
-            topic,
-            value=_encode(payload),
-            key=key.encode("utf-8"),
-        )
+        try:
+            record_meta = await producer.send_and_wait(
+                topic,
+                value=_encode(payload),
+                key=key.encode("utf-8"),
+            )
+        except BaseException:
+            await self._discard_failed_producer(producer, operation="publish")
+            raise
         return PublishReceipt(
             topic=record_meta.topic,
             partition=record_meta.partition,
@@ -206,12 +222,16 @@ class EventHubsKafkaBus(EventBus):
         # rewriting the payload - the payload MUST arrive at the DLQ as-is
         # per csp-neutrality.md § 1.
         producer = await self._get_producer()
-        await producer.send_and_wait(
-            dlq,
-            value=_encode(payload),
-            key=key.encode("utf-8"),
-            headers=[("dlq_reason", reason.encode("utf-8"))],
-        )
+        try:
+            await producer.send_and_wait(
+                dlq,
+                value=_encode(payload),
+                key=key.encode("utf-8"),
+                headers=[("dlq_reason", reason.encode("utf-8"))],
+            )
+        except BaseException:
+            await self._discard_failed_producer(producer, operation="dead_letter")
+            raise
 
 
 async def _iter_consumer(

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
@@ -180,6 +181,42 @@ async def test_producer_start_failure_stops_partial_producer(
     assert len(instances) == 1
     assert instances[0].stopped is True
     assert vars(bus)["_producer"] is None
+
+
+@pytest.mark.asyncio
+async def test_publish_failure_discards_cached_producer_for_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instances: list[_RecoveringProducer] = []
+
+    class _RecoveringProducer:
+        def __init__(self, **_kwargs: object) -> None:
+            self.index = len(instances)
+            self.stopped = False
+            instances.append(self)
+
+        async def start(self) -> None:
+            return None
+
+        async def stop(self) -> None:
+            self.stopped = True
+
+        async def send_and_wait(self, topic: str, **_kwargs: object) -> object:
+            if self.index == 0:
+                raise RuntimeError("producer transport failed")
+            return SimpleNamespace(topic=topic, partition=1, offset=9)
+
+    monkeypatch.setattr(event_bus_module, "AIOKafkaProducer", _RecoveringProducer)
+    bus = EventHubsKafkaBus(identity=_StaticIdentity(), config=_cfg())
+
+    with pytest.raises(RuntimeError, match="producer transport failed"):
+        await bus.publish("aw.control.events", "event-1", {"event_id": "event-1"})
+
+    receipt = await bus.publish("aw.control.events", "event-2", {"event_id": "event-2"})
+    assert len(instances) == 2
+    assert instances[0].stopped is True
+    assert receipt.partition == 1
+    assert receipt.offset == 9
 
 
 @pytest.mark.asyncio
