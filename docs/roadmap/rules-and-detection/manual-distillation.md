@@ -109,8 +109,9 @@ concerns a naive connector skips but distillation must answer:
 
 - **Source ACL provenance.** Record *who was allowed to read* the source doc in
   `provenance`. A rule distilled from a restricted security runbook must not leak
-  that runbook's text into an audit entry or a generated PR body - L0 stays English
-  and secret-free
+  that runbook's text into an audit entry or a generated PR body. Stable machine-record keys
+  stay English, human-facing prose may follow the configured locale, and every surface remains
+  secret-free
   ([coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md)).
 - **Sensitivity gate.** A doc the service account *can* read may still be one it
   should not distill blindly: HR material, incident post-mortems naming customers, or
@@ -194,8 +195,9 @@ manual (PDF / wiki / docs)
   -> enforce
 ```
 
-Step 2 is the only place an LLM runs, and it runs **once per manual revision**, not
-per event. Everything after step 2 is deterministic verification plus a human gate.
+Model calls are confined to offline candidate extraction and source-fidelity validation
+(back-translation and mixed-model comparison). They run **once per manual revision**, not per
+event. Structural, shadow, and regression gates after that are deterministic plus human review.
 
 ## Verifying the distillation
 
@@ -294,6 +296,9 @@ customer-connector parts are fork seams with abstaining defaults.
 | Coverage diff | `analyze_coverage` | `rule_catalog/pipeline/distill/coverage.py` |
 | Compile seam | `Distiller` (abstaining default extracts nothing) | `shared/providers/distiller.py` |
 | Orchestrator + CLI | `build_distillation_plan`, `distill_cli` | `rule_catalog/pipeline/distill/orchestrator.py`, `distill_cli.py` |
+| Source parser id | `manual-distill` source-manifest parser | `rule_catalog/schema/source_manifest.schema.json` |
+| Container wiring | `distiller`, default `AbstainingDistiller` | `composition/` |
+| Back-translation | Not implemented; tracked as backlog | - |
 
 The deterministic stages run upstream with no fork work. The `ManualClassifier`
 and `Distiller` seams stay abstaining upstream (no model shipped), so an unwired
@@ -320,25 +325,6 @@ LLM-backed implementations and any siloed-source connector via the seam recipe i
   which many enterprises forbid for external frontier models. The fork pins the
   extraction model to an in-tenant / no-training deployment (or a local model) so the
   manual never leaves the trust boundary; the choice is fork config, never hardcoded.
-
-## Implementation status
-
-Upstream ships the generic, customer-agnostic pieces of this design in code; the
-LLM-backed extraction and the manuals themselves stay fork-owned.
-
-| Piece | Status | Where |
-|---|---|---|
-| Distiller seam (contracts + Protocol + abstaining default) | shipped | [shared/providers/distiller.py](../../../src/fdai/shared/providers/distiller.py) |
-| Coverage diff (deterministic false-negative guard) | shipped | [pipeline/distill/coverage.py](../../../src/fdai/rule_catalog/pipeline/distill/coverage.py) |
-| `manual-distill` source parser id | shipped | [source_manifest.schema.json](../../../src/fdai/rule_catalog/schema/source_manifest.schema.json) |
-| Container binding (`distiller`, default `AbstainingDistiller`) | shipped | [composition](../../../src/fdai/composition/) |
-| LLM extraction (prose -> candidates) | fork | a fork registers a `Distiller` |
-| Back-translation round-trip | backlog | - |
-
-The upstream default `AbstainingDistiller` extracts nothing, so with no fork binding
-the pipeline promotes nothing - the fail-safe. The coverage diff is a pure
-deterministic function (section-heading + normative-term counting, fenced code
-skipped) and runs without any model.
 
 ## Next steps
 
