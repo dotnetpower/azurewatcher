@@ -148,8 +148,8 @@ explicit subscription disables persistent cache reuse rather than risking a snap
 active Azure CLI subscription. The cache envelope also binds the resource limit, rejects malformed
 or materially future-dated snapshots, and bounds each local refresh to 240 seconds. Cache-file or
 marker I/O failure preserves the last complete in-memory graph. Marker write failure falls back to
-TTL convergence; marker metadata read failure or a timestamp equal to the snapshot is treated as
-stale and schedules refresh rather than trusting uncertain cache state.
+TTL convergence; marker metadata read failure is treated as stale and schedules refresh rather than
+trusting uncertain cache state.
 
 ## Parity Contract (MUST)
 

@@ -483,18 +483,6 @@ def test_invalidation_marker_refreshes_cache_before_ttl(tmp_path: Path) -> None:
     assert inventory.calls == 1
 
 
-def test_equal_invalidation_timestamp_fails_closed(tmp_path: Path) -> None:
-    marker = tmp_path / "inventory.invalidated"
-    marker.write_text("changed\n", encoding="ascii")
-    provider = AzureCliInventoryGraphProvider(
-        inventory=_Inventory(),
-        invalidation_path=marker,
-    )
-    provider._cached_at_utc = datetime.fromtimestamp(marker.stat().st_mtime, tz=UTC)
-
-    assert provider._cache_invalidated() is True
-
-
 def test_invalidation_metadata_error_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
