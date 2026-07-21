@@ -1462,6 +1462,11 @@ open. Canvas visualizations provide an equivalent keyboard and screen-reader
 resource selector, and composite tab widgets move DOM focus together with
 roving selection.
 
+During bootstrap, the SPA verifies the signed-in principal through authenticated
+`GET /iam/self` before opening console data. A transport failure keeps data closed and renders the
+full-screen sign-in recovery surface with access-check retry and sign-in actions. It does not start
+an automatic sign-in redirect because an unreachable read API would create a redirect loop.
+
 Time-bound and aggregate evidence remains conservative while a route stays
 open. Approval and Operator Memory rows cross their recorded TTL boundary
 without requiring a reload; Architecture continuously advances snapshot age

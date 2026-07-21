@@ -198,28 +198,18 @@ export function App() {
       return <div class="empty error">Internal state missing.</div>;
     }
     return (
-      <div class="empty error" role="alert">
-        <p>{t("accessRequired.checkFailed")}</p>
-        <p class="mono">{state.error}</p>
-        <button
-          type="button"
-          onClick={() => {
-            setState({ status: "loading" });
-            void client.iamSelf().then(
-              (iamSelf) => setState({ status: "ready", config, auth, client, iamSelf }),
-              (reason: unknown) => setState({
-                status: "access-error",
-                config,
-                auth,
-                client,
-                error: reason instanceof Error ? reason.message : String(reason),
-              }),
-            );
+      <Suspense fallback={null}>
+        <LoginRoute
+          auth={auth}
+          accessRecovery={{
+            error: state.error ?? t("accessRequired.checkFailed"),
+            retry: async () => {
+              const iamSelf = await client.iamSelf();
+              setState({ status: "ready", config, auth, client, iamSelf });
+            },
           }}
-        >
-          {t("accessRequired.retry")}
-        </button>
-      </div>
+        />
+      </Suspense>
     );
   }
 

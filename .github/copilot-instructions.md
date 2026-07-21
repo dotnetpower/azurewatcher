@@ -26,6 +26,9 @@ that context is missing or stale. A more specific instruction wins a conflict.
 6. Human App Roles and the executor workload identity stay distinct. No self-approval.
 7. Azure is the implemented target. Keep provider contracts neutral; non-Azure adapters are
    out of scope until explicitly approved.
+8. After a coherent user-requested change is complete and validated, commit it before reporting
+  completion unless the user says not to commit. Stage only files and hunks owned by that task;
+  never include unrelated worktree changes, and never commit failed or incomplete work.
 
 ## Issue Lifecycle (MUST)
 

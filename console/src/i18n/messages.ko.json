@@ -894,6 +894,7 @@
     "checking": "액세스 확인 중...",
     "checkFailed": "FDAI가 액세스를 확인하지 못했습니다. 콘솔 데이터는 열리지 않았습니다.",
     "retry": "액세스 확인 다시 시도",
+    "recoveryHint": "Read API 연결을 다시 시도하세요. ID 세션이 만료되었다면 다시 로그인하세요.",
     "signOut": "로그아웃",
     "signingOut": "로그아웃 중..."
   },
@@ -903,6 +904,7 @@
     "subtitle": "자율 클라우드 운영 control plane",
     "localSubtitle": "ID 세션을 선택하거나 로컬 개발 권한 상한으로 계속하세요.",
     "signInEntra": "Entra ID로 로그인",
+    "signInAgain": "다시 로그인",
     "signingIn": "로그인 시작 중...",
     "signInFailed": "로그인 실패: {error}",
     "continueDev": "Dev mode로 계속",

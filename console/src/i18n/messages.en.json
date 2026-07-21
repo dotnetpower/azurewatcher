@@ -900,6 +900,7 @@
     "checking": "Checking access...",
     "checkFailed": "FDAI could not verify your access. No console data was opened.",
     "retry": "Retry access check",
+    "recoveryHint": "Retry the read API connection. If the identity session expired, sign in again.",
     "signOut": "Sign out",
     "signingOut": "Signing out..."
   },
@@ -909,6 +910,7 @@
     "subtitle": "Autonomous cloud operations control plane",
     "localSubtitle": "Choose an identity session or continue with the local development ceiling.",
     "signInEntra": "Sign in with Entra ID",
+    "signInAgain": "Sign in again",
     "signingIn": "Starting sign-in...",
     "signInFailed": "Sign-in failed: {error}",
     "continueDev": "Continue in dev mode",
