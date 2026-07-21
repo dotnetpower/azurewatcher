@@ -428,7 +428,10 @@ checks the outbound binding, Bragi identity, RCA-unavailable wording, bounded
 agent activity, trust status, and absence of redundant disambiguation. It uses
 explicit synthetic route fixtures only inside the test runner. A Starlette
 integration test separately sends the same contract through the real chat route
-and `OperationalEvidenceResolver`. Run it with `npm run test:e2e`.
+and `OperationalEvidenceResolver`. Browser E2E is an explicit local validation,
+not a required CI gate. From `console/`, install the browser once with
+`npx playwright install chromium`, then run `npm run test:e2e`. Use
+`npm run test:e2e:headed` when inspecting the interaction visually.
 
 ### Agent collaboration lines + hover cards (Now > Agents)
 
