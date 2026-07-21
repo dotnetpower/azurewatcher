@@ -17,8 +17,18 @@ bootstrap="$($TERRAFORM_BIN -chdir="$REPO_ROOT/infra" output -raw event_bus_kafk
 topics_json="$($TERRAFORM_BIN -chdir="$REPO_ROOT/infra" output -json event_bus_topics)"
 auxiliary_topics_json="$($TERRAFORM_BIN -chdir="$REPO_ROOT/infra" output -json event_bus_auxiliary_topics 2>/dev/null || printf '[]')"
 resource_group="$($TERRAFORM_BIN -chdir="$REPO_ROOT/infra" output -raw resource_group_name)"
+executor_identity_resource_id="$($TERRAFORM_BIN -chdir="$REPO_ROOT/infra" output -raw executor_identity_resource_id)"
 subscription_id="$(env -u AZURE_CONFIG_DIR "$AZ_BIN" account show --query id -o tsv)"
 tenant_id="$(env -u AZURE_CONFIG_DIR "$AZ_BIN" account show --query tenantId -o tsv)"
+if [[ ! "$executor_identity_resource_id" =~ ^/subscriptions/([^/]+)/resourceGroups/ ]]; then
+  echo "executor_identity_resource_id is not a valid Azure resource ID" >&2
+  exit 1
+fi
+deployment_subscription_id="${BASH_REMATCH[1]}"
+if [[ "${subscription_id,,}" != "${deployment_subscription_id,,}" ]]; then
+  echo "active Azure CLI subscription does not match the applied Terraform deployment" >&2
+  exit 1
+fi
 region="$(env -u AZURE_CONFIG_DIR "$AZ_BIN" group show --name "$resource_group" --query location -o tsv)"
 event_topic="$(printf '%s' "$topics_json" | "$REPO_ROOT/.venv/bin/python" -c '
 import json, sys

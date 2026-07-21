@@ -1,7 +1,7 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: e89d5e14db9844f5aa29457140d117906ac89f37
+translation_source_sha: 26f289680dcd97a8b08ab18f0e474a002c727f07
 translation_revised: 2026-07-21
 ---
 
@@ -77,6 +77,10 @@ Event Hubs가 설정되면 agent는 전용 local consumer group으로 Azure tran
 설정되지 않으면 local in-process EventBus가 실제 Pantheon message를 전달하고 agent SSE snapshot을
 제공합니다. 이 adapter는 Azure evidence, durable state 또는 execution authority를 만들지 않습니다.
 Kafka가 구성된 topic을 startup 중 거부하면 Event Hubs adapter는 오류를 전달하기 전에 실패한 consumer를 닫습니다.
+
+Local runtime environment generator는 applied Terraform output에서 transport setting을 읽습니다.
+Terraform executor identity resource ID에 포함된 subscription과 활성 Azure CLI subscription을
+비교하고 둘이 다르면 resource 조회나 파일 생성 전에 중단합니다.
 
 Workflow definition은 deployment와 같은 enforce allowlist를 사용하며 각 ActionType은
 authoritative promotion 및 risk gate의 적용을 받습니다. Enforce workflow에는 계속 Azure event

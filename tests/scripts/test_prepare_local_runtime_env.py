@@ -39,6 +39,8 @@ def test_prepares_deployed_transport_without_copying_stale_transport(tmp_path: P
         '  printf \'["aw.pipeline.stages","aw.inventory.raw"]\'\n'
         'elif [[ "$*" == *"output -raw resource_group_name"* ]]; then\n'
         "  printf 'rg-example'\n"
+        'elif [[ "$*" == *"output -raw executor_identity_resource_id"* ]]; then\n'
+        "  printf '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-example/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-example'\n"
         "else\n"
         "  exit 2\n"
         "fi\n",
@@ -125,6 +127,8 @@ def test_omits_inventory_invalidation_topic_until_provisioned(tmp_path: Path) ->
         "  exit 1\n"
         'elif [[ "$*" == *"output -raw resource_group_name"* ]]; then\n'
         "  printf 'rg-example'\n"
+        'elif [[ "$*" == *"output -raw executor_identity_resource_id"* ]]; then\n'
+        "  printf '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-example/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-example'\n"
         "else\n"
         "  exit 2\n"
         "fi\n",
@@ -164,3 +168,67 @@ def test_omits_inventory_invalidation_topic_until_provisioned(tmp_path: Path) ->
 
     assert "FDAI_INVENTORY_RAW_TOPIC=" not in output.read_text(encoding="utf-8")
     assert "invalidation uses TTL refresh" in completed.stderr
+
+
+def test_rejects_cli_subscription_that_differs_from_terraform(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    (repo / "console").mkdir(parents=True)
+    (repo / "infra").mkdir()
+    (repo / ".venv/bin").mkdir(parents=True)
+    (repo / ".venv/bin/python").symlink_to(Path(os.sys.executable))
+    (repo / "console/.env.local").write_text("VITE_DEV_MODE=0\n", encoding="utf-8")
+    terraform = tmp_path / "terraform"
+    terraform.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [[ "$*" == *"output -raw event_bus_kafka_bootstrap"* ]]; then\n'
+        "  printf 'example.servicebus.windows.net:9093'\n"
+        'elif [[ "$*" == *"output -json event_bus_topics"* ]]; then\n'
+        '  printf \'["aw.change.events"]\'\n'
+        'elif [[ "$*" == *"output -json event_bus_auxiliary_topics"* ]]; then\n'
+        "  printf '[]'\n"
+        'elif [[ "$*" == *"output -raw resource_group_name"* ]]; then\n'
+        "  printf 'rg-example'\n"
+        'elif [[ "$*" == *"output -raw executor_identity_resource_id"* ]]; then\n'
+        "  printf '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-example/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-example'\n"
+        "else\n"
+        "  exit 2\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    terraform.chmod(0o755)
+    az = tmp_path / "az"
+    az.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [[ "$*" == *"account show --query id"* ]]; then\n'
+        "  printf '00000000-0000-0000-0000-000000000099'\n"
+        'elif [[ "$*" == *"account show --query tenantId"* ]]; then\n'
+        "  printf '00000000-0000-0000-0000-000000000002'\n"
+        'elif [[ "$*" == *"group show"* ]]; then\n'
+        "  echo 'group lookup MUST NOT run after a subscription mismatch' >&2\n"
+        "  exit 3\n"
+        "else\n"
+        "  exit 2\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    az.chmod(0o755)
+    output = repo / ".fdai/local-runtime.env"
+
+    completed = subprocess.run(  # noqa: S603 - test-controlled binaries
+        [_BASH, str(_SCRIPT), str(output)],
+        check=False,
+        cwd=_REPO_ROOT,
+        env={
+            **os.environ,
+            "FDAI_REPO_ROOT": str(repo),
+            "FDAI_TERRAFORM_BIN": str(terraform),
+            "FDAI_AZ_BIN": str(az),
+        },
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "does not match the applied Terraform deployment" in completed.stderr
+    assert "group lookup MUST NOT run" not in completed.stderr
+    assert not output.exists()

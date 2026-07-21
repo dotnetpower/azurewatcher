@@ -75,6 +75,10 @@ the local in-process EventBus carries real Pantheon messages and exposes the age
 does not create Azure evidence, durable state, or execution authority. If Kafka rejects a configured
 topic during startup, the Event Hubs adapter closes the failed consumer before surfacing the error.
 
+The local runtime environment generator reads transport settings from the applied Terraform
+outputs. It compares the subscription encoded in the Terraform executor identity resource ID with
+the active Azure CLI subscription and stops before resource lookup or file creation when they differ.
+
 Workflow definitions use the same enforce allowlist as deployment, while each ActionType remains
 subject to its authoritative promotion and risk gates. Enforce workflows still require Azure event
 transport. Thor does not receive the developer's credential: privileged execution remains in the
