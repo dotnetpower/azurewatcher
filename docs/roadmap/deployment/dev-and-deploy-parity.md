@@ -103,7 +103,9 @@ until their own evidence contract verifies them.
 profiles. Configuring both stops startup before either provider is constructed so the manifest can
 never describe local PostgreSQL while allowlisted requests are served by the remote API.
 Remote forwarding matches only decoded canonical allowlisted paths; normalized, encoded,
-duplicated-separator, and control-character variants remain local.
+duplicated-separator, and control-character variants remain local. It discards upstream cache
+directives and emits `Cache-Control: no-store` for every proxied response so authenticated
+operational evidence never enters a browser or shared cache.
 
 Runtime skill inspection follows the same rule. Production reconstructs the enabled catalog from
 signed PostgreSQL trusted-artifact records before accepting traffic. Interactive local exposes the

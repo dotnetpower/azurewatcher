@@ -41,7 +41,7 @@ _EXACT_PATHS: frozenset[str] = frozenset(
 )
 _PREFIX_PATHS: tuple[str, ...] = ("/reports/", "/views/process/")
 _FORWARDED_RESPONSE_HEADERS: frozenset[str] = frozenset(
-    {"cache-control", "content-disposition", "content-type", "etag", "last-modified"}
+    {"content-disposition", "content-type", "etag", "last-modified"}
 )
 
 
@@ -93,6 +93,7 @@ class AuthoritativeReadProxy:
                     for name, value in response.headers.items()
                     if name.lower() in _FORWARDED_RESPONSE_HEADERS
                 ]
+                headers.append((b"cache-control", b"no-store"))
                 await send(
                     {
                         "type": "http.response.start",

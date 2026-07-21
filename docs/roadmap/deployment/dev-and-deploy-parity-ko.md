@@ -1,7 +1,7 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: f6dd8784ae3af16167635c4eb2fa8b272732a801
+translation_source_sha: 74297d10fb90468cf13feef60e0b39f0b6f94b8d
 translation_revised: 2026-07-21
 ---
 
@@ -107,7 +107,9 @@ contract가 검증할 때까지 `unknown`을 유지합니다.
 선택합니다. 둘을 함께 구성하면 provider를 만들기 전에 startup을 중단하므로 manifest가 local
 PostgreSQL을 설명하면서 allowlist request를 remote API가 처리하는 상태를 허용하지 않습니다.
 Remote forwarding은 decoded canonical allowlisted path만 일치시키며 normalized, encoded, 중복
-separator 및 control-character variant는 local에 유지합니다.
+separator 및 control-character variant는 local에 유지합니다. Upstream cache directive를 폐기하고
+모든 proxy response에 `Cache-Control: no-store`를 보내므로 인증된 operational evidence가 browser
+또는 shared cache에 저장되지 않습니다.
 
 Runtime skill inspection도 같은 규칙을 따릅니다. Production은 traffic을 받기 전에 signed
 PostgreSQL trusted-artifact record에서 enabled catalog를 재구성합니다. Interactive local은 durable

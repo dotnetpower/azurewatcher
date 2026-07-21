@@ -29,7 +29,11 @@ def test_proxy_forwards_only_allowlisted_gets_with_bearer_and_query() -> None:
 
     def remote(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json={"source": "remote", "query": request.url.query.decode()})
+        return httpx.Response(
+            200,
+            json={"source": "remote", "query": request.url.query.decode()},
+            headers={"cache-control": "public, max-age=3600"},
+        )
 
     remote_client = httpx.AsyncClient(transport=httpx.MockTransport(remote))
     proxy = AuthoritativeReadProxy(base_url="https://read.example.test", client=remote_client)
@@ -42,6 +46,7 @@ def test_proxy_forwards_only_allowlisted_gets_with_bearer_and_query() -> None:
         post = client.post("/kpi")
 
     assert response.json() == {"source": "remote", "query": "window=7d"}
+    assert response.headers.get_list("cache-control") == ["no-store"]
     assert seen[0].headers["authorization"] == "Bearer signed-token"
     assert local.json() == {"source": "local"}
     assert post.status_code == 405
