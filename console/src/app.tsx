@@ -125,45 +125,33 @@ export function App() {
           if (!cancelled) setLocalDevBypass(false);
         }
         let client: ReadApiClient;
+        const handleUnauthorized = (error: { readonly message: string }) => {
+          if (cancelled) return;
+          setState((current) => current.status === "access-error"
+            ? current
+            : {
+                status: "access-error",
+                config,
+                auth,
+                client,
+                error: error.message,
+              });
+        };
         client = new ReadApiClient(config, auth, {
-          onUnauthorized: (error) => {
-            if (cancelled) return;
-            setState({
-              status: "access-error",
-              config,
-              auth,
-              client,
-              error: error.message,
-            });
-          },
+          onUnauthorized: handleUnauthorized,
         });
         stopObservingUnauthorized = observeUnauthorizedApiResponses(
           [config.readApiBaseUrl, config.ingestionApiBaseUrl],
-          (error) => {
-            if (cancelled) return;
-            setState({
-              status: "access-error",
-              config,
-              auth,
-              client,
-              error: error.message,
-            });
-          },
+          handleUnauthorized,
         );
         let iamSelf: IamSelfStatus | undefined;
         if (shouldLoadIamSelf(auth)) {
           try {
             iamSelf = await client.iamSelf();
           } catch (err) {
-            if (!cancelled) {
-              setState({
-                status: "access-error",
-                config,
-                auth,
-                client,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
+            handleUnauthorized({
+              message: err instanceof Error ? err.message : String(err),
+            });
             return;
           }
         }

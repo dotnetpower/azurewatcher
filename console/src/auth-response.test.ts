@@ -42,4 +42,35 @@ describe("API unauthorized response observer", () => {
     expect(onUnauthorized).not.toHaveBeenCalled();
     stop();
   });
+
+  test("shares one wrapper and restores native fetch after reverse cleanup", async () => {
+    const nativeFetch = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
+    const firstUnauthorized = vi.fn();
+    const secondUnauthorized = vi.fn();
+    vi.stubGlobal("fetch", nativeFetch);
+    const stopFirst = observeUnauthorizedApiResponses(
+      ["http://127.0.0.1:8010"],
+      firstUnauthorized,
+    );
+    const sharedWrapper = globalThis.fetch;
+    const stopSecond = observeUnauthorizedApiResponses(
+      ["http://127.0.0.1:8010"],
+      secondUnauthorized,
+    );
+
+    expect(globalThis.fetch).toBe(sharedWrapper);
+    await fetch("http://127.0.0.1:8010/kpi");
+    expect(firstUnauthorized).toHaveBeenCalledOnce();
+    expect(secondUnauthorized).toHaveBeenCalledOnce();
+
+    stopSecond();
+    expect(globalThis.fetch).toBe(sharedWrapper);
+    await fetch("http://127.0.0.1:8010/kpi");
+    expect(firstUnauthorized).toHaveBeenCalledTimes(2);
+    expect(secondUnauthorized).toHaveBeenCalledOnce();
+
+    stopFirst();
+    stopFirst();
+    expect(globalThis.fetch).toBe(nativeFetch);
+  });
 });
