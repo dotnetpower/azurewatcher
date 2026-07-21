@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from fdai.core.quality_gate import (
@@ -264,6 +266,33 @@ async def test_grounding_disabled_does_not_require_citations() -> None:
 # ---------------------------------------------------------------------------
 # Cross-check paths
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cross_check_failure_cancels_and_drains_sibling_models() -> None:
+    from fdai.core.quality_gate._verification import cross_check_candidate
+
+    sibling_started = asyncio.Event()
+    sibling_cancelled = asyncio.Event()
+
+    class _FailingModel:
+        async def propose(self, candidate: QualityCandidate):
+            await sibling_started.wait()
+            raise RuntimeError("cross-check unavailable")
+
+    class _BlockingModel:
+        async def propose(self, candidate: QualityCandidate):
+            sibling_started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                sibling_cancelled.set()
+                raise
+
+    with pytest.raises(RuntimeError, match="cross-check unavailable"):
+        await cross_check_candidate(_candidate(), (_FailingModel(), _BlockingModel()))
+
+    assert sibling_cancelled.is_set()
 
 
 @pytest.mark.asyncio

@@ -64,7 +64,15 @@ async def cross_check_candidate(
 ) -> CrossCheckResult:
     from fdai.core.quality_gate.gate import ModelVote
 
-    proposals = await asyncio.gather(*(_propose_model(model, candidate) for model in models))
+    tasks = tuple(asyncio.create_task(_propose_model(model, candidate)) for model in models)
+    try:
+        proposals = await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
     agree = 0
     votes: list[ModelVote] = []
     first_proposer_output: tuple[str, Any] | None = None
