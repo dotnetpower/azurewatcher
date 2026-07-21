@@ -10,7 +10,14 @@ multiplier is claimed here; Phase 4 keeps the Phase 0 evidence current as the sy
 **Multi-cloud expansion is deferred (TBD)**; the sections below marked *TBD (deferred)* are
 retained as forward-looking design and are not built in this roadmap until a non-Azure target
 is explicitly scoped (see
-[Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)).
+[Always-On Rules](../../../.github/copilot-instructions.md#always-on-rules-must)).
+
+> **Implementation status**: The regression, pattern-growth, model-tracking, and latency-budget
+> libraries; two measurement runners; runner CLI; and Terraform job module are implemented.
+> Continuous production-schedule results, statistical Phase 4 exit evidence, and dedicated
+> vector-store or AKS runtimes are incomplete. The reference Container Apps deployment currently
+> uses `min_replicas = 1` without a KEDA scaling rule. Scale-to-zero is a target topology available
+> only after a fork adds a lag-based rule.
 
 This phase builds on the Phase 0-3 core and does not change it. It realizes the CSP-neutral
 principles in
@@ -67,7 +74,7 @@ customer-agnostic and Azure-only in intent (multi-cloud deliverables below stay 
 
 > This section is retained as **design invariant** for a future non-Azure target. It is
 > **not built in this phase**; see
-> [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must).
+> [Always-On Rules](../../../.github/copilot-instructions.md#always-on-rules-must).
 
 The core engine stays CSP-neutral; a new cloud would be added by implementing adapters, never
 by forking the core. The adapter surface is fixed and each adapter is added behind an existing
@@ -187,8 +194,9 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 
 ## Scalability and Performance
 
-- Preserve per-tier latency budgets and the event-driven, scale-to-zero posture on Azure as
-  event volume grows. Multi-cloud performance parity is TBD (deferred).
+- Preserve per-tier latency budgets as event volume grows on Azure. The current reference keeps at
+  least one replica; validate event-driven scale-to-zero only in deployments that add a KEDA lag
+  rule. Multi-cloud performance parity is TBD (deferred).
 - Graduate T1 vector search from pgvector to a dedicated vector store when the corpus or
   recall/latency targets demand it (criteria in [tech-stack.md](../architecture/tech-stack.md)); the state
   adapter keeps this transparent to the core.
@@ -233,7 +241,7 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
   temporal holdout.
 - **Multi-cloud portability is not an exit criterion for this phase** - it is deferred (TBD)
   and will be scoped in a future phase (see
-  [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)).
+  [Always-On Rules](../../../.github/copilot-instructions.md#always-on-rules-must)).
 
 ## Open Questions
 

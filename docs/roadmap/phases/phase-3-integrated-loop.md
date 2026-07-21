@@ -16,6 +16,13 @@ All RPO/RTO, savings, and lead-time figures here are **measured values reported 
 objectives on a fixed scenario set and measurement window** - never estimates or unbaselined
 multipliers (see [goals-and-metrics.md](../architecture/goals-and-metrics.md)).
 
+> **Implementation status**: Shared control-loop/risk/executor plumbing, cross-vertical
+> precedence, Resilience/Change Safety/FinOps guardrail modules, scheduler/DR adapters, DB restore
+> primitives, and Terraform per-vertical UAMIs are implemented. Production exit evidence for
+> measured RPO/RTO, savings, and lead time across all three verticals, live auto-action
+> composition, and the Assurance Twin ambient review/panel are incomplete. The automated behavior
+> and Exit Criteria below are targets, not claims of current attainment.
+
 ## Deliverables
 
 Each deliverable maps to a section below. The module reference lists the primary Python
@@ -163,8 +170,9 @@ isolated copy and never on the live production DB.
 - Every P3 action path has a **shadow-mode test** (judges and logs without mutating) and a
   **rollback test** (rollback restores prior state); DB-DR adds an **integrity-verification
   regression test** on fixture snapshots.
-- Fixtures for DR schedules, FinOps candidates, and rule entries are English and secret-free,
-  following the normalized rule schema
+- Fixtures for DR schedules, FinOps candidates, and rule entries contain no secrets or customer
+  values. Stable keys, identifiers, and paths stay ASCII/English; natural-language values may be
+  English or Korean. They follow the normalized rule schema
   ([coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md)).
 
 ## Exit Criteria
@@ -200,4 +208,4 @@ Each criterion is measurable on the fixed scenario set and measurement window
 - Feeds **P4** ([phase-4-scale.md](phase-4-scale.md)): the integrated autonomous MVP is P4's
   starting point for continuous measurement, pattern-library growth, and model tracking on
   the Azure baseline. **Multi-cloud expansion is TBD** (see
-  [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)).
+  [Always-On Rules](../../../.github/copilot-instructions.md#always-on-rules-must)).

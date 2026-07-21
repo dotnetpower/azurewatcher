@@ -1,8 +1,8 @@
 ---
 title: Phase 3 - 통합 컨트롤 루프 (Resilience · Change Safety · Cost Governance)
 translation_of: phase-3-integrated-loop.md
-translation_source_sha: 40312066a94ff17707045e4acc9187b8ff2f936d
-translation_revised: 2026-07-11
+translation_source_sha: b0c323cc76362474063665f7eb88eb4ea25ac43c
+translation_revised: 2026-07-21
 ---
 
 # Phase 3 - 통합 컨트롤 루프 (Resilience · Change Safety · Cost Governance)
@@ -18,6 +18,13 @@ P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
 여기의 모든 RPO/RTO, 절감, lead-time 수치는 **명시된 목표에 대해 고정 시나리오 세트와 측정
 윈도우에서 보고된 측정값** - 절대 추정치나 unbaselined 배수 아님
 ([goals-and-metrics-ko.md](../architecture/goals-and-metrics-ko.md) 참조).
+
+> **구현 상태**: Shared control-loop/risk/executor plumbing, cross-vertical precedence,
+> Resilience/Change Safety/FinOps guardrail modules, scheduler/DR adapters, DB restore primitives 및
+> Terraform per-vertical UAMI는 구현되어 있습니다. Production에서 세 vertical을 모두 연결한
+> measured RPO/RTO, savings, lead-time exit evidence, live auto-action composition 및 Assurance Twin
+> ambient review/panel은 완료되지 않았습니다. 아래 자동 동작과 Exit 기준은 목표이며 현재 달성
+> 주장으로 읽으면 안 됩니다.
 
 ## 산출물
 
@@ -148,7 +155,8 @@ Stateful 서비스는 stateless처럼 "kill and revive" 될 수 없으므로, DB
   "한 리소스의 동시 액션은 직렬화" property 테스트.
 - 모든 P3 액션 경로는 **shadow-mode 테스트**(변형 없이 판단·로그) 와 **rollback 테스트**(롤백이
   이전 상태 복원) 가짐; DB-DR은 픽스처 스냅샷에 **integrity-verification 회귀 테스트** 추가.
-- DR 스케줄, FinOps 후보, 규칙 엔트리 픽스처는 영문·시크릿 없음, 정규화 규칙 스키마 따름
+- DR 스케줄, FinOps 후보, 규칙 엔트리 픽스처는 시크릿과 고객 값이 없고 stable
+  key/identifier/path는 ASCII/English를 유지합니다. Natural-language 값은 한국어와 영어를 모두 허용하며 정규화 규칙 스키마를 따름
   ([coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md)).
 
 ## Exit 기준
@@ -182,5 +190,5 @@ Stateful 서비스는 stateless처럼 "kill and revive" 될 수 없으므로, DB
 - **P4** ([phase-4-scale-ko.md](phase-4-scale-ko.md)) 로 공급: 통합 자율 MVP가 Azure 베이스라인
   에서 지속 측정, 패턴-라이브러리 성장, 모델 추적을 위한 P4의 시작점. **멀티 클라우드 확장은
   TBD**
-  ([Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)
+  ([Always-On Rules](../../../.github/copilot-instructions.md#always-on-rules-must)
   참조).

@@ -1,8 +1,8 @@
 ---
 title: Phase 4 - 스케일 (Azure); 멀티 클라우드 (TBD)
 translation_of: phase-4-scale.md
-translation_source_sha: e11136472b61144dee57a3b5e92ad6d36ff97b5a
-translation_revised: 2026-07-15
+translation_source_sha: 58e63b94ce27df09508b255c5ae7ba659fa37eff
+translation_revised: 2026-07-21
 ---
 
 # Phase 4 - 스케일 (Azure); 멀티 클라우드 (TBD)
@@ -12,8 +12,15 @@ translation_revised: 2026-07-15
 대비 검증** 유지. 여기서 어떤 배수도 주장되지 않음; Phase 4는 시스템이 스케일할 때 Phase 0 증거를
 current하게 유지. **멀티 클라우드 확장은 연기(TBD)** ; 아래 *TBD (deferred)* 표시된 섹션은
 전방-지향 설계로 보존되며 비-Azure 대상이 명시적으로 스코프될 때까지 이 로드맵에서 구축되지 않음
-([Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)
+([Always-On Rules](../../../.github/copilot-instructions.md#always-on-rules-must)
 참조).
+
+> **구현 상태**: Regression, pattern-growth, model-tracking, latency-budget library와 두
+> measurement runner, runner CLI 및 Terraform job module은 구현되어 있습니다. Production
+> schedule의 지속 실행 결과, statistical Phase 4 exit evidence 및 dedicated vector-store/AKS
+> runtime은 완료되지 않았습니다. Reference Container Apps는 현재 `min_replicas = 1`이고 KEDA
+> scale rule이 없습니다. Scale-to-zero는 포크가 lag-based rule을 추가한 뒤에만 사용할 수 있는
+> 목표 topology입니다.
 
 이 phase는 Phase 0-3 코어 위에 구축되고 변경하지 않음.
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) 와
@@ -65,7 +72,7 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 ## Provider 어댑터 경계 (TBD - deferred)
 
 > 이 섹션은 향후 비-Azure 대상을 위한 **설계 불변식** 으로 보존. 이 phase에서 **구축되지 않음** ;
-> [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)
+> [Always-On Rules](../../../.github/copilot-instructions.md#always-on-rules-must)
 > 참조.
 
 코어 엔진은 CSP-중립 유지; 새 클라우드는 어댑터 구현으로 추가되지 절대 코어 포크로 추가되지
@@ -176,7 +183,8 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 
 ## 확장성과 성능
 
-- 이벤트 볼륨이 커질 때 Azure에서 티어별 지연 예산과 이벤트-기반, scale-to-zero 자세 보존.
+- 이벤트 볼륨이 커질 때 Azure에서 티어별 지연 예산을 보존합니다. 현재 reference는 최소 한
+  replica를 유지하며, event-driven scale-to-zero는 KEDA lag rule을 추가한 배포에서만 검증합니다.
   멀티 클라우드 성능 패리티는 TBD(연기).
 - 코퍼스나 recall/latency 목표가 요구할 때 T1 벡터 검색을 pgvector에서 전용 vector store로
   졸업([tech-stack-ko.md](../architecture/tech-stack-ko.md) 의 기준); state 어댑터가 이를 코어에 투명하게
@@ -220,7 +228,7 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
   을 올림.
 - **멀티 클라우드 이식성은 이 phase의 exit 기준이 아님** - 연기(TBD) 되며 향후 phase에서
   스코프될 예정
-  ([Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)
+  ([Always-On Rules](../../../.github/copilot-instructions.md#always-on-rules-must)
   참조).
 
 ## Open Questions
