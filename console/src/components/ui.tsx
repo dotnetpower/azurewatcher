@@ -60,6 +60,8 @@ export interface AsyncBoundaryProps<T> {
   readonly state: AsyncState<T>;
   /** Label describing what is loading, e.g. "audit log". */
   readonly resourceLabel: string;
+  /** Optional route-owned skeleton that preserves the final layout shape. */
+  readonly loading?: ComponentChildren;
   /** Optional custom idle view; defaults to the ready renderer being skipped. */
   readonly idle?: ComponentChildren;
   readonly children: (data: T) => JSX.Element;
@@ -68,6 +70,7 @@ export interface AsyncBoundaryProps<T> {
 export function AsyncBoundary<T>({
   state,
   resourceLabel,
+  loading,
   idle,
   children,
 }: AsyncBoundaryProps<T>) {
@@ -75,7 +78,7 @@ export function AsyncBoundary<T>({
     return <>{idle ?? null}</>;
   }
   if (state.status === "loading") {
-    return <LoadingState label={t("shared.loadingResource", { resource: resourceLabel })} />;
+    return <>{loading ?? <LoadingState label={t("shared.loadingResource", { resource: resourceLabel })} />}</>;
   }
   if (state.status === "unavailable") {
     return <UnavailableState message={state.message} />;
@@ -96,9 +99,18 @@ export function AsyncBoundary<T>({
 
 export function LoadingState({ label = t("shared.loading") }: { readonly label?: string }) {
   return (
-    <div class="state-block state-loading" role="status" aria-live="polite">
-      <span class="state-spinner" aria-hidden="true" />
-      <span>{label}</span>
+    <div class="loading-skeleton" role="status" aria-live="polite" aria-busy="true">
+      <span class="sr-only">{label}</span>
+      <div class="loading-skeleton-layout" aria-hidden="true">
+        <span class="skeleton-shimmer loading-skeleton-heading" />
+        <span class="skeleton-shimmer loading-skeleton-line" />
+        <div class="loading-skeleton-cards">
+          <span class="skeleton-shimmer" />
+          <span class="skeleton-shimmer" />
+          <span class="skeleton-shimmer" />
+        </div>
+        <span class="skeleton-shimmer loading-skeleton-panel" />
+      </div>
     </div>
   );
 }
@@ -120,7 +132,7 @@ export interface EmptyStateProps {
 export function EmptyState({ title, body }: EmptyStateProps) {
   return (
     <div class="state-block state-empty">
-      <span class="state-icon" aria-hidden="true">–</span>
+      <span class="state-icon" aria-hidden="true">-</span>
       <div>
         <div class="state-empty-title">{title}</div>
         {body ? <div class="state-empty-body muted">{body}</div> : null}

@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: c6a2b939e79a63494ea8b0e024b1f8b1ee9fcdb1
+translation_source_sha: 0c6ea33f749fc949fb96245ca1777ea8d629c54f
 translation_revised: 2026-07-23
 ---
 
@@ -38,6 +38,8 @@ skeleton은 spinner-only 및 text-only 대기를 대체하며, route는 최종 l
 attention 및 vertical placeholder를 사용하므로 loading 중에도 report가 축소되지 않습니다. 하나의
 screen-reader status가 loading을 알리고 decorative block은 숨깁니다. Reduced motion에서는 shimmer가
 멈추지만 정적 skeleton은 계속 표시됩니다.
+공통 fallback은 heading, summary-card 및 body-panel placeholder를 사용합니다. 소유 route shape는 더
+정확한 최종 layout을 유지할 때만 이 fallback을 대체합니다.
 
 ## Localization 경계
 

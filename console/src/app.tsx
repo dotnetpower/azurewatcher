@@ -61,19 +61,19 @@ const AccessRequiredRoute = lazy(async () => {
 
 function PanelLoading({ title, subtitle }: { readonly title: string; readonly subtitle: string | undefined }) {
   return (
-    <div class="stack panel-loading-shell" role="status" aria-live="polite">
+    <div class="stack panel-loading-shell" role="status" aria-live="polite" aria-busy="true">
       <PageHeader title={title} subtitle={subtitle} />
       <span class="sr-only">{t("shared.loadingResource", { resource: title })}</span>
       <div class="panel-loading-summary" aria-hidden="true">
-        <span />
-        <span />
-        <span />
+        <span class="skeleton-shimmer" />
+        <span class="skeleton-shimmer" />
+        <span class="skeleton-shimmer" />
       </div>
       <div class="panel-loading-body" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-        <span />
+        <span class="skeleton-shimmer" />
+        <span class="skeleton-shimmer" />
+        <span class="skeleton-shimmer" />
+        <span class="skeleton-shimmer" />
       </div>
     </div>
   );

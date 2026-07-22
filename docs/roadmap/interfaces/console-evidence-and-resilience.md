@@ -35,6 +35,8 @@ that preserves its final layout dimensions. Dashboard uses a posture block follo
 distribution, attention, and vertical placeholders so loading does not collapse the report. One
 screen-reader status announces loading; decorative blocks stay hidden. Shimmer stops under reduced
 motion while the static skeleton remains visible.
+The shared fallback uses heading, summary-card, and body-panel placeholders; an owned route shape
+replaces that fallback only when it preserves a more accurate final layout.
 
 ## Localization boundary
 

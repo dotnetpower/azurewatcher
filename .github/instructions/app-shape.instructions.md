@@ -123,6 +123,13 @@ shape maps to environments and CI/CD.
 
 ## Console Visual Boundary (MUST)
 
+- Every route, panel, and bounded content region in a loading state **MUST render a skeleton from
+  its first loading frame**. Spinner-only, progress-text-only, and blank loading surfaces are not
+  supported. A route-specific skeleton SHOULD approximate the final layout's stable dimensions;
+  the shared skeleton is the fallback when no owned shape exists. Skeletons are presentation only:
+  they MUST expose one `role=status` / `aria-busy=true` loading label, hide decorative blocks from
+  assistive technology, never resemble real values, and stop shimmer animation under
+  `prefers-reduced-motion: reduce` while remaining visibly present.
 - Console cards, panels, page sections, callouts, workflow nodes, table rows, and list rows
   **MUST NOT use a colored top edge or colored left edge as decoration or status**. This
   prohibition includes thick `border-top` / `border-left`, inset edge shadows, absolutely

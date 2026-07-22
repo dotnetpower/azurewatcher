@@ -2652,13 +2652,49 @@ pre {
   background: var(--fg-muted);
   flex-shrink: 0;
 }
-.state-loading .state-spinner {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
-  animation: state-spin 0.8s linear infinite;
+.loading-skeleton {
+  width: 100%;
+  padding: 4px 0 20px;
+}
+.loading-skeleton-layout { display: grid; gap: 12px; }
+.skeleton-shimmer {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+.skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--bg-elevated) 82%, transparent),
+    transparent
+  );
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
+}
+.loading-skeleton-heading {
+  width: min(220px, 62%);
+  height: 24px;
+  border: 0;
+}
+.loading-skeleton-line {
+  width: min(480px, 88%);
+  height: 12px;
+  border: 0;
+}
+.loading-skeleton-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.loading-skeleton-cards span { min-height: 92px; }
+.loading-skeleton-panel { min-height: 152px; }
 }
 .panel-loading-summary {
   display: grid;
@@ -2688,8 +2724,15 @@ pre {
   .panel-loading-summary,
   .panel-loading-body { grid-template-columns: minmax(0, 1fr); }
 }
-@keyframes state-spin {
-  to { transform: rotate(360deg); }
+@keyframes skeleton-shimmer {
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer::after {
+    animation: none;
+    transform: none;
+    opacity: 0.35;
+  }
 }
 .state-error {
   border-color: color-mix(in oklab, var(--danger) 45%, var(--border));
@@ -2766,6 +2809,61 @@ pre {
 .overview-page { gap: 0; }
 .overview-report { width: 100%; }
 .overview-report { gap: 0; padding-bottom: 52px; }
+.overview-skeleton { width: 100%; }
+.overview-skeleton-content { padding-bottom: 52px; }
+.overview-skeleton-posture {
+  display: grid;
+  gap: 10px;
+  padding: 22px 24px;
+  border: 1px solid var(--overview-border);
+  border-radius: 8px;
+  background: var(--overview-card);
+}
+.overview-skeleton-kicker { width: 150px; height: 10px; border: 0; }
+.overview-skeleton-heading { width: min(330px, 72%); height: 25px; border: 0; }
+.overview-skeleton-copy { width: min(540px, 92%); height: 14px; border: 0; }
+.overview-skeleton-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--overview-border);
+}
+.overview-skeleton-meta span { width: 92px; height: 11px; border: 0; }
+.overview-skeleton-section { margin-top: 40px; }
+.overview-skeleton-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.overview-skeleton-section-head > span:last-child { display: grid; gap: 7px; flex: 1; }
+.overview-skeleton-number { width: 34px; height: 34px; flex: 0 0 34px; }
+.overview-skeleton-section-heading { width: min(210px, 48%); height: 20px; border: 0; }
+.overview-skeleton-section-copy { width: min(460px, 86%); height: 12px; border: 0; }
+.overview-skeleton-grid { display: grid; gap: 20px; }
+.overview-skeleton-grid.is-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.overview-skeleton-grid.is-distributions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.overview-skeleton-grid.is-attention,
+.overview-skeleton-grid.is-verticals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.overview-skeleton-card { min-height: 132px; }
+.overview-skeleton-grid.is-distributions .overview-skeleton-card { min-height: 188px; }
+.overview-skeleton-grid.is-attention .overview-skeleton-card { min-height: 176px; }
+.overview-skeleton-grid.is-verticals .overview-skeleton-card { min-height: 112px; }
+@media (max-width: 1200px) {
+  .overview-skeleton-grid.is-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .overview-skeleton-grid.is-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .overview-skeleton-grid.is-distributions,
+  .overview-skeleton-grid.is-attention,
+  .overview-skeleton-grid.is-verticals { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .overview-skeleton-posture { padding: 16px; }
+  .overview-skeleton-grid.is-metrics { grid-template-columns: minmax(0, 1fr); }
+}
 .overview-page::before,
 .analytics-route::before {
   content: "";

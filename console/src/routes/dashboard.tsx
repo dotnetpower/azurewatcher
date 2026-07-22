@@ -36,6 +36,7 @@ import {
   SuccessMetrics,
 } from "./dashboard.executive";
 import { LivingRules, VerticalCards } from "./dashboard.signals";
+import { DashboardSkeleton } from "./dashboard.skeleton";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -87,7 +88,7 @@ export function DashboardRoute({ client }: Props) {
   return (
     <div class="stack overview-page">
       <PageHeader title={t("route.dashboard")} subtitle={<>{t("overview.subtitle")}</>} />
-      <AsyncBoundary state={state} resourceLabel="overview">
+      <AsyncBoundary state={state} resourceLabel="overview" loading={<DashboardSkeleton />}>
         {(data) => <OverviewBody data={data} />}
       </AsyncBoundary>
     </div>
