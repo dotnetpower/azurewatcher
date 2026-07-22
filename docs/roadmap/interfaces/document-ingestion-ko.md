@@ -1,8 +1,8 @@
 ---
 title: 문서 인제스트와 Drop Zone
 translation_of: document-ingestion.md
-translation_source_sha: 6091191998c7ee63ae2a64b810af3a5e603b6c58
-translation_revised: 2026-07-21
+translation_source_sha: 79177232c5b2444d6f511aa5acd3ac5a0b5b2221
+translation_revised: 2026-07-23
 ---
 # 문서 인제스트와 Drop Zone
 
@@ -43,6 +43,47 @@ flowchart LR
   N --> D[Manual distillation]
   P -->|access denied or policy hold| H[Held for review]
 ```
+
+## 인제스트 파이프라인의 에이전트 소유
+
+문서 인제스트는 **독립 서비스가 아닙니다**. 다른 모든 이벤트와 동일한 에이전트 주도 제어
+루프를 재사용합니다. Gateway는 기계적 relay(인증, quarantine으로 스트리밍, 크기와 해시 봉인)일
+뿐 **판단 권한이 없으며**, 각 파이프라인 단계는 공유 `aw.pipeline.stages` 토픽에서 typed object를
+발행하고 소비하는 **pantheon 에이전트가 소유**합니다. 업로드는 이벤트이며, admission, 인덱싱,
+감사, 카탈로그 성장은 gateway의 부수 효과가 아니라 에이전트 결정입니다. Gateway의 전용 ingestion
+identity는 Thor의 executor 권한을 절대 보유하지 않습니다.
+
+```mermaid
+flowchart LR
+  U[Upload event] --> HU[Huginn - ingress]
+  HU --> HE[Heimdall - safety signals]
+  HE --> FO[Forseti - admissibility]
+  FO -->|malware / RMS-denied| X[abandon or deny]
+  FO -->|sensitive / authoritative| VA[Var - HIL approval]
+  FO -->|admit| MU[Muninn - retrieval index]
+  VA --> MU
+  MU --> SA[Saga - audit seal]
+  SA --> KM[Mimir / Norns - catalog growth]
+  MU --> BR[Bragi - progress + citation]
+```
+
+| 단계 | 소유 에이전트 | 소유 오브젝트 / 근거 |
+|------|--------------|----------------------|
+| Ingress - 업로드를 이벤트로 수용 | **Huginn** (Event Collector) | `Event`; 업로드는 버스가 아니라 외부 어댑터로 도착 |
+| 안전 관측 - 악성코드, 시크릿, 보호, RMS 신호 | **Heimdall** (Observer) | 악성/보호/의심 업로드에 대한 `Anomaly` / `SecurityEvent` |
+| Admissibility - admit / hold / abandon | **Forseti** (Judge) | `Verdict`; RMS 거부나 악성코드는 조용한 gateway drop이 아니라 abandon/deny |
+| 승인 - 민감하거나 권위 있는 문서 | **Var** (Approver) | `Approval`; 문서를 권위 지식으로 승격하기 전 HIL, self-approval 금지 |
+| 검색 인덱싱 - 청크로 나눠 컨텍스트 인덱스에 임베딩 | **Muninn** (Memory) | `ContextIndex`; 수용된 거버넌스 버전이 검색 가능해짐 |
+| 감사 봉인 - 라이프사이클 전이와 액세스 결정 | **Saga** (Auditor, hard dependency) | `AuditEntry`; 감사 없이 진행 불가, 기록에 문서 본문 미포함 |
+| 카탈로그 성장 - 권위 문서와 반복 패턴 | **Mimir** / **Norns** | `Rule` / `Policy`, `RuleCandidate`; 매뉴얼이나 런북이 discovery loop로 rule 후보를 시딩 |
+| 서술 - 진행과 grounded citation | **Bragi** (Narrator, translator only) | `Turn`; 진행을 렌더하고 이후 `doc:` 소스를 인용, 판단자 아님 |
+| 충돌 / 롤백 - 상충하거나 잘못된 버전 | **Odin** / **Vidar** | `ArbitrationDecision` / `Rollback`; 버전 retract 또는 supersede |
+
+새로 인제스트된 문서는 먼저 **advisory**입니다. Bragi가 인용할 수는 있지만, Forseti가 admit하고
+Var가 민감한 승격을 승인하고 Saga가 감사를 봉인하기 전까지는 T2 결정을 구동하지 않습니다.
+제어 루프가 모든 capability에 적용하는 shadow-to-enforce 규율과 동일합니다. Gateway와 worker는
+각 단계 전이를 소유 에이전트의 typed object로 표현해야 하며, 소유 에이전트와 Saga 감사 항목 없이
+인제스트 상태를 변경하는 단계는 결함입니다.
 
 ## Drop zone 제품 계약
 

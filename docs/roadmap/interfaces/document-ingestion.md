@@ -39,6 +39,47 @@ flowchart LR
   P -->|access denied or policy hold| H[Held for review]
 ```
 
+## Agent ownership of the ingestion pipeline
+
+Document ingestion is **not a standalone service**. It reuses the same agent-driven control loop as
+every other event: the gateway is a mechanical relay (authenticate, stream to quarantine, seal size
+and hash) with **no judgment authority**, and each pipeline stage is **owned by a pantheon agent**
+that emits and consumes typed objects on the shared `aw.pipeline.stages` topic. An upload is an
+event; admission, indexing, audit, and catalog growth are agent decisions, not gateway side effects.
+The gateway's dedicated ingestion identity never holds Thor's executor permissions.
+
+```mermaid
+flowchart LR
+  U[Upload event] --> HU[Huginn - ingress]
+  HU --> HE[Heimdall - safety signals]
+  HE --> FO[Forseti - admissibility]
+  FO -->|malware / RMS-denied| X[abandon or deny]
+  FO -->|sensitive / authoritative| VA[Var - HIL approval]
+  FO -->|admit| MU[Muninn - retrieval index]
+  VA --> MU
+  MU --> SA[Saga - audit seal]
+  SA --> KM[Mimir / Norns - catalog growth]
+  MU --> BR[Bragi - progress + citation]
+```
+
+| Stage | Owning agent | Owned object / basis |
+|-------|--------------|----------------------|
+| Ingress - accept the upload as an event | **Huginn** (Event Collector) | `Event`; the upload arrives via an external adapter, not the bus |
+| Safety observation - malware, secret, protection, RMS signals | **Heimdall** (Observer) | `Anomaly` / `SecurityEvent` on a malicious, protected, or suspicious upload |
+| Admissibility - admit / hold / abandon | **Forseti** (Judge) | `Verdict`; RMS-denied or malware becomes abandon/deny, not a silent gateway drop |
+| Approval - sensitive or authoritative documents | **Var** (Approver) | `Approval`; HIL before a document is promoted to authoritative knowledge, no self-approval |
+| Retrieval indexing - chunk and embed into the context index | **Muninn** (Memory) | `ContextIndex`; the accepted governed version becomes retrievable |
+| Audit seal - lifecycle transitions and access decisions | **Saga** (Auditor, hard dependency) | `AuditEntry`; nothing progresses unaudited, and the record never contains document text |
+| Catalog growth - authoritative docs and recurring patterns | **Mimir** / **Norns** | `Rule` / `Policy`, `RuleCandidate`; a manual or runbook can seed rule candidates through the discovery loop |
+| Narration - progress and grounded citation | **Bragi** (Narrator, translator only) | `Turn`; renders progress and later cites `doc:` sources, never a judge |
+| Conflict / rollback - contradicting or bad versions | **Odin** / **Vidar** | `ArbitrationDecision` / `Rollback`; retract or supersede a version |
+
+A newly ingested document is **advisory** first: Bragi may cite it, but it does not drive a T2
+decision until Forseti admits it, Var approves any sensitive promotion, and Saga seals the audit -
+the same shadow-to-enforce discipline the control loop applies to every capability. The gateway and
+its worker MUST express each stage transition as the owning agent's typed object; a stage that
+mutates ingestion state without an owning agent and a Saga audit entry is a defect.
+
 ## Product contract for the drop zone
 
 The drop zone is one entry point for a document ingestion service. Drag and drop, a file picker,
