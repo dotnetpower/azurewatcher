@@ -1,7 +1,7 @@
 ---
 title: Azure 읽기 조사
 translation_of: azure-read-investigations.md
-translation_source_sha: c3accb535473e1e0ed63ec669258b13c1cbe8610
+translation_source_sha: dd8fab4233baea7e65bc2711e088b0565cd3a0d1
 translation_revised: 2026-07-22
 ---
 
@@ -111,6 +111,8 @@ ephemeral output으로만 반환되고 command receipt는 bounded 4 KB diagnosti
 반환 후 full output을 cache하지 않습니다. Raw CLI output은 persist되거나 narrator context에 전달되지
 않습니다. Concurrent receipt-based execution은 serialize되므로 broker lifetime 동안 idempotency key
 하나가 registered command를 최대 한 번만 호출합니다.
+Plan timeout은 managed-identity login, subscription verification, command execution이 공유하는 하나의
+cumulative deadline이며 setup work가 안내된 command budget을 배수로 늘릴 수 없습니다.
 
 `FDAI_DEV_OPERATIONS_GATEWAY_URL`과 별도로 출력되는
 `FDAI_DEV_OPERATIONS_GATEWAY_AUDIENCE`가 모두 구성되면 interactive local은 REST transport를

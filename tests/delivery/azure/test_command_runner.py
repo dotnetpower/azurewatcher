@@ -160,6 +160,34 @@ async def test_concurrent_same_key_executes_command_once() -> None:
     assert len(calls) == 3
 
 
+async def test_plan_timeout_is_shared_across_login_account_and_command() -> None:
+    timeouts: list[float] = []
+    ticks = iter((0.0, 1.0, 2.0, 3.0))
+
+    async def invoke(
+        argv: tuple[str, ...],
+        env: Mapping[str, str],  # noqa: ARG001
+        timeout: float,
+        cap: int,  # noqa: ARG001
+    ) -> AzureCliProcessResult:
+        timeouts.append(timeout)
+        if argv[1:3] == ("account", "show"):
+            return AzureCliProcessResult(0, b"subscription-example\n", b"")
+        if argv[1:3] == ("resource", "list"):
+            return AzureCliProcessResult(0, b"[]", b"")
+        return AzureCliProcessResult(0, b"", b"")
+
+    plan = replace(_plan(dry_run=False), timeout_seconds=5)
+    receipt = await AzureCliCommandRunner(
+        _config(),
+        invoker=invoke,
+        monotonic=lambda: next(ticks),
+    ).execute(plan)
+
+    assert receipt.status is CommandStatus.SUCCEEDED
+    assert timeouts == [4.0, 3.0, 2.0]
+
+
 async def test_subscription_override_is_rejected_before_login() -> None:
     calls = 0
 

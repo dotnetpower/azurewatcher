@@ -111,6 +111,8 @@ ephemeral output to the typed adapter; the command receipt retains a bounded 4 K
 and the broker does not cache the full output after return. Raw CLI output is not persisted or
 passed to narrator context. Concurrent receipt-based executions are serialized so one
 idempotency key invokes the registered command at most once per broker lifetime.
+The plan timeout is one cumulative deadline shared by managed-identity login, subscription
+verification, and command execution; setup work cannot multiply the announced command budget.
 
 When `FDAI_DEV_OPERATIONS_GATEWAY_URL` and its separately emitted
 `FDAI_DEV_OPERATIONS_GATEWAY_AUDIENCE` are both configured, interactive local wraps the REST

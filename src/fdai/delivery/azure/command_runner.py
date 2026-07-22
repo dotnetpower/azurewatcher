@@ -90,9 +90,11 @@ class AzureCliCommandRunner(CommandRunner):
         config: AzureCliCommandRunnerConfig,
         *,
         invoker: AzureCliInvoker | None = None,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._config: Final = config
         self._invoke: Final = invoker or _invoke_process
+        self._monotonic: Final = monotonic
         self._receipts: dict[str, CommandReceipt] = {}
         self._receipt_lock = asyncio.Lock()
 
@@ -122,6 +124,7 @@ class AzureCliCommandRunner(CommandRunner):
                 )
             )
         started = time.monotonic()
+        deadline = self._monotonic() + min(self._config.timeout_seconds, plan.timeout_seconds)
         with tempfile.TemporaryDirectory(prefix="fdai-azure-cli-") as config_dir:
             os.chmod(config_dir, 0o700)
             env = _isolated_env(config_dir)
@@ -137,6 +140,7 @@ class AzureCliCommandRunner(CommandRunner):
                     "none",
                 ),
                 env,
+                timeout_seconds=self._remaining_timeout(deadline),
             )
             if login.return_code != 0:
                 return CommandOutput(
@@ -156,6 +160,7 @@ class AzureCliCommandRunner(CommandRunner):
                     "--only-show-errors",
                 ),
                 env,
+                timeout_seconds=self._remaining_timeout(deadline),
             )
             if account.return_code != 0:
                 return CommandOutput(
@@ -175,7 +180,7 @@ class AzureCliCommandRunner(CommandRunner):
             result = await self._call(
                 (self._config.executable, *plan.argv),
                 env,
-                timeout_seconds=min(self._config.timeout_seconds, plan.timeout_seconds),
+                timeout_seconds=self._remaining_timeout(deadline),
                 max_output_bytes=min(self._config.max_output_bytes, plan.max_output_bytes),
             )
         if result.return_code != 0:
@@ -204,12 +209,22 @@ class AzureCliCommandRunner(CommandRunner):
         timeout_seconds: float | None = None,
         max_output_bytes: int | None = None,
     ) -> AzureCliProcessResult:
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            return AzureCliProcessResult(
+                return_code=124,
+                stdout=b"",
+                stderr=b"command timed out",
+            )
         try:
             return await self._invoke(
                 argv,
                 env,
-                timeout_seconds or self._config.timeout_seconds,
-                max_output_bytes or self._config.max_output_bytes,
+                (timeout_seconds if timeout_seconds is not None else self._config.timeout_seconds),
+                (
+                    max_output_bytes
+                    if max_output_bytes is not None
+                    else self._config.max_output_bytes
+                ),
             )
         except TimeoutError:
             return AzureCliProcessResult(
@@ -226,6 +241,9 @@ class AzureCliCommandRunner(CommandRunner):
         except OSError as exc:
             detail = f"Azure CLI unavailable: {type(exc).__name__}".encode()
             return AzureCliProcessResult(return_code=127, stdout=b"", stderr=detail)
+
+    def _remaining_timeout(self, deadline: float) -> float:
+        return max(0.0, deadline - self._monotonic())
 
 
 def _validate_plan(plan: CommandPlan, config: AzureCliCommandRunnerConfig) -> None:
