@@ -8,6 +8,13 @@ resource "azurerm_cognitive_account" "primary" {
   public_network_access_enabled = false
   local_auth_enabled            = false
   tags                          = var.tags
+
+  # Public access remains disabled by Terraform. Tenant policy may add a deny
+  # ACL and approved operator IPs; those policy-owned details must not create
+  # an endless apply/remove cycle.
+  lifecycle {
+    ignore_changes = [network_acls]
+  }
 }
 
 locals {
