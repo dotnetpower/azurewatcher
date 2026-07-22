@@ -39,7 +39,7 @@ _INCIDENTS: Final = re.compile(
 )
 _CONVERSATION_SEARCH: Final = re.compile(
     r"^\s*(?:search[_\s-]?conversations?|conversation history|prior conversations)\s+(.*)$"
-    "|^\s*(?:\ub300\ud654 \uac80\uc0c9|\uc774\uc804 \ub300\ud654)\s+(.+)$",
+    r"|^\s*(?:\ub300\ud654 \uac80\uc0c9|\uc774\uc804 \ub300\ud654)\s+(.+)$",
     re.IGNORECASE,
 )
 
