@@ -49,7 +49,9 @@ else:
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 
-@app.route(route="health", methods=["GET"])  # type: ignore[untyped-decorator]
+@app.route(  # type: ignore[untyped-decorator]
+    route="health", trigger_arg_name="_request", methods=["GET"]
+)
 async def health(_request: func.HttpRequest) -> func.HttpResponse:
     try:
         GatewayConfig.from_env()
@@ -59,7 +61,7 @@ async def health(_request: func.HttpRequest) -> func.HttpResponse:
 
 
 @app.route(  # type: ignore[untyped-decorator]
-    route="v1/operations/{operation_id}", methods=["POST"]
+    route="v1/operations/{operation_id}", trigger_arg_name="request", methods=["POST"]
 )
 async def invoke(request: func.HttpRequest) -> func.HttpResponse:
     try:

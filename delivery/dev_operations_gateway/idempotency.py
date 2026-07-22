@@ -6,7 +6,7 @@ import hashlib
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from typing import Protocol
 from urllib.parse import urlparse
@@ -15,6 +15,7 @@ import httpx
 
 _STORAGE_AUDIENCE = "https://storage.azure.com/"
 _STORAGE_API_VERSION = "2025-05-05"
+_UTC = timezone.utc  # noqa: UP017 - deployed Function worker supports Python 3.10
 _MAX_RECORD_BYTES = 262_144
 _CLAIM_TIMEOUT = timedelta(seconds=90)
 _RESOURCE_LEASE_SECONDS = "60"
@@ -147,7 +148,7 @@ class AzureBlobIdempotencyLedger:
             )
         if existing.get("state") == "pending":
             claimed_at = _parse_timestamp(existing.get("claimed_at"))
-            if claimed_at is not None and datetime.now(UTC) - claimed_at >= _CLAIM_TIMEOUT:
+            if claimed_at is not None and datetime.now(_UTC) - claimed_at >= _CLAIM_TIMEOUT:
                 await self._replace_stale_claim(
                     blob_url,
                     existing_etag,
@@ -292,7 +293,7 @@ class AzureBlobIdempotencyLedger:
 
     async def issue_dry_run(self, request_digest: str) -> str:
         receipt = hashlib.sha256(f"fdai-dev-gateway-plan-v1:{request_digest}".encode()).hexdigest()
-        expires_at = datetime.now(UTC) + _DRY_RUN_TTL
+        expires_at = datetime.now(_UTC) + _DRY_RUN_TTL
         record = self._encode_record(
             {
                 "state": "ready",
@@ -321,7 +322,7 @@ class AzureBlobIdempotencyLedger:
                 existing.get("state") == "ready"
                 and existing.get("request_digest") == request_digest
                 and existing_expires_at is not None
-                and existing_expires_at > datetime.now(UTC)
+                and existing_expires_at > datetime.now(_UTC)
             ):
                 return receipt
             raise IdempotencyError(
@@ -349,7 +350,7 @@ class AzureBlobIdempotencyLedger:
             record.get("state") != "ready"
             or record.get("request_digest") != request_digest
             or expires_at is None
-            or expires_at <= datetime.now(UTC)
+            or expires_at <= datetime.now(_UTC)
         ):
             raise IdempotencyError(
                 409,
@@ -533,7 +534,7 @@ class AzureBlobIdempotencyLedger:
         token = await self._tokens.get_token(_STORAGE_AUDIENCE)
         return {
             "Authorization": f"Bearer {token}",
-            "x-ms-date": format_datetime(datetime.now(UTC), usegmt=True),
+            "x-ms-date": format_datetime(datetime.now(_UTC), usegmt=True),
             "x-ms-version": _STORAGE_API_VERSION,
         }
 
@@ -578,7 +579,7 @@ class AzureBlobIdempotencyLedger:
             {
                 "state": "pending",
                 "request_digest": request_digest,
-                "claimed_at": datetime.now(UTC).isoformat(),
+                "claimed_at": datetime.now(_UTC).isoformat(),
             }
         )
 
@@ -611,7 +612,7 @@ def _parse_timestamp(value: object) -> datetime | None:
         return None
     if timestamp.tzinfo is None:
         return None
-    return timestamp.astimezone(UTC)
+    return timestamp.astimezone(_UTC)
 
 
 __all__ = [
