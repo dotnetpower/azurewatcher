@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import subprocess
 import zipfile
 from datetime import UTC, datetime, timedelta
@@ -352,8 +353,19 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     assert 'data "archive_file" "dev_gateway"' not in terraform
     assert "zip_deploy_file" not in terraform
     assert "AzureWebJobsStorage__accountName" in terraform
-    assert 'AzureWebJobsStorage__credential         = "managedidentity"' in terraform
     assert "AzureWebJobsStorage__clientId" in terraform
+    gateway_resource = terraform.split(
+        'resource "azurerm_function_app_flex_consumption" "dev_gateway"',
+        maxsplit=1,
+    )[1]
+    gateway_app_settings = gateway_resource.split("app_settings = {", maxsplit=1)[1].split(
+        "\n  }", maxsplit=1
+    )[0]
+    assert re.search(
+        r'AzureWebJobsStorage__credential\s*=\s*"managedidentity"',
+        gateway_app_settings,
+    )
+    assert "APPLICATIONINSIGHTS_CONNECTION_STRING" not in gateway_app_settings
     assert workflow.index("Restore and verify exact protected plan") < workflow.index(
         "Terraform apply"
     )

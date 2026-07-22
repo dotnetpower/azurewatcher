@@ -744,7 +744,6 @@ resource "azurerm_function_app_flex_consumption" "dev_gateway" {
     AzureWebJobsStorage__accountName       = azurerm_storage_account.dev_gateway[0].name
     AzureWebJobsStorage__credential        = "managedidentity"
     AzureWebJobsStorage__clientId          = module.dev_gateway_reader_identity[0].client_id
-    APPLICATIONINSIGHTS_CONNECTION_STRING  = azurerm_application_insights.core.connection_string
     FDAI_ENV                               = "dev"
     FDAI_DEV_GATEWAY_ENABLED               = "1"
     FDAI_DEV_GATEWAY_SUBSCRIPTION_ID       = data.azurerm_client_config.current.subscription_id
