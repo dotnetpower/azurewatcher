@@ -82,7 +82,7 @@ while IFS= read -r file; do
             add_test "tests"
             continue
             ;;
-        config/*|policies/*|rule-catalog/*)
+        alembic/*|config/*|policies/*|rule-catalog/*)
             add_test "tests"
             continue
             ;;
@@ -114,10 +114,6 @@ while IFS= read -r file; do
     # Data and automation paths have Python consumers even though the changed
     # files themselves are not Python modules.
     case "$file" in
-        alembic/*)
-            add_test "tests/persistence"
-            continue
-            ;;
         scripts/*.py|scripts/*.sh|scripts/lib/*|scripts/quality/*.txt|scripts/quality/*.allowlist)
             add_test "tests/scripts"
             continue

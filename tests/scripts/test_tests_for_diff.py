@@ -273,6 +273,17 @@ def test_ci_python_input_falls_back_to_full_suite(git_repo: Path, path: str) -> 
     assert result.stdout.splitlines() == ["tests"]
 
 
+def test_migration_change_falls_back_to_full_suite(git_repo: Path) -> None:
+    migration = git_repo / "alembic" / "versions" / "revision.py"
+    migration.parent.mkdir(parents=True)
+    migration.write_text("revision = 'example'\n", encoding="utf-8")
+
+    result = _run(git_repo, "bash", str(_SELECTOR))
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["tests"]
+
+
 def test_parent_test_directory_suppresses_duplicate_child_path(git_repo: Path) -> None:
     script = git_repo / "scripts" / "automation" / "helper.sh"
     script.parent.mkdir(parents=True)

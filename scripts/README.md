@@ -53,11 +53,12 @@ make test-changed DIFF=origin/main...HEAD
 ```
 
 Changes to global Python test configuration, repository configuration data,
-composition wiring, policy data, rule catalog data or loaders, shared contracts
-and provider interfaces with cross-repository consumers, Python files outside a
-known source layout, and mapped test paths that don't exist select the full
-suite. The focused runner doesn't collect coverage and doesn't replace
-`make test` or `bash scripts/verify.sh --full` before merging.
+database migrations, composition wiring, policy data, rule catalog data or
+loaders, shared contracts and provider interfaces with cross-repository
+consumers, Python files outside a known source layout, and mapped test paths
+that don't exist select the full suite. The focused runner doesn't collect
+coverage and doesn't replace `make test` or `bash scripts/verify.sh --full`
+before merging.
 Non-Python fixtures under `tests/` and package resources under `src/` also
 select the full suite because their consumers can't be inferred from imports.
 
