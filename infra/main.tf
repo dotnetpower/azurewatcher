@@ -442,7 +442,7 @@ resource "azurerm_eventgrid_event_subscription" "inventory_resource_changes" {
 
   name                  = "evgs-${var.workload}${local.full_suffix}-inventory"
   scope                 = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  eventhub_endpoint_id  = module.event_bus.auxiliary_topic_ids[local.inventory_raw_topic]
+  eventhub_endpoint_id  = module.event_bus_auxiliary.auxiliary_topic_ids[local.inventory_raw_topic]
   event_delivery_schema = "EventGridSchema"
   included_event_types = [
     "Microsoft.Resources.ResourceWriteSuccess",

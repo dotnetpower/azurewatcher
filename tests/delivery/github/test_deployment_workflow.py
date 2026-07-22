@@ -368,7 +368,11 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     assert "auxiliary_topics    = [local.inventory_raw_topic]" in terraform
     assert "module.event_bus_auxiliary.kafka_bootstrap" in terraform
     assert "module.event_bus_auxiliary.topic_ids[local.canary_topic]" in terraform
-    assert "module.event_bus_auxiliary.auxiliary_topic_ids[local.inventory_raw_topic]" in terraform
+    assert (
+        terraform.count("module.event_bus_auxiliary.auxiliary_topic_ids[local.inventory_raw_topic]")
+        >= 2
+    )
+    assert "module.event_bus.auxiliary_topic_ids[local.inventory_raw_topic]" not in terraform
     gateway_resource = terraform.split(
         'resource "azurerm_function_app_flex_consumption" "dev_gateway"',
         maxsplit=1,
