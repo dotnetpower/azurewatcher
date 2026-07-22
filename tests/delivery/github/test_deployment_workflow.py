@@ -371,7 +371,10 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     assert "auxiliary_topics    = [local.inventory_raw_topic]" in terraform
     assert "module.event_bus_auxiliary.kafka_bootstrap" in terraform
     assert 'resource "azurerm_eventgrid_system_topic" "inventory_resource_changes"' in terraform
-    assert 'topic_type             = "Microsoft.Resources.Subscriptions"' in terraform
+    assert re.search(r'topic_type\s*=\s*"Microsoft.Resources.Subscriptions"', terraform)
+    assert re.search(r'location\s*=\s*"global"', terraform)
+    assert "source_resource_id" in terraform
+    assert "source_arm_resource_id" not in terraform
     assert "identity_ids = [module.inventory_identity.resource_id]" in terraform
     assert (
         "scope                 = azurerm_eventgrid_system_topic.inventory_resource_changes[0].id"

@@ -438,13 +438,13 @@ resource "azurerm_role_assignment" "inventory_eventhubs_raw_sender" {
 }
 
 resource "azurerm_eventgrid_system_topic" "inventory_resource_changes" {
-  count                  = var.enable_realtime_inventory_discovery ? 1 : 0
-  name                   = "evgst-${var.workload}${local.full_suffix}-inventory"
-  resource_group_name    = module.resource_group.name
-  location               = var.region
-  source_arm_resource_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  topic_type             = "Microsoft.Resources.Subscriptions"
-  tags                   = merge(local.tags, { "fdai:component" = "realtime-inventory" })
+  count               = var.enable_realtime_inventory_discovery ? 1 : 0
+  name                = "evgst-${var.workload}${local.full_suffix}-inventory"
+  resource_group_name = module.resource_group.name
+  location            = "global"
+  source_resource_id  = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+  topic_type          = "Microsoft.Resources.Subscriptions"
+  tags                = merge(local.tags, { "fdai:component" = "realtime-inventory" })
 
   identity {
     type         = "UserAssigned"
