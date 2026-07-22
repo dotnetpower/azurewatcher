@@ -30,7 +30,7 @@
     .cs-discovery-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
     .cs-discovery-result { color: var(--cs-text-soft); font-size: 11px; }
     .cs-discovery-result.is-updated { color: var(--cs-sage); }
-    .cs-model-toolbar { display: grid; grid-template-columns: minmax(190px, 1fr) auto auto; align-items: center; gap: 9px 12px; margin: 12px 0; }
+    .cs-model-toolbar { display: grid; grid-template-columns: minmax(190px, 1fr) auto; align-items: center; gap: 9px 12px; margin: 12px 0; }
     .cs-model-search { position: relative; grid-column: 1 / -1; }
     .cs-model-search input { width: 100%; min-height: 36px; padding: 7px 10px 7px 32px; border: 1px solid var(--cs-hairline); border-radius: 6px; background: var(--cs-card); color: var(--cs-text); font: 13px var(--cs-font); }
     .cs-model-search::before { content: ""; position: absolute; left: 11px; top: 10px; width: 9px; height: 9px; border: 1.5px solid var(--cs-text-soft); border-radius: 50%; }
@@ -38,10 +38,6 @@
     .cs-model-search input:focus { outline: 2px solid rgba(68,104,142,.24); border-color: var(--cs-steel); }
     .cs-model-summary { margin-right: auto; color: var(--cs-text-soft); font-size: 13px; }
     .cs-model-summary strong { color: var(--cs-text); }
-    .cs-model-legend { display: inline-flex; align-items: center; gap: 12px; color: var(--cs-text-soft); font-size: 12px; }
-    .cs-model-legend span { display: inline-flex; align-items: center; gap: 5px; }
-    .cs-model-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--cs-sage); }
-    .cs-model-dot.is-unavailable { background: #B9B6B1; }
     .cs-model-providers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .cs-model-provider { min-width: 0; padding: 14px; border: 1px solid var(--cs-hairline); border-radius: 8px; background: var(--cs-card); }
     .cs-model-provider[hidden] { display: none; }
@@ -56,19 +52,18 @@
     .cs-provider-mark.is-others { grid-template-columns: repeat(2, 4px); grid-template-rows: repeat(2, 4px); gap: 2px; background: #596979; }
     .cs-provider-mark.is-others i { width: 4px; height: 4px; border-radius: 1px; background: #FFFFFF; }
     .cs-model-options { display: flex; flex-wrap: wrap; gap: 7px; }
-    .cs-model-option { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 8px 6px 10px; border: 1px solid var(--cs-hairline); border-radius: 7px; background: var(--cs-card); color: var(--cs-text-soft); font-size: 12.5px; cursor: pointer; transition: border-color .12s ease, background .12s ease, color .12s ease; }
-    .cs-model-option:hover { border-color: #C9C6C1; color: var(--cs-text); }
-    .cs-model-option:has(input:checked) { border-color: rgba(68,104,142,.42); background: rgba(68,104,142,.12); color: var(--cs-navy); font-weight: 600; }
+    .cs-model-option { display: inline-flex; align-items: center; gap: 9px; min-height: 36px; padding: 6px 6px 6px 10px; border: 1px solid var(--cs-hairline); border-radius: 7px; background: var(--cs-card); color: var(--cs-text-soft); font-size: 12.5px; cursor: pointer; transition: border-color .15s ease, background .15s ease, color .15s ease; }
+    .cs-model-option:hover { border-color: #BFC8D1; color: var(--cs-text); }
+    .cs-model-option:has(input:checked) { border-color: rgba(68,104,142,.38); background: rgba(68,104,142,.07); color: var(--cs-navy); font-weight: 600; }
     .cs-model-option:has(input:focus-visible) { outline: 2px solid rgba(68,104,142,.38); outline-offset: 2px; }
-    .cs-model-option:has(input:disabled) { background: var(--cs-shade); color: #92908C; cursor: not-allowed; opacity: .78; }
+    .cs-model-option:has(input:disabled) { border-color: #E8E6E3; background: var(--cs-shade); color: #9B9894; cursor: not-allowed; opacity: .72; }
     .cs-model-option input { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-    .cs-model-option .cs-model-dot { width: 7px; height: 7px; }
     .cs-model-name { white-space: nowrap; }
-    .cs-model-switch { position: relative; width: 30px; height: 18px; margin-left: 2px; flex: 0 0 auto; border: 1px solid #C7C4BF; border-radius: 9px; background: #E8E6E3; transition: border-color .15s ease, background .15s ease; }
-    .cs-model-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 3px rgba(46,54,64,.24); transition: transform .15s ease; }
-    .cs-model-option input:checked ~ .cs-model-switch { border-color: var(--cs-steel); background: var(--cs-steel); }
-    .cs-model-option input:checked ~ .cs-model-switch::after { transform: translateX(12px); }
-    .cs-model-option input:disabled ~ .cs-model-switch { border-color: #D7D4D0; background: #DEDCDA; }
+    .cs-model-switch { position: relative; width: 34px; height: 20px; flex: 0 0 auto; border-radius: 10px; background: #D9D7D3; box-shadow: inset 0 0 0 1px rgba(62,76,89,.08); transition: background .15s ease, box-shadow .15s ease; }
+    .cs-model-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 3px rgba(46,54,64,.22); transition: transform .15s ease; }
+    .cs-model-option input:checked ~ .cs-model-switch { background: var(--cs-steel); box-shadow: inset 0 0 0 1px rgba(32,59,87,.12); }
+    .cs-model-option input:checked ~ .cs-model-switch::after { transform: translateX(14px); }
+    .cs-model-option input:disabled ~ .cs-model-switch { background: #D8D6D2; box-shadow: none; }
     .cs-model-actions { display: flex; justify-content: flex-end; gap: 7px; }
     .cs-model-empty { display: none; padding: 28px; border: 1px dashed var(--cs-hairline); border-radius: 8px; color: var(--cs-text-soft); text-align: center; }
     .cs-model-empty.is-visible { display: block; }
@@ -82,7 +77,6 @@
       .cs-discovery-actions { justify-content: flex-start; }
       .cs-model-toolbar { align-items: stretch; }
       .cs-model-search { grid-column: auto; }
-      .cs-model-legend { flex-wrap: wrap; }
       .cs-model-actions { justify-content: flex-start; }
       .cs-model-options { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
       .cs-model-option { width: 100%; }
@@ -145,10 +139,6 @@
           <strong id="model-enabled-count">8 enabled</strong>
           <span>of <span id="model-available-count">12</span> available - 3 unavailable</span>
         </div>
-        <div class="cs-model-legend" aria-label="Model status legend">
-          <span><i class="cs-model-dot" aria-hidden="true"></i>Available</span>
-          <span><i class="cs-model-dot is-unavailable" aria-hidden="true"></i>Unavailable</span>
-        </div>
         <div class="cs-model-actions">
           <button class="cs-btn is-sm" type="button" data-model-action="enable">Enable available</button>
           <button class="cs-btn is-sm" type="button" data-model-action="disable">Disable all</button>
@@ -162,12 +152,12 @@
             <h3 id="provider-openai">OpenAI</h3><span>6 models</span>
           </header>
           <div class="cs-model-options">
-            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-5.2" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">GPT-5.2</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-5.1" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">GPT-5.1</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-4.1-mini" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">GPT-4.1 mini</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" data-model-toggle="gpt-5.2-codex" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">GPT-5.2 Codex</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="o3-mini" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">o3-mini</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" disabled data-model-toggle="gpt-5.3-preview" /><i class="cs-model-dot is-unavailable" aria-hidden="true"></i><span class="cs-model-name">GPT-5.3 preview</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-5.2" /><span class="cs-model-name">GPT-5.2</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-5.1" /><span class="cs-model-name">GPT-5.1</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-4.1-mini" /><span class="cs-model-name">GPT-4.1 mini</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" data-model-toggle="gpt-5.2-codex" /><span class="cs-model-name">GPT-5.2 Codex</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="o3-mini" /><span class="cs-model-name">o3-mini</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" disabled data-model-toggle="gpt-5.3-preview" /><span class="cs-model-name">GPT-5.3 preview</span><span class="cs-model-switch" aria-hidden="true"></span></label>
           </div>
         </section>
 
@@ -177,10 +167,10 @@
             <h3 id="provider-claude">Claude</h3><span>4 models</span>
           </header>
           <div class="cs-model-options">
-            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="claude-opus-4.5" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">Claude Opus 4.5</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="claude-sonnet-4" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">Claude Sonnet 4</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" data-model-toggle="claude-haiku-4.5" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">Claude Haiku 4.5</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" disabled data-model-toggle="claude-opus-4.6" /><i class="cs-model-dot is-unavailable" aria-hidden="true"></i><span class="cs-model-name">Claude Opus 4.6</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="claude-opus-4.5" /><span class="cs-model-name">Claude Opus 4.5</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="claude-sonnet-4" /><span class="cs-model-name">Claude Sonnet 4</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" data-model-toggle="claude-haiku-4.5" /><span class="cs-model-name">Claude Haiku 4.5</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" disabled data-model-toggle="claude-opus-4.6" /><span class="cs-model-name">Claude Opus 4.6</span><span class="cs-model-switch" aria-hidden="true"></span></label>
           </div>
         </section>
 
@@ -190,9 +180,9 @@
             <h3 id="provider-gemini">Gemini</h3><span>3 models</span>
           </header>
           <div class="cs-model-options">
-            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gemini-2.5-pro" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">Gemini 2.5 Pro</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" data-model-toggle="gemini-2.5-flash" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">Gemini 2.5 Flash</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" disabled data-model-toggle="gemini-3.1-preview" /><i class="cs-model-dot is-unavailable" aria-hidden="true"></i><span class="cs-model-name">Gemini 3.1 preview</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gemini-2.5-pro" /><span class="cs-model-name">Gemini 2.5 Pro</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" data-model-toggle="gemini-2.5-flash" /><span class="cs-model-name">Gemini 2.5 Flash</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" disabled data-model-toggle="gemini-3.1-preview" /><span class="cs-model-name">Gemini 3.1 preview</span><span class="cs-model-switch" aria-hidden="true"></span></label>
           </div>
         </section>
 
@@ -202,8 +192,8 @@
             <h3 id="provider-other">Others</h3><span>2 models</span>
           </header>
           <div class="cs-model-options">
-            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="mistral-large" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">Mistral Large</span><span class="cs-model-switch" aria-hidden="true"></span></label>
-            <label class="cs-model-option"><input type="checkbox" data-model-toggle="cohere-command-r" /><i class="cs-model-dot" aria-hidden="true"></i><span class="cs-model-name">Command R</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="mistral-large" /><span class="cs-model-name">Mistral Large</span><span class="cs-model-switch" aria-hidden="true"></span></label>
+            <label class="cs-model-option"><input type="checkbox" data-model-toggle="cohere-command-r" /><span class="cs-model-name">Command R</span><span class="cs-model-switch" aria-hidden="true"></span></label>
           </div>
         </section>
       </div>
