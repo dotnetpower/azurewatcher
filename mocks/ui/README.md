@@ -17,7 +17,12 @@ Operator console (read-only). Overview / Now / History surfaces:
 | File | Purpose |
 |------|---------|
 | [live.html](live.html) | Live cockpit - activity swarm of tiles for control-plane events flowing through T0 / T1 / T2, KPI strip with sparkline, audit ticker |
-| [dashboard.html](dashboard.html) | Overview - operating posture, evidence-qualified outcomes, routing/control distributions, aggregated attention, and vertical outcomes |
+| [dashboard.html](dashboard.html) | Dashboard - operating posture, evidence-qualified summaries, aggregated attention, and links into focused Overview analysis |
+| [operating-outcomes.html](operating-outcomes.html) | Operating outcomes - measured results, baselines, trends, and cross-vertical breakdowns |
+| [control-assurance.html](control-assurance.html) | Control assurance - safety posture, policy escapes, promotion guards, and required attention |
+| [verticals.html](verticals.html) | Vertical outcomes - comparable results for Resilience, Change Safety, and Cost Governance |
+| [trust-routing.html](trust-routing.html) | Trust routing - T0, T1, and T2 distribution, governed T2 flow, and leading indicators |
+| [llm-cost.html](llm-cost.html) | LLM cost - per-tier daily budget bars, event mix, 7-day trend, and per-model attribution |
 | [incidents.html](incidents.html) | Incident-centric roster with active/resolved filtering, current disposition, and per-incident fix history |
 | [hil.html](hil.html) | Human approval queue - plain-first approval cards with safety facts, filters by risk / category / vertical |
 | [promotion.html](promotion.html) | Shadow to enforce candidates and the four gate checks (accuracy, escapes, guard budget, safety invariants) |
@@ -37,7 +42,6 @@ Fleet / Safety surfaces (mirror console panels under `Now` and `Safety`):
 | [agent-activity.html](agent-activity.html) | Per-agent timeline projected from the audit log - who did what, when, and how; verbs = execute / approve / reject / rollback / hold for review / audit |
 | [impact scope.html](blast-radius.html) | Per-action impact view - responsive query controls, concentric target / direct / indirect rings, and cap bars enforced by the safety check |
 | [provision.html](provision.html) | In-flight re-provision - Terraform stream projected as status + resource list + live event log; console URL surfaces on `provision.done` |
-| [llm-cost.html](llm-cost.html) | LLM spend - per-tier daily budget bars, event mix, 7-day trend, per-model attribution table |
 
 Knowledge surfaces (ontology + trace):
 

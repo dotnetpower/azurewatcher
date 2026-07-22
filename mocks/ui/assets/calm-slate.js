@@ -4,9 +4,16 @@
   "use strict";
 
   var navigationGroups = [
+    ["Overview", [
+      ["dashboard.html", "Dashboard", "is-sage"],
+      ["operating-outcomes.html", "Operating outcomes", "is-steel"],
+      ["control-assurance.html", "Control assurance", "is-terracotta"],
+      ["verticals.html", "Vertical outcomes", "is-plum"],
+      ["trust-routing.html", "Trust routing", "is-teal"],
+      ["llm-cost.html", "LLM cost", "is-navy"]
+    ]],
     ["Console", [
       ["live.html", "Live", ""],
-      ["dashboard.html", "Overview", "is-sage"],
       ["incidents.html", "Incidents", "is-terracotta"],
       ["hil.html", "HIL queue", "is-terracotta"],
       ["promotion.html", "Promotion", "is-teal"],
@@ -22,8 +29,7 @@
       ["agent-activity.html", "Agent activity", ""],
       ["blast-radius.html", "Blast radius", "is-terracotta"],
       ["provision.html", "Provisioning", ""],
-      ["onboarding.html", "Onboarding", "is-dusty-red"],
-      ["llm-cost.html", "LLM cost", "is-teal"]
+      ["onboarding.html", "Onboarding", "is-dusty-red"]
     ]],
     ["Knowledge", [
       ["ontology.html", "Ontology", "is-plum"],

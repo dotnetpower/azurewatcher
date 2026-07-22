@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operating outcomes - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css?v=sidebar-v6" />
+  <link rel="stylesheet" href="assets/overview-hubs.css?v=overview-v1" />
+  <script src="assets/calm-slate.js?v=sidebar-v6" defer></script>
+</head>
+<body>
+  <main class="cs-container cs-page ov-page">
+    <header class="ov-page-header">
+      <div>
+        <div class="ov-breadcrumb"><span>Overview</span><span>/</span><span>Operating outcomes</span></div>
+        <h1>Operating outcomes</h1>
+        <p>Measured operating results, their baseline, and the evidence gaps that still prevent a trustworthy claim.</p>
+      </div>
+      <div class="ov-window"><span>Evidence window</span><strong>Last 30 days</strong></div>
+    </header>
+
+    <nav class="ov-tabs" aria-label="Outcome metric">
+      <a class="is-active" href="#auto-resolution">Auto-resolution</a>
+      <a href="#touchpoints">Human touchpoints</a>
+      <a href="#mttr">MTTR</a>
+      <a href="#lead-time">Change lead time</a>
+      <a href="#cost">Cost / resolved event</a>
+    </nav>
+
+    <div class="cs-readonly-banner">
+      <strong>Illustrative data.</strong> The mock demonstrates measured, baseline, and unavailable states. It makes no operational claim.
+    </div>
+
+    <div class="ov-evidence" aria-label="Evidence details">
+      <strong>Measured</strong><span>30 events</span><span>Confidence 92%</span><span>Source postgres-audit</span><span>As of 2026-07-22T15:18Z</span>
+    </div>
+
+    <section class="ov-kpis" aria-label="Auto-resolution summary">
+      <article class="ov-kpi"><span class="ov-kpi-label">Current</span><strong>73%</strong><small class="ov-up">+8 pp over the window</small></article>
+      <article class="ov-kpi"><span class="ov-kpi-label">Baseline</span><strong>65%</strong><small>First 7 days of the window</small></article>
+      <article class="ov-kpi"><span class="ov-kpi-label">Direction</span><strong>Higher</strong><small>Higher is better</small></article>
+      <article class="ov-kpi"><span class="ov-kpi-label">Sample size</span><strong>30</strong><small>22 automatically resolved</small></article>
+    </section>
+
+    <section class="ov-two">
+      <article class="ov-panel js-chartable"
+               data-chart-title="Auto-resolution trend"
+               data-chart-sub="Measured share and baseline over 30 days"
+               data-chart-columns='["Week","Measured","Baseline"]'
+               data-chart-rows='[["Week 1","65%","65%"],["Week 2","68%","65%"],["Week 3","71%","65%"],["Week 4","73%","65%"]]'
+               data-chart-num-cols='[1,2]'
+               data-chart-source="Illustrative source: postgres-audit. Window: 30 days.">
+        <h3>Auto-resolution trend</h3>
+        <p>Weekly measured rate compared with the opening baseline.</p>
+        <svg class="ov-chart" viewBox="0 0 620 190" role="img" aria-label="Auto-resolution rose from 65 to 73 percent">
+          <path class="grid" d="M42 25H610M42 70H610M42 115H610M42 160H610" />
+          <path class="area" d="M42 138L180 126L318 98L456 78L610 61L610 160L42 160Z" />
+          <path class="baseline" d="M42 138H610" />
+          <path class="line" d="M42 138L180 126L318 98L456 78L610 61" />
+          <text x="6" y="164">60%</text><text x="6" y="119">65%</text><text x="6" y="74">70%</text><text x="6" y="29">75%</text>
+          <text x="42" y="184">Jun 23</text><text x="560" y="184">Jul 22</text>
+        </svg>
+        <div class="ov-legend"><span><i class="ov-key"></i>Measured</span><span><i class="ov-key is-baseline"></i>Baseline</span></div>
+      </article>
+
+      <aside class="ov-panel">
+        <h3>What changed</h3>
+        <p>Contributors with traceable evidence in this window.</p>
+        <ul class="ov-list">
+          <li><span>Deterministic rule coverage</span><strong class="ov-up">+5 pp</strong></li>
+          <li><span>Known-pattern retrieval</span><strong class="ov-up">+3 pp</strong></li>
+          <li><span>Policy-held events</span><strong>5</strong></li>
+          <li><span>Denied unsafe actions</span><strong>1</strong></li>
+          <li><span>Unattributed change</span><strong>0 pp</strong></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="ov-section">
+      <div class="ov-section-head"><div><h2>Vertical breakdown</h2><p>The same metric split by implemented operating vertical.</p></div><span class="ov-section-meta">30 classified events</span></div>
+      <div class="cs-table-wrap">
+        <table class="cs-table ov-table">
+          <thead><tr><th>Vertical</th><th class="num">Events</th><th class="num">Auto-resolved</th><th class="num">Rate</th><th>Evidence state</th></tr></thead>
+          <tbody>
+            <tr><td>Resilience</td><td class="num">12</td><td class="num">10</td><td class="num">83%</td><td><span class="ov-status is-good">Measured</span></td></tr>
+            <tr><td>Change safety</td><td class="num">11</td><td class="num">8</td><td class="num">73%</td><td><span class="ov-status is-good">Measured</span></td></tr>
+            <tr><td>Cost governance</td><td class="num">7</td><td class="num">4</td><td class="num">57%</td><td><span class="ov-status is-watch">Review</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="ov-footer-links"><a href="audit.html">View supporting audit records</a><a href="incidents.html">Open incident evidence</a></div>
+    </section>
+  </main>
+</body>
+</html>

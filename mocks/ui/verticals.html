@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vertical outcomes - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css?v=sidebar-v6" />
+  <link rel="stylesheet" href="assets/overview-hubs.css?v=overview-v1" />
+  <script src="assets/calm-slate.js?v=sidebar-v6" defer></script>
+</head>
+<body>
+  <main class="cs-container cs-page ov-page">
+    <header class="ov-page-header">
+      <div>
+        <div class="ov-breadcrumb"><span>Overview</span><span>/</span><span>Vertical outcomes</span></div>
+        <h1>Vertical outcomes</h1>
+        <p>Comparable operating results across Resilience, Change Safety, and Cost Governance without mixing their evidence contracts.</p>
+      </div>
+      <div class="ov-window"><span>Evidence window</span><strong>Last 30 days</strong></div>
+    </header>
+
+    <nav class="ov-tabs" aria-label="Operating vertical"><a class="is-active" href="#resilience">Resilience</a><a href="#change-safety">Change safety</a><a href="#cost-governance">Cost governance</a></nav>
+
+    <div class="cs-readonly-banner"><strong>Illustrative comparison.</strong> Savings and outcome values must remain tied to their source and sample size.</div>
+    <div class="ov-evidence"><strong>Measured</strong><span>30 classified events</span><span>3 implemented verticals</span><span>Source postgres-audit</span><span>As of 2026-07-22T15:18Z</span></div>
+
+    <section class="ov-vertical-grid" aria-label="Vertical summaries">
+      <article class="ov-vertical is-active">
+        <div class="ov-vertical-head"><h3>Resilience</h3><span class="ov-status is-good">Healthy</span></div>
+        <strong class="ov-vertical-score">83%</strong><small>Auto-resolution rate</small>
+        <ul class="ov-list" style="margin-top:14px"><li><span>Events</span><strong>12</strong></li><li><span>Auto-resolved</span><strong>10</strong></li><li><span>Open risks</span><strong>1</strong></li><li><span>MTTR median</span><strong>18m</strong></li></ul>
+      </article>
+      <article class="ov-vertical">
+        <div class="ov-vertical-head"><h3>Change safety</h3><span class="ov-status is-good">Measured</span></div>
+        <strong class="ov-vertical-score">73%</strong><small>Auto-resolution rate</small>
+        <ul class="ov-list" style="margin-top:14px"><li><span>Events</span><strong>11</strong></li><li><span>Auto-resolved</span><strong>8</strong></li><li><span>Open risks</span><strong>2</strong></li><li><span>Rollback success</span><strong>100%</strong></li></ul>
+      </article>
+      <article class="ov-vertical">
+        <div class="ov-vertical-head"><h3>Cost governance</h3><span class="ov-status is-watch">Review</span></div>
+        <strong class="ov-vertical-score">57%</strong><small>Auto-resolution rate</small>
+        <ul class="ov-list" style="margin-top:14px"><li><span>Events</span><strong>7</strong></li><li><span>Auto-resolved</span><strong>4</strong></li><li><span>Open risks</span><strong>3</strong></li><li><span>Measured savings</span><strong>$4.2k</strong></li></ul>
+      </article>
+    </section>
+
+    <section class="ov-two ov-section">
+      <article class="ov-panel js-chartable" data-chart-title="Resilience outcomes" data-chart-columns='["Week","Events","Auto-resolved"]' data-chart-rows='[["Week 1","3","2"],["Week 2","2","2"],["Week 3","4","3"],["Week 4","3","3"]]' data-chart-num-cols='[1,2]'>
+        <h3>Resilience outcome trend</h3><p>Observed events and automatically resolved events by week.</p>
+        <svg class="ov-chart" viewBox="0 0 620 190" role="img" aria-label="Resilience auto-resolution trend">
+          <path class="grid" d="M42 25H610M42 70H610M42 115H610M42 160H610" />
+          <path class="area" d="M42 132L230 105L420 82L610 48L610 160L42 160Z" />
+          <path class="line" d="M42 132L230 105L420 82L610 48" />
+          <text x="7" y="164">50%</text><text x="7" y="119">65%</text><text x="7" y="74">80%</text><text x="7" y="29">95%</text>
+          <text x="42" y="184">Week 1</text><text x="560" y="184">Week 4</text>
+        </svg>
+      </article>
+      <aside class="ov-panel"><h3>Resilience evidence</h3><p>Outcome claims attached to this selection.</p><ul class="ov-list"><li><span>Recovery drills passed</span><strong>6 / 6</strong></li><li><span>Rollback paths tested</span><strong>10 / 10</strong></li><li><span>Unverified recoveries</span><strong>0</strong></li><li><span>Evidence age</span><strong>4h</strong></li></ul></aside>
+    </section>
+
+    <section class="ov-section">
+      <div class="ov-section-head"><div><h2>Cross-vertical comparison</h2><p>Shared measures only; vertical-specific metrics stay in their selected view.</p></div></div>
+      <div class="cs-table-wrap"><table class="cs-table ov-table"><thead><tr><th>Vertical</th><th class="num">Events</th><th class="num">Auto-resolved</th><th class="num">Open risks</th><th class="num">Evidence confidence</th></tr></thead><tbody><tr><td>Resilience</td><td class="num">12</td><td class="num">10</td><td class="num">1</td><td class="num">94%</td></tr><tr><td>Change safety</td><td class="num">11</td><td class="num">8</td><td class="num">2</td><td class="num">91%</td></tr><tr><td>Cost governance</td><td class="num">7</td><td class="num">4</td><td class="num">3</td><td class="num">78%</td></tr></tbody></table></div>
+      <div class="ov-footer-links"><a href="incidents.html">View resilience incidents</a><a href="audit.html">Inspect vertical audit</a></div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trust routing - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css?v=sidebar-v6" />
+  <link rel="stylesheet" href="assets/overview-hubs.css?v=overview-v1" />
+  <script src="assets/calm-slate.js?v=sidebar-v6" defer></script>
+</head>
+<body>
+  <main class="cs-container cs-page ov-page">
+    <header class="ov-page-header">
+      <div>
+        <div class="ov-breadcrumb"><span>Overview</span><span>/</span><span>Trust routing</span></div>
+        <h1>Trust routing</h1>
+        <p>How work moves through deterministic, similarity, and governed reasoning paths - including the signals that prevent unsafe escalation.</p>
+      </div>
+      <div class="ov-window"><span>Evidence window</span><strong>Last 30 days</strong></div>
+    </header>
+
+    <nav class="ov-tabs" aria-label="Trust tier"><a href="#t0">T0 deterministic</a><a href="#t1">T1 similarity</a><a class="is-active" href="#t2">T2 reasoning</a></nav>
+
+    <div class="cs-readonly-banner"><strong>T2 is a governed residual path.</strong> Mixed-model agreement, verification, grounding, risk, and approval gates remain mandatory.</div>
+    <div class="ov-evidence"><strong>Measured</strong><span>30 classified events</span><span>2 T2 decisions</span><span>Source trust-router audit</span><span>As of 2026-07-22T15:18Z</span></div>
+
+    <section class="ov-route-map" aria-label="Trust tier distribution">
+      <article class="ov-tier"><span class="ov-tier-code">T0</span><strong class="ov-tier-share">73%</strong><small>22 deterministic matches</small><ul class="ov-list" style="margin-top:14px"><li><span>Rule coverage</span><strong>88%</strong></li><li><span>Median latency</span><strong>18ms</strong></li></ul></article>
+      <article class="ov-tier"><span class="ov-tier-code" style="background:var(--cs-teal)">T1</span><strong class="ov-tier-share">20%</strong><small>6 similarity-assisted decisions</small><ul class="ov-list" style="margin-top:14px"><li><span>Confidence band</span><strong>0.88-0.94</strong></li><li><span>Median latency</span><strong>94ms</strong></li></ul></article>
+      <article class="ov-tier is-active"><span class="ov-tier-code" style="background:var(--cs-plum)">T2</span><strong class="ov-tier-share">7%</strong><small>2 governed reasoning decisions</small><ul class="ov-list" style="margin-top:14px"><li><span>Verifier agreement</span><strong>100%</strong></li><li><span>Median latency</span><strong>2.1s</strong></li></ul></article>
+    </section>
+
+    <section class="ov-section">
+      <div class="ov-section-head"><div><h2>T2 control flow</h2><p>Every step must pass before a reasoning verdict can reach an action decision.</p></div><span class="ov-status is-good">2 / 2 complete</span></div>
+      <div class="ov-route-flow" aria-label="T2 guarded flow">
+        <div class="ov-route-step"><strong>Mixed models</strong>2 independent candidates</div><span class="ov-route-arrow">&rarr;</span>
+        <div class="ov-route-step"><strong>Verifier</strong>Agreement checked</div><span class="ov-route-arrow">&rarr;</span>
+        <div class="ov-route-step"><strong>Grounding</strong>Evidence attached</div><span class="ov-route-arrow">&rarr;</span>
+        <div class="ov-route-step"><strong>Risk gate</strong>Blast radius bounded</div><span class="ov-route-arrow">&rarr;</span>
+        <div class="ov-route-step"><strong>Approval</strong>Required when classified</div><span class="ov-route-arrow">&rarr;</span>
+        <div class="ov-route-step"><strong>Audit</strong>Decision recorded</div>
+      </div>
+    </section>
+
+    <section class="ov-two ov-section">
+      <article class="ov-panel">
+        <h3>Leading indicators</h3><p>Signals that can hold T2 routing before a policy failure occurs.</p>
+        <div class="ov-guard-list">
+          <div class="ov-guard"><div class="ov-guard-name"><strong>Model disagreement</strong><small>Current 4%</small></div><div><div class="ov-meter"><span style="width:40%"></span></div><div class="ov-meter-meta"><span>4%</span><span>limit 10%</span></div></div><span class="ov-status is-good">Normal</span></div>
+          <div class="ov-guard"><div class="ov-guard-name"><strong>Verifier rejection</strong><small>Current 2%</small></div><div><div class="ov-meter"><span style="width:40%"></span></div><div class="ov-meter-meta"><span>2%</span><span>limit 5%</span></div></div><span class="ov-status is-good">Normal</span></div>
+          <div class="ov-guard"><div class="ov-guard-name"><strong>Grounding divergence</strong><small>Current 8%</small></div><div><div class="ov-meter is-watch"><span style="width:80%"></span></div><div class="ov-meter-meta"><span>8%</span><span>limit 10%</span></div></div><span class="ov-status is-watch">Watch</span></div>
+        </div>
+      </article>
+      <aside class="ov-panel"><h3>Routing disposition</h3><p>What happened after tier classification.</p><ul class="ov-list"><li><span>Automatically resolved</span><strong>22</strong></li><li><span>Escalated to approval</span><strong>2</strong></li><li><span>Held for evidence</span><strong>5</strong></li><li><span>Denied by policy</span><strong>1</strong></li></ul></aside>
+    </section>
+
+    <section class="ov-section">
+      <div class="ov-section-head"><div><h2>Recent T2 decisions</h2><p>Aggregated examples; sensitive decision detail remains in audit evidence.</p></div></div>
+      <div class="cs-table-wrap"><table class="cs-table ov-table"><thead><tr><th>Decision class</th><th>Agreement</th><th>Grounding</th><th>Risk</th><th>Disposition</th></tr></thead><tbody><tr><td>Ambiguous change correlation</td><td><span class="ov-status is-good">2 / 2</span></td><td>6 sources</td><td>R2 bounded</td><td>Approval</td></tr><tr><td>Novel cost anomaly</td><td><span class="ov-status is-good">2 / 2</span></td><td>4 sources</td><td>R1 advisory</td><td>Shadow</td></tr></tbody></table></div>
+      <div class="ov-footer-links"><a href="rule-trace.html">Inspect rule trace</a><a href="audit.html">View routing audit</a><a href="llm-cost.html">Review T2 cost</a></div>
+    </section>
+  </main>
+</body>
+</html>
