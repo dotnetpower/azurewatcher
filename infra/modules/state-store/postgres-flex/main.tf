@@ -81,10 +81,9 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "allow_azure_service
   end_ip_address   = "0.0.0.0"
 }
 
-# pgvector extension enabled via server-side azure.extensions configuration
-# (Azure Database for PostgreSQL supports 'vector' as of PostgreSQL 16).
+# Search extensions enabled via server-side azure.extensions configuration.
 resource "azurerm_postgresql_flexible_server_configuration" "vector_extension" {
   name      = "azure.extensions"
   server_id = azurerm_postgresql_flexible_server.primary.id
-  value     = "VECTOR"
+  value     = "VECTOR,PG_TRGM"
 }
