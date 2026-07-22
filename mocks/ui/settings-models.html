@@ -16,9 +16,16 @@
     .cs-model-dot.is-unavailable { background: #B9B6B1; }
     .cs-model-providers { border-top: 1px solid var(--cs-hairline); }
     .cs-model-provider { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 18px; padding: 18px 0; border-bottom: 1px solid var(--cs-hairline); }
-    .cs-model-provider-head { display: flex; align-items: baseline; gap: 8px; }
+    .cs-model-provider-head { display: flex; align-items: center; gap: 8px; }
     .cs-model-provider-head h3 { margin: 0; font-size: 14px; }
     .cs-model-provider-head span { color: var(--cs-text-soft); font-size: 11px; }
+    .cs-provider-mark { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: 0 0 auto; border-radius: 6px; background: var(--cs-navy); }
+    .cs-provider-mark img { width: 15px; height: 15px; filter: brightness(0) invert(1); }
+    .cs-provider-mark.is-openai { background: #33403B; }
+    .cs-provider-mark.is-claude { background: #C66B45; }
+    .cs-provider-mark.is-gemini { background: #4169A8; }
+    .cs-provider-mark.is-others { grid-template-columns: repeat(2, 4px); grid-template-rows: repeat(2, 4px); gap: 2px; background: #596979; }
+    .cs-provider-mark.is-others i { width: 4px; height: 4px; border-radius: 1px; background: #FFFFFF; }
     .cs-model-options { display: flex; flex-wrap: wrap; gap: 8px; }
     .cs-model-option { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--cs-hairline); border-radius: 6px; background: var(--cs-card); color: var(--cs-text-soft); font-size: 12.5px; cursor: pointer; transition: border-color .12s ease, background .12s ease, color .12s ease; }
     .cs-model-option:hover { border-color: #C9C6C1; color: var(--cs-text); }
@@ -87,7 +94,10 @@
 
       <div class="cs-model-providers">
         <section class="cs-model-provider" aria-labelledby="provider-openai">
-          <header class="cs-model-provider-head"><h3 id="provider-openai">OpenAI</h3><span>6 models</span></header>
+          <header class="cs-model-provider-head">
+            <span class="cs-provider-mark is-openai" aria-hidden="true"><img src="https://cdn.jsdelivr.net/npm/simple-icons@15.15.0/icons/openai.svg" alt="" /></span>
+            <h3 id="provider-openai">OpenAI</h3><span>6 models</span>
+          </header>
           <div class="cs-model-options">
             <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-5.2" /><i class="cs-model-dot" aria-hidden="true"></i>GPT-5.2</label>
             <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-5.1" /><i class="cs-model-dot" aria-hidden="true"></i>GPT-5.1</label>
@@ -99,7 +109,10 @@
         </section>
 
         <section class="cs-model-provider" aria-labelledby="provider-claude">
-          <header class="cs-model-provider-head"><h3 id="provider-claude">Claude</h3><span>4 models</span></header>
+          <header class="cs-model-provider-head">
+            <span class="cs-provider-mark is-claude" aria-hidden="true"><img src="https://cdn.jsdelivr.net/npm/simple-icons@15.15.0/icons/claude.svg" alt="" /></span>
+            <h3 id="provider-claude">Claude</h3><span>4 models</span>
+          </header>
           <div class="cs-model-options">
             <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="claude-opus-4.5" /><i class="cs-model-dot" aria-hidden="true"></i>Claude Opus 4.5</label>
             <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="claude-sonnet-4" /><i class="cs-model-dot" aria-hidden="true"></i>Claude Sonnet 4</label>
@@ -109,7 +122,10 @@
         </section>
 
         <section class="cs-model-provider" aria-labelledby="provider-gemini">
-          <header class="cs-model-provider-head"><h3 id="provider-gemini">Gemini</h3><span>3 models</span></header>
+          <header class="cs-model-provider-head">
+            <span class="cs-provider-mark is-gemini" aria-hidden="true"><img src="https://cdn.jsdelivr.net/npm/simple-icons@15.15.0/icons/googlegemini.svg" alt="" /></span>
+            <h3 id="provider-gemini">Gemini</h3><span>3 models</span>
+          </header>
           <div class="cs-model-options">
             <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gemini-2.5-pro" /><i class="cs-model-dot" aria-hidden="true"></i>Gemini 2.5 Pro</label>
             <label class="cs-model-option"><input type="checkbox" data-model-toggle="gemini-2.5-flash" /><i class="cs-model-dot" aria-hidden="true"></i>Gemini 2.5 Flash</label>
@@ -118,7 +134,10 @@
         </section>
 
         <section class="cs-model-provider" aria-labelledby="provider-other">
-          <header class="cs-model-provider-head"><h3 id="provider-other">Others</h3><span>2 models</span></header>
+          <header class="cs-model-provider-head">
+            <span class="cs-provider-mark is-others" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <h3 id="provider-other">Others</h3><span>2 models</span>
+          </header>
           <div class="cs-model-options">
             <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="mistral-large" /><i class="cs-model-dot" aria-hidden="true"></i>Mistral Large</label>
             <label class="cs-model-option"><input type="checkbox" data-model-toggle="cohere-command-r" /><i class="cs-model-dot" aria-hidden="true"></i>Command R</label>
