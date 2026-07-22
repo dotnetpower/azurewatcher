@@ -46,10 +46,17 @@ from fdai.deployment_cli.preflight import (
     run_terraform_plan_preflight,
 )
 from fdai.deployment_cli.provision_inspect import (
+    ACCESS_PREFERENCE,
     Connectivity,
     ExecutionHost,
     ExecutionTransport,
     inspect_provisioning,
+)
+from fdai.deployment_cli.provision_profile import (
+    DEFAULT_PROFILE_PATH,
+    PROVISION_PROFILE_RESULT_SCHEMA,
+    ProvisionProfileError,
+    initialize_provision_profile,
 )
 from fdai.deployment_cli.release_channels import (
     RELEASE_RESULT_SCHEMA,
@@ -108,6 +115,31 @@ def _build_parser() -> argparse.ArgumentParser:
     provision_inspect.add_argument("--allow-temporary-public-ssh", action="store_true")
     provision_inspect.add_argument("--bastion", action="store_true")
     provision_inspect.add_argument("--output", choices=("text", "json"), default="text")
+    provision_init = provision_commands.add_parser(
+        "init", help="save one explicit private provisioning profile"
+    )
+    provision_init.add_argument(
+        "--connectivity",
+        choices=(Connectivity.ONLINE.value, Connectivity.OFFLINE.value),
+        required=True,
+    )
+    provision_init.add_argument(
+        "--host",
+        choices=(ExecutionHost.EXISTING.value, ExecutionHost.MANAGED_VM.value),
+        required=True,
+    )
+    provision_init.add_argument(
+        "--transport",
+        choices=(ExecutionTransport.MANUAL.value, ExecutionTransport.GITHUB_ACTIONS.value),
+        required=True,
+    )
+    provision_init.add_argument("--access-method", choices=ACCESS_PREFERENCE, required=True)
+    provision_init.add_argument("--artifact-source", default=None)
+    provision_init.add_argument("--source-cidr", default=None)
+    provision_init.add_argument("--access-window-minutes", type=int, default=30)
+    provision_init.add_argument("--config", type=Path, default=DEFAULT_PROFILE_PATH)
+    provision_init.add_argument("--force", action="store_true")
+    provision_init.add_argument("--output", choices=("text", "json"), default="text")
     onboard_parser = subcommands.add_parser("onboard", help="prepare local deployment config")
     onboard_commands = onboard_parser.add_subparsers(dest="onboard_command", required=True)
     onboard_init = onboard_commands.add_parser("init", help="create an environment config")
@@ -305,6 +337,43 @@ def main(argv: list[str] | None = None, *, stdout: TextIO | None = None) -> int:
                 print(f"Access: {inspect_result.access_method}", file=output)
             print("No resources were changed.", file=output)
         return inspect_result.exit_code
+    if args.command == "provision" and args.provision_command == "init":
+        try:
+            profile_result = initialize_provision_profile(
+                connectivity=Connectivity(args.connectivity),
+                execution_host=ExecutionHost(args.host),
+                transport=ExecutionTransport(args.transport),
+                access_method=args.access_method,
+                artifact_source=args.artifact_source,
+                source_cidr=args.source_cidr,
+                access_window_minutes=args.access_window_minutes,
+                destination=args.config,
+                force=args.force,
+            )
+        except ProvisionProfileError as exc:
+            if args.output == "json":
+                print(
+                    json.dumps(
+                        {"error": str(exc), "schema_version": PROVISION_PROFILE_RESULT_SCHEMA},
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    file=output,
+                )
+            else:
+                print(f"PROFILE BLOCKED: {exc}", file=output)
+            return 4
+        if args.output == "json":
+            print(profile_result.to_json(), file=output)
+        else:
+            print(
+                f"Created {profile_result.connectivity} / "
+                f"{profile_result.execution_host} / {profile_result.transport} profile "
+                f"at {profile_result.path}",
+                file=output,
+            )
+            print("No Azure resources were changed.", file=output)
+        return 0
     if args.command == "onboard" and args.onboard_command == "guided":
         try:
             guided_result = asyncio.run(

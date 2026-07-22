@@ -160,6 +160,7 @@ uvx --from "$wheel" fdaictl deploy status --help >/dev/null
 uvx --from "$wheel" fdaictl deploy apply --help >/dev/null
 uvx --from "$wheel" fdaictl backup create --help >/dev/null
 uvx --from "$wheel" fdaictl backup restore --help >/dev/null
+uvx --from "$wheel" fdaictl provision init --help >/dev/null
 uvx --from "$wheel" fdaictl release upgrade --help >/dev/null
 uvx --from "$wheel" fdaictl release rollback --help >/dev/null
 

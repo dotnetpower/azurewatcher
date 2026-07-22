@@ -7,9 +7,10 @@ This document defines how `fdaictl` selects a provisioning host, connectivity mo
 transport, and access path. It also defines the human approval and workload-identity boundary
 that applies before Terraform changes infrastructure or role assignments.
 
-> **Implementation status:** Read-only `fdaictl provision inspect` is implemented. Profile
-> persistence, signed offline-kit verification, bootstrap plan/apply orchestration, temporary
-> public-access cleanup, and post-provision verification remain target behavior.
+> **Implementation status:** Read-only `fdaictl provision inspect` and private `provision init`
+> profile persistence are implemented. Signed offline-kit verification, bootstrap plan/apply
+> orchestration, temporary public-access cleanup, and post-provision verification remain target
+> behavior.
 >
 > **Scope:** Azure is the implemented target. The profiles do not change the Terraform source of
 > truth or allow local fallback around a private endpoint.
@@ -51,6 +52,27 @@ The result uses these states:
 
 An offline-kit directory remains `review` until a later stage verifies its manifest and signature
 against the pinned release root. File presence alone never establishes trust.
+
+## Profile initialization
+
+Save a reviewed profile with explicit, resolved values:
+
+```bash
+fdaictl provision init \
+	--connectivity online \
+	--host existing-host \
+	--transport manual \
+	--access-method internal_ssh
+```
+
+The command rejects every `auto` value and writes `.fdai/provisioning/profile.json` with file mode
+`0600` in a mode-`0700` directory. Offline profiles require `--artifact-source`. Temporary public
+SSH requires a canonical source CIDR narrower than the entire address space and an access window
+of 5-60 minutes. GitHub Actions transport requires the matching `github_actions` access method.
+
+An existing destination blocks initialization unless `--force` is explicit. Force never follows
+a symbolic link or replaces a non-file destination. Profile initialization changes no Azure
+resource and reports `mutation_performed=false` in JSON output.
 
 ## Execution hosts
 

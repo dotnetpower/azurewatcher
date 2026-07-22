@@ -1,7 +1,7 @@
 ---
 title: Provisioning 실행 Profile
 translation_of: provisioning-execution-profiles.md
-translation_source_sha: dc9d8b038b21bbbd1b5e149377f347c984fbc1b3
+translation_source_sha: 7d0842129ff62266121271a15cbd45c9fc3cbcaa
 translation_revised: 2026-07-22
 ---
 # Provisioning 실행 Profile
@@ -10,9 +10,10 @@ translation_revised: 2026-07-22
 선택하는 방법을 정의합니다. 또한 Terraform이 infrastructure 또는 role assignment를 변경하기
 전에 적용되는 사람 승인과 workload-identity 경계를 정의합니다.
 
-> **구현 상태:** 읽기 전용 `fdaictl provision inspect`가 구현되었습니다. Profile persistence,
-> signed offline-kit verification, bootstrap plan/apply orchestration, temporary public-access
-> cleanup, post-provision verification은 목표 동작으로 남아 있습니다.
+> **구현 상태:** 읽기 전용 `fdaictl provision inspect`와 private `provision init` profile
+> persistence가 구현되었습니다. Signed offline-kit verification, bootstrap plan/apply
+> orchestration, temporary public-access cleanup, post-provision verification은 목표 동작으로
+> 남아 있습니다.
 >
 > **범위:** Azure가 구현된 대상입니다. 이 profile은 Terraform source of truth를 변경하거나
 > private endpoint를 우회하는 local fallback을 허용하지 않습니다.
@@ -54,6 +55,28 @@ Result는 다음 상태를 사용합니다.
 
 Offline-kit directory는 이후 단계가 pinned release root로 manifest와 signature를 검증할 때까지
 `review`로 유지됩니다. File이 존재한다는 사실만으로 trust가 성립하지 않습니다.
+
+## Profile initialization
+
+명시적으로 결정된 값으로 검토한 profile을 저장합니다.
+
+```bash
+fdaictl provision init \
+        --connectivity online \
+        --host existing-host \
+        --transport manual \
+        --access-method internal_ssh
+```
+
+명령은 모든 `auto` 값을 거부하고 `.fdai/provisioning/profile.json`을 mode-`0700` directory
+안에 file mode `0600`으로 기록합니다. Offline profile에는 `--artifact-source`가 필요합니다.
+Temporary public SSH에는 전체 address space보다 좁은 canonical source CIDR과 5-60분 access
+window가 필요합니다. GitHub Actions transport에는 일치하는 `github_actions` access method가
+필요합니다.
+
+기존 destination은 `--force`를 명시하지 않으면 initialization을 차단합니다. Force는 symbolic
+link를 따라가거나 non-file destination을 교체하지 않습니다. Profile initialization은 Azure
+resource를 변경하지 않으며 JSON 출력에 `mutation_performed=false`를 기록합니다.
 
 ## Execution host
 
