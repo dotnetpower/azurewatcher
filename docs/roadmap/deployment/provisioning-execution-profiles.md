@@ -126,6 +126,12 @@ the Python and bundle versions match, and publishes that exact artifact through 
 Publishing only after the matching signed bundle is published. Only the publish job receives the
 GitHub OIDC permission; no long-lived PyPI token is stored.
 
+The public PyPI release line starts at `0.1.0`. Existing repository tags `v0.1.1` through
+`v0.1.12` are pre-PyPI engineering milestones and are not rewritten. The first public release tags
+the exact publication commit as `v0.1.0`. An installation with an active pre-PyPI bundle state
+above `0.1.0` uses a fresh public release state or an explicit migration; it is not treated as a
+semantic-version upgrade to `0.1.0`.
+
 Disconnected delivery uses the same `fdai` wheel and command contracts in a platform-specific
 offline kit. The kit contains:
 

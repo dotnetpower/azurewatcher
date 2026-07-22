@@ -20,14 +20,14 @@ on:
         description: "Optional maximum compatible fdaictl version."
         type: string
         required: false
-        publish_release:
-          description: "Create a GitHub Release after reproducibility and verification pass."
-          type: boolean
-          default: false
-        publish_pypi:
-          description: "Publish the matching fdai wheel and sdist to PyPI. Requires publish_release."
-          type: boolean
-          default: false
+      publish_release:
+        description: "Create a GitHub Release after reproducibility and verification pass."
+        type: boolean
+        default: false
+      publish_pypi:
+        description: "Publish the matching fdai wheel and sdist to PyPI. Requires publish_release."
+        type: boolean
+        default: false
 
 permissions:
   contents: read

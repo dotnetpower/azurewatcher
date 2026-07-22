@@ -74,6 +74,21 @@ def test_python_distribution_jobs_are_structurally_executable() -> None:
         / "release-deployment-bundle.yml"
     )
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    workflow_dispatch = workflow[True]["workflow_dispatch"]
+    inputs = workflow_dispatch["inputs"]
+    assert set(inputs) == {
+        "bundle_version",
+        "release_channel",
+        "min_cli_version",
+        "max_cli_version",
+        "publish_release",
+        "publish_pypi",
+    }
+    assert set(inputs["max_cli_version"]) == {
+        "description",
+        "type",
+        "required",
+    }
     package_job = workflow["jobs"]["python-package"]
     publish_job = workflow["jobs"]["publish-pypi"]
     version_step = next(
