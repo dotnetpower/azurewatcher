@@ -110,6 +110,10 @@ while IFS= read -r file; do
             add_test "tests/scripts"
             continue
             ;;
+        tools/*.py)
+            add_test "tests/tools"
+            continue
+            ;;
     esac
 
     [[ "$file" == *.py ]] || continue
@@ -161,7 +165,13 @@ while IFS= read -r file; do
             esac
         fi
         add_test "$candidate"
+        continue
     fi
+
+    # A Python change that reaches this point belongs to an unrecognized
+    # source layout. Fail safe to the full suite instead of reporting success
+    # with no tests selected.
+    add_test "tests"
 done <<< "$changed"
 
 if [[ ${#tests[@]} -eq 0 ]]; then
