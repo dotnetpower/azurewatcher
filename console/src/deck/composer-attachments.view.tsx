@@ -10,6 +10,7 @@
  * the preview tray, and the abandon behavior.
  */
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { Tooltip } from "../components/tooltip";
 import { t } from "../i18n";
 import {
   detectKind,
@@ -172,9 +173,9 @@ export function ComposerAttachments() {
                 {entry.previewUrl ? "" : thumbLabel(entry.kind)}
               </span>
               <span class="deck-attach-body">
-                <span class="deck-attach-name" title={entry.name}>
-                  {entry.name}
-                </span>
+                <Tooltip content={entry.name}>
+                  <span class="deck-attach-name">{entry.name}</span>
+                </Tooltip>
                 <span class="deck-attach-meta">
                   {entry.status === "abandoned"
                     ? t("deck.attach.rmsProtected")
@@ -185,28 +186,30 @@ export function ComposerAttachments() {
                   </span>
                 </span>
               </span>
-              <button
-                type="button"
-                class="deck-attach-remove"
-                title={t("deck.attach.remove")}
-                aria-label={t("deck.attach.remove")}
-                onClick={() => remove(entry.id)}
-              >
-                ×
-              </button>
+              <Tooltip content={t("deck.attach.remove")}>
+                <button
+                  type="button"
+                  class="deck-attach-remove"
+                  aria-label={t("deck.attach.remove")}
+                  onClick={() => remove(entry.id)}
+                >
+                  ×
+                </button>
+              </Tooltip>
             </li>
           ))}
         </ul>
       ) : null}
-      <button
-        type="button"
-        class="deck-attach-btn"
-        title={t("deck.attach.button")}
-        aria-label={t("deck.attach.button")}
-        onClick={() => inputRef.current?.click()}
-      >
-        +
-      </button>
+      <Tooltip content={t("deck.attach.button")}>
+        <button
+          type="button"
+          class="deck-attach-btn"
+          aria-label={t("deck.attach.button")}
+          onClick={() => inputRef.current?.click()}
+        >
+          +
+        </button>
+      </Tooltip>
     </>
   );
 }
