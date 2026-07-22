@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
@@ -127,6 +128,36 @@ async def test_full_output_is_not_retained_by_runner() -> None:
     assert len(output.stdout) > 4_096
     assert vars(runner).get("_outputs") is None
     assert all(payload.decode() not in repr(value) for value in vars(runner).values())
+
+
+async def test_concurrent_same_key_executes_command_once() -> None:
+    calls: list[tuple[str, ...]] = []
+
+    async def invoke(
+        argv: tuple[str, ...],
+        env: Mapping[str, str],  # noqa: ARG001
+        timeout: float,  # noqa: ARG001
+        cap: int,  # noqa: ARG001
+    ) -> AzureCliProcessResult:
+        calls.append(argv)
+        await asyncio.sleep(0)
+        if argv[1:3] == ("account", "show"):
+            return AzureCliProcessResult(0, b"subscription-example\n", b"")
+        if argv[1:3] == ("resource", "list"):
+            return AzureCliProcessResult(0, b"[]", b"")
+        return AzureCliProcessResult(0, b"", b"")
+
+    runner = AzureCliCommandRunner(_config(), invoker=invoke)
+    receipts = await asyncio.gather(
+        runner.execute(_plan(dry_run=False)),
+        runner.execute(_plan(dry_run=False)),
+    )
+
+    assert {receipt.status for receipt in receipts} == {
+        CommandStatus.SUCCEEDED,
+        CommandStatus.ALREADY_APPLIED,
+    }
+    assert len(calls) == 3
 
 
 async def test_subscription_override_is_rejected_before_login() -> None:

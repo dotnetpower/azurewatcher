@@ -109,7 +109,8 @@ or an ARM URL. It selects a registered tool and bounded enum arguments only.
 The broker applies the registered plan's timeout and output cap. Complete JSON is returned only as
 ephemeral output to the typed adapter; the command receipt retains a bounded 4 KB diagnostic tail,
 and the broker does not cache the full output after return. Raw CLI output is not persisted or
-passed to narrator context.
+passed to narrator context. Concurrent receipt-based executions are serialized so one
+idempotency key invokes the registered command at most once per broker lifetime.
 
 When `FDAI_DEV_OPERATIONS_GATEWAY_URL` and its separately emitted
 `FDAI_DEV_OPERATIONS_GATEWAY_AUDIENCE` are both configured, interactive local wraps the REST
