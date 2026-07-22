@@ -21,6 +21,7 @@ from fdai.delivery.channels.adapter_health_commands import (
     AdapterHealthCommandAuthenticator,
     make_adapter_health_command_routes,
 )
+from fdai.delivery.channels.production_attachments import ProductionAttachmentConfig
 from fdai.delivery.channels.publishers import (
     SlackReplyPublisherConfig,
     SlackWebApiReplyPublisher,
@@ -134,6 +135,11 @@ class ProductionChannelRuntime:
     async def start(self) -> tuple[Route, ...]:
         if self._tasks:
             raise RuntimeError("production channel runtime is already started")
+        attachment_config = ProductionAttachmentConfig.from_env(
+            self._environ if self._environ is not None else os.environ
+        )
+        if attachment_config is not None and self._attachment_ingestor is None:
+            raise ValueError("enabled channel attachments require a production attachment ingestor")
         http_client = self._http or httpx.AsyncClient()
         self._http = http_client
         routes: list[Route] = []

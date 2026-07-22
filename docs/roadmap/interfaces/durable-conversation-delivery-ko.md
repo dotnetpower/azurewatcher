@@ -1,6 +1,6 @@
 ---
 translation_of: durable-conversation-delivery.md
-translation_source_sha: 2575636fc305a3503e4e553b64210e0b6edaa966
+translation_source_sha: 24811db0f40f963d66ffc357379b8f3c7b539be3
 translation_revised: 2026-07-23
 ---
 # 영구 대화 전송
@@ -94,6 +94,9 @@ PostgreSQL store를 사용합니다.
 ## Crash recovery
 
 Production channel startup은 consumer 시작 전에 ledger를 reconcile합니다.
+
+- Channel attachment를 사용하면 startup은 fully built production attachment ingestor도
+    요구합니다. Enabled-but-unbound runtime은 route 또는 consumer 시작 전에 실패합니다.
 
 1. 만료된 `sending` lease를 `duplicate_risk=true` 및 `process_loss`가 있는 `ambiguous`로 바꿉니다.
 2. Due `pending` 및 `failed` row를 attempt, freshness, batch cap 안에서 claim하고 전송합니다.

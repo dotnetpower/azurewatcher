@@ -1,6 +1,6 @@
 ---
 translation_of: agent-stewardship-and-handover.md
-translation_source_sha: 5297541a12dcc8cba3d93bb1603386ef346bb778
+translation_source_sha: 3def671ee54178a3e6a4fc20975a69b67356f544
 translation_revised: 2026-07-23
 title: 에이전트 스튜어드십과 인수인계
 ---
@@ -342,6 +342,11 @@ polling하고 검토용 draft summary, YAML, persisted governance PR receipt를 
 적용하거나 privileged mutation path를 만들지 않습니다. Local development는 draft를 memory에 저장하고 production은
 `PostgresStateStore`를 사용하므로 worker 또는 gateway restart 후에도 review artifact가
 유지됩니다.
+
+Handover source가 image이면 optional Document Intelligence OCR도 동일한 agent-owned ingestion
+path 안에 유지됩니다. `FDAI_OCR_OPERATION_TIMEOUT_SECONDS`는 submission, polling 및 poll delay
+전체를 bound합니다. Timeout 또는 duplicate page locator는 extraction을 실패시키고 draft evidence를
+만들지 않습니다.
 
 Production Graph call은 gateway managed identity와
 `https://graph.microsoft.com/.default` scope를 사용합니다. Exact lookup에 필요한 Microsoft

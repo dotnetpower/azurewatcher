@@ -1566,6 +1566,7 @@ module "ingestion_gateway" {
   embedding_endpoint             = var.enable_llm ? module.llm_azure_openai[0].endpoint : ""
   embedding_deployment           = var.enable_llm ? lookup(module.llm_azure_openai[0].deployments, var.ingestion_embedding_capability, "") : ""
   ocr_endpoint                   = var.document_ocr_endpoint
+  ocr_operation_timeout_seconds  = var.document_ocr_operation_timeout_seconds
   kafka_bootstrap_servers        = module.event_bus.kafka_bootstrap
   document_event_topic           = "aw.pipeline.stages"
   runtime_env                    = var.env == "" ? "dev" : var.env

@@ -37,6 +37,7 @@ class TeamsAttachmentEndpointResolver(Protocol):
 class SlackAttachmentFetcherConfig:
     bot_token_ref: str = "slack-bot-token"  # noqa: S105 - secret reference name
     api_base: str = "https://slack.com/api"
+    allowed_api_hosts: tuple[str, ...] = ("slack.com",)
     allowed_download_hosts: tuple[str, ...] = ("files.slack.com",)
     timeout_seconds: float = 30.0
     max_metadata_bytes: int = 64 * 1024
@@ -44,6 +45,7 @@ class SlackAttachmentFetcherConfig:
     def __post_init__(self) -> None:
         _validate_fetch_config(
             api_base=self.api_base,
+            allowed_api_hosts=self.allowed_api_hosts,
             allowed_hosts=self.allowed_download_hosts,
             timeout_seconds=self.timeout_seconds,
         )
@@ -89,6 +91,8 @@ class SlackPrivateFileFetcher:
             raise ChannelAttachmentFetchError("Slack files.info rejected the attachment")
         if not isinstance(file_record, dict):
             raise ChannelAttachmentFetchError("Slack files.info returned no file record")
+        if file_record.get("id") != attachment.source_ref:
+            raise ChannelAttachmentFetchError("Slack files.info returned a different file id")
         download_url = file_record.get("url_private_download") or file_record.get("url_private")
         if not isinstance(download_url, str):
             raise ChannelAttachmentFetchError("Slack file record has no private download URL")
@@ -111,6 +115,7 @@ class TeamsAttachmentFetcherConfig:
     def __post_init__(self) -> None:
         if (
             not self.allowed_download_hosts
+            or any(not _is_host_name(host) for host in self.allowed_download_hosts)
             or not self.allowed_audiences
             or not isfinite(self.timeout_seconds)
             or self.timeout_seconds <= 0
@@ -158,9 +163,17 @@ class TeamsServerAttachmentFetcher:
 
 
 def _validate_fetch_config(
-    *, api_base: str, allowed_hosts: tuple[str, ...], timeout_seconds: float
+    *,
+    api_base: str,
+    allowed_api_hosts: tuple[str, ...],
+    allowed_hosts: tuple[str, ...],
+    timeout_seconds: float,
 ) -> None:
     parsed = urlparse(api_base)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("attachment API base MUST use an allowed HTTPS origin") from exc
     if (
         parsed.scheme != "https"
         or not parsed.hostname
@@ -168,8 +181,12 @@ def _validate_fetch_config(
         or parsed.password is not None
         or parsed.query
         or parsed.fragment
+        or port not in {None, 443}
+        or parsed.hostname.casefold() not in {host.casefold() for host in allowed_api_hosts}
     ):
-        raise ValueError("attachment API base MUST be an HTTPS URL without credentials or query")
+        raise ValueError("attachment API base MUST use an allowed HTTPS origin")
+    if not allowed_api_hosts or any(not _is_host_name(host) for host in allowed_api_hosts):
+        raise ValueError("attachment API hosts MUST be non-empty host names")
     if not allowed_hosts or any(not _is_host_name(host) for host in allowed_hosts):
         raise ValueError("attachment download hosts MUST be non-empty host names")
     if not isfinite(timeout_seconds) or not 0 < timeout_seconds <= 300:

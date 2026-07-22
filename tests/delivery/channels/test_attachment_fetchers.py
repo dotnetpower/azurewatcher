@@ -75,7 +75,10 @@ async def test_slack_fetcher_resolves_opaque_id_then_downloads_private_bytes() -
                 200,
                 json={
                     "ok": True,
-                    "file": {"url_private_download": "https://files.slack.com/files-pri/content"},
+                    "file": {
+                        "id": "opaque-file-id",
+                        "url_private_download": "https://files.slack.com/files-pri/content",
+                    },
                 },
             )
         assert request.url.host == "files.slack.com"
@@ -102,7 +105,10 @@ async def test_slack_fetcher_rejects_untrusted_download_host_before_get() -> Non
             200,
             json={
                 "ok": True,
-                "file": {"url_private_download": "https://example.com/private"},
+                "file": {
+                    "id": "opaque-file-id",
+                    "url_private_download": "https://example.com/private",
+                },
             },
         )
 
@@ -135,7 +141,10 @@ async def test_slack_fetcher_enforces_streamed_byte_limit() -> None:
                 200,
                 json={
                     "ok": True,
-                    "file": {"url_private_download": "https://files.slack.com/private"},
+                    "file": {
+                        "id": "opaque-file-id",
+                        "url_private_download": "https://files.slack.com/private",
+                    },
                 },
             )
         return httpx.Response(200, content=b"too-large")
@@ -160,7 +169,10 @@ async def test_slack_fetcher_rejects_redirect_without_following_location() -> No
                 200,
                 json={
                     "ok": True,
-                    "file": {"url_private_download": "https://files.slack.com/private"},
+                    "file": {
+                        "id": "opaque-file-id",
+                        "url_private_download": "https://files.slack.com/private",
+                    },
                 },
             )
         return httpx.Response(
@@ -229,8 +241,40 @@ async def test_slack_fetcher_stops_streaming_oversized_metadata() -> None:
     ),
 )
 def test_slack_fetcher_config_rejects_non_origin_api_base(api_base: str) -> None:
-    with pytest.raises(ValueError, match="without credentials or query"):
+    with pytest.raises(ValueError, match="allowed HTTPS origin"):
         SlackAttachmentFetcherConfig(api_base=api_base)
+
+
+@pytest.mark.parametrize(
+    "api_base",
+    ("https://example.com/api", "https://slack.com:8443/api"),
+)
+def test_slack_fetcher_config_rejects_api_origin_outside_policy(api_base: str) -> None:
+    with pytest.raises(ValueError, match="allowed HTTPS origin"):
+        SlackAttachmentFetcherConfig(api_base=api_base)
+
+
+async def test_slack_fetcher_rejects_substituted_file_record() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "file": {
+                    "id": "different-file-id",
+                    "url_private_download": "https://files.slack.com/private",
+                },
+            },
+        )
+
+    fetcher = SlackPrivateFileFetcher(
+        config=SlackAttachmentFetcherConfig(),
+        secrets=EnvSecretProvider(env={"slack-bot-token": "bot-token"}, prefix=""),
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(ChannelAttachmentFetchError, match="different file id"):
+        await fetcher.fetch(_ATTACHMENT, max_bytes=10)
 
 
 async def test_slack_fetcher_rejects_allowed_host_on_nonstandard_port() -> None:
@@ -239,7 +283,10 @@ async def test_slack_fetcher_rejects_allowed_host_on_nonstandard_port() -> None:
             200,
             json={
                 "ok": True,
-                "file": {"url_private_download": "https://files.slack.com:8443/private"},
+                "file": {
+                    "id": "opaque-file-id",
+                    "url_private_download": "https://files.slack.com:8443/private",
+                },
             },
         )
 
@@ -260,7 +307,10 @@ async def test_slack_fetcher_rejects_negative_content_length() -> None:
                 200,
                 json={
                     "ok": True,
-                    "file": {"url_private_download": "https://files.slack.com/private"},
+                    "file": {
+                        "id": "opaque-file-id",
+                        "url_private_download": "https://files.slack.com/private",
+                    },
                 },
             )
         return httpx.Response(200, content=b"data", headers={"Content-Length": "-1"})
@@ -337,4 +387,13 @@ def test_attachment_fetcher_configs_reject_nonfinite_timeout(timeout: float) -> 
             allowed_download_hosts=("attachments.example.com",),
             allowed_audiences=("api://attachments.example.com",),
             timeout_seconds=timeout,
+        )
+
+
+@pytest.mark.parametrize("host", ("https://attachments.example.com", "host:443", "bad/path"))
+def test_teams_fetcher_config_rejects_non_host_allowlist_values(host: str) -> None:
+    with pytest.raises(ValueError, match="hosts"):
+        TeamsAttachmentFetcherConfig(
+            allowed_download_hosts=(host,),
+            allowed_audiences=("api://attachments.example.com",),
         )

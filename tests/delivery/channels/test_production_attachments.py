@@ -19,6 +19,11 @@ def test_attachment_config_is_disabled_by_default() -> None:
     assert ProductionAttachmentConfig.from_env({}) is None
 
 
+def test_attachment_config_rejects_invalid_enable_flag() -> None:
+    with pytest.raises(ProductionAttachmentConfigError, match="boolean"):
+        ProductionAttachmentConfig.from_env({"FDAI_CHANNEL_ATTACHMENTS_ENABLED": "tru"})
+
+
 def test_attachment_config_requires_governed_collection_fields() -> None:
     with pytest.raises(ProductionAttachmentConfigError, match="COLLECTION"):
         ProductionAttachmentConfig.from_env({"FDAI_CHANNEL_ATTACHMENTS_ENABLED": "1"})

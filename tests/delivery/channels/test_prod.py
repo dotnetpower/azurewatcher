@@ -291,6 +291,29 @@ def test_runtime_fails_startup_when_slack_secret_is_missing() -> None:
             pass
 
 
+def test_runtime_fails_startup_when_enabled_attachments_are_not_bound() -> None:
+    runtime = ProductionChannelRuntime(
+        config=ProductionChannelConfig(slack_enabled=True, teams_enabled=False),
+        gateway=_Gateway(),
+        secrets=_Secrets(
+            values={
+                "slack-signing-secret": "signing-secret",
+                "slack-bot-token": "bot-token",
+            }
+        ),
+        environ={
+            "FDAI_CHANNEL_ATTACHMENTS_ENABLED": "1",
+            "FDAI_CHANNEL_ATTACHMENT_COLLECTION": "channel-evidence",
+            "FDAI_CHANNEL_ATTACHMENT_ACCESS_REF": "channel-evidence-readers",
+            "FDAI_CHANNEL_ATTACHMENT_RETENTION_POLICY": "retention-v1",
+        },
+    )
+
+    with pytest.raises(ValueError, match="require a production attachment ingestor"):
+        with TestClient(build_channel_app(runtime)):
+            pass
+
+
 def test_config_requires_enabled_channel_and_bounded_capacity() -> None:
     with pytest.raises(ValueError):
         ProductionChannelConfig(slack_enabled=False, teams_enabled=False)

@@ -528,6 +528,11 @@ deployment defaults to 90. A timeout records `indexing_failed`, leaves the accep
 quarantine, removes partial derived/index data, and emits a structured stage log containing the
 upload id and stage name but no document content or provider error text.
 
+Azure Document Intelligence OCR also has an end-to-end deadline across submission, every poll, and
+poll delays. Set `FDAI_OCR_OPERATION_TIMEOUT_SECONDS` through
+`document_ocr_operation_timeout_seconds`; the deployment defaults to 180 seconds and accepts at most
+1800. Per-request HTTP timeouts and maximum poll counts remain independent inner bounds.
+
 State transitions publish typed events such as `document.received`, `document.held`,
 `document.ready`, `document.superseded`, `document.access_changed`, and `document.deleted`.
 Consumers are idempotent. Knowledge indexing and manual distillation subscribe to `document.ready`

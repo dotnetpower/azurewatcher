@@ -79,13 +79,15 @@ Slack event payload URLs are untrusted and discarded. The fetcher:
 2. Reads the bot token from the injected secret provider.
 3. Calls the server-configured HTTPS Slack API `files.info` endpoint without credentials, query,
   fragments, or redirects, requires HTTP 200, and stops reading metadata as soon as the configured
-  byte cap is exceeded.
-4. Accepts only a private download URL whose host exactly matches the configured allowlist and
+  byte cap is exceeded. The API origin must match the fixed metadata-host allowlist and use the
+  default HTTPS port.
+4. Requires the returned Slack file id to exactly match the requested opaque id.
+5. Accepts only a private download URL whose host exactly matches the configured allowlist and
   whose HTTPS port is the default port.
-5. Sends the bot token only to that validated host.
-6. Disables redirects, rejects invalid or negative `Content-Length`, and enforces streamed-byte
+6. Sends the bot token only to that validated host.
+7. Disables redirects, rejects invalid or negative `Content-Length`, and enforces streamed-byte
   limits on decoded content.
-7. Returns bytes to protected ingestion, which recomputes SHA-256 and checks metadata size.
+8. Returns bytes to protected ingestion, which recomputes SHA-256 and checks metadata size.
 
 The Slack app needs the narrow file-read permission required by the selected Slack API. Token values
 stay in Key Vault or another `SecretProvider`; they never appear in config, audit, or errors.
@@ -174,7 +176,8 @@ that resource only. An empty endpoint keeps metadata-only behavior and provision
 
 `ProductionAttachmentConfig` owns channel evidence collection, access descriptor, reader groups,
 retention policy, vendor host allowlists, and timeout. It is enabled only by
-`FDAI_CHANNEL_ATTACHMENTS_ENABLED=1`; partial configuration fails startup.
+`FDAI_CHANNEL_ATTACHMENTS_ENABLED=1`; an invalid boolean, partial configuration, or an enabled
+runtime without an injected production attachment ingestor fails startup.
 
 Fetch timeouts must be positive finite numbers no greater than 300 seconds. Terminal processing
 waits must be no greater than 600 seconds and use a polling interval from 0.1 through 10 seconds;

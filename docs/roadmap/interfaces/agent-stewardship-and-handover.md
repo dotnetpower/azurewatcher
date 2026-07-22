@@ -372,6 +372,11 @@ doesn't apply the map or create a privileged mutation path. Local development st
 production stores them through `PostgresStateStore`, so a worker or gateway restart
 doesn't lose the review artifact.
 
+When a handover source is an image, optional Document Intelligence OCR remains inside the same
+agent-owned ingestion path. `FDAI_OCR_OPERATION_TIMEOUT_SECONDS` bounds submission, polling, and
+poll delays end to end; timeout or duplicate page locators fail extraction and produce no draft
+evidence.
+
 Production Graph calls use the gateway's managed identity and the
 `https://graph.microsoft.com/.default` scope. Assign only the Microsoft Graph
 application permissions needed for exact lookup (`User.Read.All` and

@@ -26,6 +26,7 @@ class AzureDocumentOcrConfig:
     api_version: str = "2024-11-30"
     audience: str = _DEFAULT_AUDIENCE
     timeout_seconds: float = 30.0
+    operation_timeout_seconds: float = 180.0
     poll_interval_seconds: float = 0.5
     max_polls: int = 60
     max_lines: int = 5000
@@ -48,6 +49,8 @@ class AzureDocumentOcrConfig:
         if (
             not isfinite(self.timeout_seconds)
             or self.timeout_seconds <= 0
+            or not isfinite(self.operation_timeout_seconds)
+            or not 0 < self.operation_timeout_seconds <= 1800
             or not isfinite(self.poll_interval_seconds)
             or self.poll_interval_seconds < 0
             or self.max_polls < 1
@@ -73,6 +76,18 @@ class AzureDocumentIntelligenceOcr:
         self._http = http_client
 
     async def extract(
+        self,
+        *,
+        version: DocumentVersion,
+        content: bytes,
+    ) -> tuple[StructuralUnit, ...]:
+        try:
+            async with asyncio.timeout(self._config.operation_timeout_seconds):
+                return await self._extract(version=version, content=content)
+        except TimeoutError as exc:
+            raise AzureDocumentOcrError("OCR operation exceeded the total time limit") from exc
+
+    async def _extract(
         self,
         *,
         version: DocumentVersion,
@@ -169,12 +184,16 @@ class AzureDocumentIntelligenceOcr:
             raise AzureDocumentOcrError("OCR result has no pages")
         units: list[StructuralUnit] = []
         total_characters = 0
+        seen_page_numbers: set[int] = set()
         for page_index, page in enumerate(pages, start=1):
             if not isinstance(page, dict):
                 raise AzureDocumentOcrError("OCR page is malformed")
             page_number = page.get("pageNumber")
-            if isinstance(page_number, bool) or not isinstance(page_number, int):
+            if isinstance(page_number, bool) or not isinstance(page_number, int) or page_number < 1:
                 page_number = page_index
+            if page_number in seen_page_numbers:
+                raise AzureDocumentOcrError("OCR result has duplicate page numbers")
+            seen_page_numbers.add(page_number)
             lines = page.get("lines")
             if not isinstance(lines, list):
                 raise AzureDocumentOcrError("OCR page has no lines")

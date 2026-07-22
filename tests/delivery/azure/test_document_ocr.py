@@ -187,6 +187,59 @@ async def test_ocr_rejects_output_over_line_limit() -> None:
         await ocr.extract(version=_version(), content=b"data")
 
 
+async def test_ocr_rejects_duplicate_page_locators() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(
+                202,
+                headers={"operation-location": "https://ocr.example.com/operations/1"},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "status": "succeeded",
+                "analyzeResult": {
+                    "pages": [
+                        {"pageNumber": 1, "lines": [{"content": "first"}]},
+                        {"pageNumber": 1, "lines": [{"content": "second"}]},
+                    ]
+                },
+            },
+        )
+
+    ocr = AzureDocumentIntelligenceOcr(
+        config=AzureDocumentOcrConfig(endpoint="https://ocr.example.com"),
+        identity=_Identity(),
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(AzureDocumentOcrError, match="duplicate page"):
+        await ocr.extract(version=_version(), content=b"data")
+
+
+async def test_ocr_enforces_total_operation_deadline() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(
+                202,
+                headers={"operation-location": "https://ocr.example.com/operations/1"},
+            )
+        return httpx.Response(200, json={"status": "running"})
+
+    ocr = AzureDocumentIntelligenceOcr(
+        config=AzureDocumentOcrConfig(
+            endpoint="https://ocr.example.com",
+            operation_timeout_seconds=0.01,
+            poll_interval_seconds=1.0,
+        ),
+        identity=_Identity(),
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(AzureDocumentOcrError, match="total time limit"):
+        await ocr.extract(version=_version(), content=b"data")
+
+
 async def test_ocr_rejects_poll_redirect_from_redirecting_client() -> None:
     requests: list[httpx.Request] = []
 

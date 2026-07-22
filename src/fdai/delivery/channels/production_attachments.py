@@ -133,8 +133,12 @@ class ProductionAttachmentConfig:
         environ: Mapping[str, str],
     ) -> ProductionAttachmentConfig | None:
         enabled = environ.get("FDAI_CHANNEL_ATTACHMENTS_ENABLED", "").strip().casefold()
-        if enabled not in {"1", "true", "yes", "on"}:
+        if enabled in {"", "0", "false", "no", "off"}:
             return None
+        if enabled not in {"1", "true", "yes", "on"}:
+            raise ProductionAttachmentConfigError(
+                "FDAI_CHANNEL_ATTACHMENTS_ENABLED MUST be a boolean value"
+            )
         return cls(
             collection_id=_required(environ, "FDAI_CHANNEL_ATTACHMENT_COLLECTION"),
             access_descriptor_ref=_required(

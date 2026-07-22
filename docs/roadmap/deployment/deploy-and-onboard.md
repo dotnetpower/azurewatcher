@@ -396,6 +396,8 @@ ingestion CORS origins. Terraform then provisions:
 
 - a dedicated ingestion UAMI with only ACR pull, Key Vault DSN read, Event Hubs send, ADLS data,
   Azure OpenAI invoke, and optional resource-scoped Document Intelligence OCR roles;
+- a bounded OCR operation deadline from `document_ocr_operation_timeout_seconds` (180 seconds by
+  default, at most 1800) when Document Intelligence is enabled;
 - a StorageV2 account with HNS, the `documents` and `derived` filesystems, quarantine expiry,
   derived-data cool tiering, soft delete, and no Shared Key;
 - `blob` and `dfs` private endpoints. The app VNet links to the endpoint zones; the ops runner

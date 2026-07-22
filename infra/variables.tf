@@ -779,6 +779,17 @@ variable "document_ocr_resource_id" {
   default     = ""
 }
 
+variable "document_ocr_operation_timeout_seconds" {
+  description = "Total bounded time for one Azure Document Intelligence OCR operation."
+  type        = number
+  default     = 180
+
+  validation {
+    condition     = var.document_ocr_operation_timeout_seconds > 0 && var.document_ocr_operation_timeout_seconds <= 1800
+    error_message = "document_ocr_operation_timeout_seconds MUST be in (0, 1800]."
+  }
+}
+
 variable "document_storage_replication_type" {
   description = "ADLS Gen2 standard replication type."
   type        = string

@@ -40,6 +40,15 @@ variable "adls_derived_file_system" { type = string }
 variable "embedding_endpoint" { type = string }
 variable "embedding_deployment" { type = string }
 variable "ocr_endpoint" { type = string }
+variable "ocr_operation_timeout_seconds" {
+  type    = number
+  default = 180
+
+  validation {
+    condition     = var.ocr_operation_timeout_seconds > 0 && var.ocr_operation_timeout_seconds <= 1800
+    error_message = "ocr_operation_timeout_seconds must be in (0, 1800]."
+  }
+}
 variable "kafka_bootstrap_servers" { type = string }
 variable "document_event_topic" { type = string }
 variable "runtime_env" { type = string }

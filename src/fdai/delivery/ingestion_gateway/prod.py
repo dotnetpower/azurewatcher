@@ -100,6 +100,11 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
             config=AzureDocumentOcrConfig(
                 endpoint=ocr_endpoint,
                 api_version=env.get("FDAI_OCR_API_VERSION", "2024-11-30").strip(),
+                operation_timeout_seconds=_positive_int(
+                    env,
+                    "FDAI_OCR_OPERATION_TIMEOUT_SECONDS",
+                    180,
+                ),
                 max_lines=_positive_int(env, "FDAI_OCR_MAX_LINES", 5000),
                 max_characters=_positive_int(env, "FDAI_OCR_MAX_CHARACTERS", 1_000_000),
                 max_response_bytes=_positive_int(

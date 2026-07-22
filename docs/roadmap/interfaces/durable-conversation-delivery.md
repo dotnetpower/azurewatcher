@@ -94,6 +94,9 @@ uses the PostgreSQL stores.
 
 Production channel startup reconciles the ledger before starting consumers:
 
+- when channel attachments are enabled, startup also requires a fully built production attachment
+    ingestor; an enabled-but-unbound runtime fails before routes or consumers start;
+
 1. Expired `sending` leases become `ambiguous` with `duplicate_risk=true` and `process_loss`.
 2. Due `pending` and `failed` rows are claimed and sent within attempt, freshness, and batch caps.
 3. Existing `ambiguous` rows remain untouched.

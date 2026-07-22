@@ -221,6 +221,13 @@ resource "azurerm_container_app" "ingestion" {
           value = env.value
         }
       }
+      dynamic "env" {
+        for_each = var.ocr_endpoint == "" ? [] : [var.ocr_operation_timeout_seconds]
+        content {
+          name  = "FDAI_OCR_OPERATION_TIMEOUT_SECONDS"
+          value = tostring(env.value)
+        }
+      }
       env {
         name  = "FDAI_EMBEDDING_DIM"
         value = tostring(var.embedding_dim)

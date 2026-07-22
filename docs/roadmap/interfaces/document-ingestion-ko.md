@@ -1,7 +1,7 @@
 ---
 title: 문서 인제스트와 Drop Zone
 translation_of: document-ingestion.md
-translation_source_sha: ad7d12940f9ffe345c91f83f5692a3c9a38bfb7d
+translation_source_sha: 53004a9a21c2ddd73e9286fca70348495ac3ee76
 translation_revised: 2026-07-23
 ---
 # 문서 인제스트와 Drop Zone
@@ -537,6 +537,11 @@ Artifact write, index commit, purpose별 consumer delivery에는 각각 bounded 
 기본값은 90입니다. Timeout이 발생하면 `indexing_failed`를 기록하고 수락된 source를 quarantine에
 유지하며 partial derived/index data를 제거합니다. Structured stage log에는 upload id와 stage
 name만 기록하고 document content나 provider error text는 기록하지 않습니다.
+
+Azure Document Intelligence OCR은 submission, 각 poll 및 poll delay 전체에 end-to-end deadline도
+적용합니다. `document_ocr_operation_timeout_seconds`를 통해
+`FDAI_OCR_OPERATION_TIMEOUT_SECONDS`를 설정합니다. Deployment 기본값은 180초이고 최대 1800초를
+허용합니다. Per-request HTTP timeout과 maximum poll count는 독립적인 inner bound로 유지됩니다.
 
 State transition은 `document.received`, `document.held`, `document.ready`,
 `document.superseded`, `document.access_changed`, `document.deleted` 같은 typed event를
