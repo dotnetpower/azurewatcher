@@ -77,15 +77,20 @@
     "end": "End of log."
   },
   "trace": {
-    "subtitle": "Reconstruct the pipeline path for one correlation id. Read-only projection over the audit log; the trace is never re-executed.",
+    "subtitle": "Reconstruct correlated audit activity and any recorded pipeline stages. Read-only projection; the trace is never re-executed.",
     "lookupTitle": "Look up a correlation id",
     "correlationId": "Correlation id",
     "fetch": "Fetch trace",
     "resource": "trace",
     "idle": "Enter a correlation id and select Fetch trace.",
-    "viewPurpose": "Reconstructs one incident end-to-end from the audit log: every pipeline stage for a single correlation id, in order, with the decision and recorded reason at each step. Answers what happened to this event and why. Read-only.",
+    "viewPurpose": "Reconstructs one correlation end-to-end from the audit log: pipeline stages and related incident or delivery activity in order, with each recorded decision and reason. Answers what happened and why. Read-only.",
     "headline": "{count} step(s) for {correlation}",
     "headlineTerminal": "{count} step(s) for {correlation} - terminal {stage}",
+    "headlineIdle": "Trace not loaded for {correlation}",
+    "headlineLoading": "Loading trace for {correlation}",
+    "headlineError": "Trace unavailable for {correlation}",
+    "invalidEvidence": "Trace evidence is inconsistent. Open the correlated audit log and retry after the read API data is repaired.",
+    "loadError": "Trace could not be loaded: {message}",
     "column": {
       "recordedAt": "Recorded at",
       "stage": "Stage",
@@ -94,7 +99,7 @@
       "reason": "Reason",
       "mode": "Mode"
     },
-    "unnamed": "(unnamed)",
+    "unnamed": "(correlated activity)",
     "steps": "Steps",
     "terminalStage": "Terminal stage",
     "evidence": "Correlation evidence",

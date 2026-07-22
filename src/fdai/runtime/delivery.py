@@ -11,7 +11,8 @@ import httpx
 
 from fdai.core.executor.direct_api import DirectApiShadowExecutor
 from fdai.core.executor.tool_call import ToolCallShadowExecutor, ToolReceiptObserver
-from fdai.core.notifications.matrix import load_matrix_from_yaml
+from fdai.core.notifications.matrix import NotificationMatrix, load_matrix_from_yaml
+from fdai.core.notifications.router import ChannelRegistry
 from fdai.runtime.configuration import _resolve_catalog_root
 from fdai.shared.providers.idempotency import IdempotencyStore
 from fdai.shared.providers.notifications import NotificationChannel
@@ -446,8 +447,6 @@ def _build_tool_executor(
 
 def _build_notification_registry(http_client: httpx.AsyncClient | None) -> Any:
     """Bind configured send-only notification adapters."""
-    from fdai.core.notifications.router import ChannelRegistry
-
     endpoint = os.environ.get("FDAI_EMAIL_ENDPOINT", "").strip()
     if not endpoint:
         return ChannelRegistry()
@@ -512,6 +511,38 @@ def _build_notification_registry(http_client: httpx.AsyncClient | None) -> Any:
     return ChannelRegistry(channels=channels)
 
 
+def _validate_incident_notification_route(
+    matrix: NotificationMatrix,
+    registry: ChannelRegistry,
+) -> None:
+    """Require one usable A2 channel outside the explicit local profile."""
+
+    route = matrix.resolve("operational_alert")
+    eligible = tuple(
+        channel_id
+        for channel_id in route.channel_ids
+        if (channel := registry.resolve(channel_id)) is not None
+        and route.trust_tier in channel.trust_tiers
+    )
+    if eligible:
+        return
+    if os.environ.get("FDAI_RUNTIME_LOCAL_AZURE_CLI", "").strip() == "1":
+        _LOGGER.warning(
+            "notification_route_unavailable",
+            extra={
+                "route": route.category,
+                "required_trust_tier": route.trust_tier.value,
+                "configured_channel_count": len(registry.channels),
+            },
+        )
+        return
+    raise RuntimeError(
+        "notification route 'operational_alert' has no registered channel "
+        "that supports trust tier 'a2_operational_alert'; configure a delivery "
+        "adapter before starting the incident runtime"
+    )
+
+
 def _build_incident_notifier(
     audit_store: Any,
     *,
@@ -541,9 +572,11 @@ def _build_incident_notifier(
     matrix = load_matrix_from_yaml(
         _resolve_catalog_root().parent / "config" / "notifications-matrix.yaml"
     )
+    registry = _build_notification_registry(http_client)
+    _validate_incident_notification_route(matrix, registry)
     router = NotificationRouter(
         matrix=matrix,
-        registry=_build_notification_registry(http_client),
+        registry=registry,
         audit_store=audit_store,
         hil_sink=StateStoreHilEscalationSink(state_store=audit_store),
     )

@@ -86,6 +86,9 @@ The baseline separates implemented platform capability from adoption work.
   An allowlisted workflow doesn't promote all of its steps.
 - **Re-enter typed ingress**: Workflow actions return through the trust router, safety check
   (`risk-gate`), approval path, executor, and audit path.
+- **Validate human delivery**: A non-local runtime requires a trust-compatible
+  `operational_alert` channel before incident delivery starts. The explicit local profile warns
+  and retains HIL escalation when no external channel is configured.
 - **Choose the safer default**: Unknown parameters, unresolved guards, stale approvals, missing
   adapters, and simulation differences hold the process for review.
 - **Keep customer material downstream**: Source manuals, process thresholds, credentials, and

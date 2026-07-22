@@ -2,7 +2,7 @@
 title: 처리 중인 Conversation 입력 모드
 translation_of: busy-input-modes.md
 translation_source: docs/roadmap/interfaces/busy-input-modes.md
-translation_source_sha: ec8ecf47b739c3a37f1d5822353b86c0bcf5db08
+translation_source_sha: f6260094a4b10c26a16b7823c32032ee3988b8ec
 translation_revised: 2026-07-22
 ---
 
@@ -79,6 +79,11 @@ model call은 conversation-local cancellation event와 경쟁합니다. Interrup
 - Stream은 `interrupted`를 emit하고 `done`을 emit하지 않으며 upstream iteration을 닫습니다.
 - Planning helper를 cancel하고 await합니다.
 - Active-turn marker를 `finally`에서 finish합니다.
+
+정상 terminal answer에서는 stream이 남아 있는 planning을 cancel하고 active-turn marker를 finish한
+후 `done`을 emit하므로 terminal frame 이후 coordinator 작업이 실행되지 않습니다. Busy store cleanup
+error는 session 및 request 식별자와 함께 log하지만, 이미 검증되어 저장된 answer 또는 HTTP body
+completion을 손상시키지 않습니다.
 
 Cancellation event는 Thor, action bus, approval state, resource lock, executor identity와 연결되지 않습니다.
 

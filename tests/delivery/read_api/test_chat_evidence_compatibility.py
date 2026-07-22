@@ -69,6 +69,44 @@ async def test_context_aware_resolver_receives_exact_binding() -> None:
     assert resolver.context == CONTEXT
 
 
+async def test_trace_screen_correlation_becomes_exact_selection_hint() -> None:
+    resolver = _ContextResolver()
+
+    await _with_operational_evidence(
+        "what caused the error?",
+        {
+            "routeId": "trace",
+            "facts": [
+                {"key": "load_status", "value": "error"},
+                {"key": "correlation_id", "value": "corr-screen"},
+            ],
+        },
+        resolver,
+    )
+
+    assert resolver.context == {
+        "kind": "incident",
+        "incident_id": "INC-corr-screen",
+        "correlation_id": "corr-screen",
+    }
+
+
+async def test_explicit_binding_wins_over_trace_screen_hint() -> None:
+    resolver = _ContextResolver()
+
+    await _with_operational_evidence(
+        "continue",
+        {
+            "routeId": "trace",
+            "facts": [{"key": "correlation_id", "value": "corr-screen"}],
+        },
+        resolver,
+        conversation_context=CONTEXT,
+    )
+
+    assert resolver.context == CONTEXT
+
+
 async def test_variadic_keyword_resolver_receives_binding() -> None:
     resolver = _KeywordResolver()
 

@@ -76,6 +76,11 @@ interrupt:
 - Planning helpers are cancelled and awaited.
 - The active-turn marker is finished in `finally`.
 
+For a normal terminal answer, the stream cancels outstanding planning and finishes the active-turn
+marker before emitting `done`, so no coordinator work runs after the terminal frame. A busy-store
+cleanup error is logged with session and request identifiers but does not corrupt an already
+verified and persisted answer or its HTTP body completion.
+
 The cancellation event is not connected to Thor, the action bus, approval state, resource locks,
 or an executor identity.
 

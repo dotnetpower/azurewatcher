@@ -1,7 +1,7 @@
 ---
 title: 코드 맵
 translation_of: code-map.md
-translation_source_sha: c20eba0d7ea00123749492f4cacd2a3b3a2f0137
+translation_source_sha: da6f112093096055031db305bc6c10b933541062
 translation_revised: 2026-07-22
 ---
 # 코드 맵
@@ -46,7 +46,7 @@ shared 패키지를 커버한다.
 | hil_resume | 파킹 + 채널 푸시 + 결정시 재개 | [src/fdai/core/hil_resume/](../../../src/fdai/core/hil_resume/) | [tests/core/hil_resume/](../../../tests/core/hil_resume/) | project-structure-ko.md |
 | executor | 리소스별 lock, 멱등 적용 | [src/fdai/core/executor/](../../../src/fdai/core/executor/) | [tests/core/](../../../tests/core/) (executor 관련) | project-structure-ko.md |
 | execution_backend | Profile intersection, durable reconciliation, shadow health probe를 제공하며 eligibility authority는 없음 ([설계](../interfaces/execution-backends-ko.md)) | [src/fdai/core/execution_backend/](../../../src/fdai/core/execution_backend/) | [tests/core/execution_backend/](../../../tests/core/execution_backend/) | [execution-backends-ko.md](../interfaces/execution-backends-ko.md) |
-| audit | append-only 해시체인 로그 + KPI 방출 | [src/fdai/core/audit/](../../../src/fdai/core/audit/) | [tests/core/audit/](../../../tests/core/audit/) | [security-and-identity-ko.md](security-and-identity-ko.md) |
+| audit | append-only 해시체인 로그, nullable-stage correlation trace 및 KPI 방출 | [src/fdai/core/audit/](../../../src/fdai/core/audit/) | [tests/core/audit/](../../../tests/core/audit/) | [security-and-identity-ko.md](security-and-identity-ko.md) |
 | control_loop | 파이프라인 오케스트레이터 (Stage 프로토콜) | [src/fdai/core/control_loop/](../../../src/fdai/core/control_loop/) | [tests/core/](../../../tests/core/) | project-structure-ko.md |
 | pipeline | 위 서브시스템들의 도메인 그룹 파사드 | [src/fdai/core/pipeline/](../../../src/fdai/core/pipeline/) | (멤버와 동일) | project-structure-ko.md |
 

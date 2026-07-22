@@ -68,6 +68,36 @@ def test_build_rule_fire_trace_returns_none_on_empty_items() -> None:
     assert trace is None
 
 
+@pytest.mark.asyncio
+async def test_trace_preserves_stage_less_activity_and_last_named_terminal_stage() -> None:
+    model = InMemoryConsoleReadModel()
+    model.record_audit_entry(
+        {
+            "correlation_id": "corr-activity",
+            "pipeline_stage": "risk_gate",
+            "action_kind": "risk_gate.evaluate",
+            "mode": "shadow",
+        }
+    )
+    model.record_audit_entry(
+        {
+            "correlation_id": "corr-activity",
+            "kind": "notification.escalation",
+            "reason": "no delivery channel is available",
+            "mode": "shadow",
+        },
+        action_kind="notification.escalation",
+    )
+    items = await ConsoleReadModelTraceReader(model).read_items("corr-activity")
+
+    trace = build_rule_fire_trace("corr-activity", items)
+
+    assert trace is not None
+    body = trace.as_json()
+    assert [step["stage"] for step in body["steps"]] == ["risk_gate", None]
+    assert body["terminal_stage"] == "risk_gate"
+
+
 def test_trace_reader_returns_oldest_first_from_console_model() -> None:
     model = InMemoryConsoleReadModel()
     _seed_trace(model, "corr-42")

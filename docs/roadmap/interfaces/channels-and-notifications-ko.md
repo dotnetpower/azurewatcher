@@ -1,7 +1,7 @@
 ---
 title: 채널과 알림(Channels and Notifications)
 translation_of: channels-and-notifications.md
-translation_source_sha: 4fb558afb4cf572d81d8adef8b8e465206f38b82
+translation_source_sha: 93cdf00687826ae10debc400dcef7afcca01834b
 translation_revised: 2026-07-21
 ---
 
@@ -343,6 +343,10 @@ matrix:
   라우팅 엔트리를 거부(deny-by-default; fail fast).
 - **Fallback 시 신뢰 보존** - A1 primary → A1 fallback만. Fallback에서 더 낮은 신뢰 레벨로
   다운그레이드는 config-load 에러.
+- **Incident 전달 readiness** - non-local control-plane runtime은 `operational_alert` route에
+  A2 trust tier를 지원하는 등록 채널이 없으면 startup에 실패합니다. 명시적 local Azure CLI
+  profile은 외부 adapter 없이 시작할 수 있지만 구조화된 `notification_route_unavailable` warning을
+  기록하고 fail-closed HIL escalation을 유지합니다.
 - **`role-dm`은 `break_glass_usage_summary`를 제외하고 deny-list.** `role-dm`을 시도하는
   다른 다이제스트는 config 로드 실패.
 - **`mention-artifact-owner`를 선언하는 다이제스트는 유효한 메타데이터 필드를 명시** 해야 함

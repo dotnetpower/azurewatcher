@@ -1267,7 +1267,7 @@ The API contract is:
 |-------|---------|
 | `GET /incidents?status=active|resolved|all&limit=<n>&cursor=<opaque>` | Return incident summaries newest activity first. |
 | `GET /audit?correlation_id=<id>&limit=<n>&cursor=<opaque>` | Return the selected incident's append-only history. |
-| `GET /audit/{correlation_id}/trace` | Reconstruct the ordered pipeline trace. |
+| `GET /audit/{correlation_id}/trace` | Reconstruct ordered correlated audit activity and any recorded pipeline stages. |
 | `POST /chat/action` | Prepare or confirm an incident creation request on the authenticated write-direction chat path. |
 
 The incident roster stays read-only. Incident creation uses the separate

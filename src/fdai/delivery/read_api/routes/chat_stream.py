@@ -252,6 +252,7 @@ def make_chat_stream_route(
             sequence = 0
             revision = 0
             planning_task: asyncio.Task[AnswerPlanningResult] | None = None
+            cleanup_complete = False
 
             def frame(event: str, payload: dict[str, Any]) -> bytes:
                 nonlocal sequence
@@ -267,8 +268,30 @@ def make_chat_stream_route(
                     },
                 )
 
+            async def cleanup() -> None:
+                nonlocal cleanup_complete
+                if cleanup_complete:
+                    return
+                await cancel_planning(planning_task)
+                if busy_input_coordinator is not None and active_turn is not None:
+                    try:
+                        await busy_input_coordinator.finish_turn(
+                            session_id=session_id,
+                            turn_id=request_id,
+                            principal_id=user_id,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - preserve terminal response
+                        _LOG.warning(
+                            "chat stream busy-input cleanup failed: %s",
+                            type(exc).__name__,
+                            extra={"session_id": session_id, "request_id": request_id},
+                            exc_info=True,
+                        )
+                cleanup_complete = True
+
             try:
                 if completed_payload is not None:
+                    await cleanup()
                     yield frame("done", completed_payload)
                     return
                 yield frame(
@@ -604,11 +627,13 @@ def make_chat_stream_route(
                                 explicit_corrections=explicit_corrections(clean_prompt),
                             ),
                         )
+                await cleanup()
                 yield frame(
                     "done",
                     done_payload,
                 )
             except ChatTurnInterruptedError:
+                await cleanup()
                 yield frame(
                     "interrupted",
                     {
@@ -617,20 +642,17 @@ def make_chat_stream_route(
                     },
                 )
             except ChatBackendUnavailableError:
+                await cleanup()
                 yield frame("error", {"detail": "chat backend not configured"})
             except HTTPException as exc:
+                await cleanup()
                 yield frame("error", {"detail": str(exc.detail)})
             except Exception as exc:  # noqa: BLE001 - surface as a stream error, never 500 mid-stream
                 _LOG.warning("chat stream failed: %s", type(exc).__name__, exc_info=True)
+                await cleanup()
                 yield frame("error", {"detail": "chat stream failed"})
             finally:
-                await cancel_planning(planning_task)
-                if busy_input_coordinator is not None and active_turn is not None:
-                    await busy_input_coordinator.finish_turn(
-                        session_id=session_id,
-                        turn_id=request_id,
-                        principal_id=user_id,
-                    )
+                await cleanup()
 
         return StreamingResponse(
             event_source(),

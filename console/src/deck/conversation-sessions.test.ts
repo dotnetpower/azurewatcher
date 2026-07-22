@@ -14,6 +14,7 @@ import {
   userConversationKey,
   type ConversationSummary,
 } from "./conversation-sessions";
+import { shouldHydrateServerTurns } from "./use-command-deck-sessions";
 
 const GENERAL: ConversationSummary = {
   key: "screen",
@@ -150,5 +151,13 @@ describe("conversationTitle", () => {
       .toBe("New conversation");
     expect(conversationLabelForPrompt(GENERAL, "Explain approvals", false))
       .toBe("General");
+  });
+});
+
+describe("durable conversation hydration", () => {
+  it("skips new ephemeral threads and hydrates only registered empty sessions", () => {
+    expect(shouldHydrateServerTurns(false, 0)).toBe(false);
+    expect(shouldHydrateServerTurns(true, 0)).toBe(true);
+    expect(shouldHydrateServerTurns(true, 1)).toBe(false);
   });
 });

@@ -353,6 +353,10 @@ matrix:
   (deny-by-default; fail fast).
 - **Trust preservation on fallback** - A1 primary → A1 fallback only. Downgrading to a
   lower trust level on fallback is a config-load error.
+- **Incident delivery readiness** - A non-local control-plane runtime fails startup when the
+  `operational_alert` route has no registered channel that supports its A2 trust tier. The explicit
+  local Azure CLI profile may start without an external adapter, but it emits a structured
+  `notification_route_unavailable` warning and keeps fail-closed HIL escalation.
 - **`role-dm` is deny-listed except for `break_glass_usage_summary`.** Any other digest
   attempting `role-dm` fails at config load.
 - **Digests declaring `mention-artifact-owner` MUST specify a valid metadata field**

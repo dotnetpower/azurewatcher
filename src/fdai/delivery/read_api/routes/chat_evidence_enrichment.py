@@ -125,22 +125,52 @@ async def _with_operational_evidence(
     enriched.pop("_operational_evidence", None)
     if str(enriched.get("routeId") or "").lower() == "audit":
         return enriched
+    effective_context = conversation_context or _trace_incident_context(enriched)
     if (
         resolver is None
         or "_behavior_evidence" in enriched
-        or (conversation_context is None and not needs_operational_evidence(prompt, enriched))
+        or (effective_context is None and not needs_operational_evidence(prompt, enriched))
         or "_tool_evidence" in enriched
         or "_current_screen_tool" in enriched
     ):
         return enriched
     evidence = (
-        await resolver.resolve(prompt, conversation_context=conversation_context)
+        await resolver.resolve(prompt, conversation_context=effective_context)
         if _supports_conversation_context(resolver)
         else await resolver.resolve(prompt)
     )
     if evidence is not None:
         enriched["_operational_evidence"] = dict(evidence)
     return enriched
+
+
+def _trace_incident_context(view_context: Mapping[str, Any]) -> dict[str, str] | None:
+    """Return a bounded selection hint for a Trace screen correlation."""
+
+    if str(view_context.get("routeId") or "").lower() != "trace":
+        return None
+    facts = view_context.get("facts")
+    if not isinstance(facts, list):
+        return None
+    correlation_id = next(
+        (
+            value
+            for fact in facts
+            if isinstance(fact, Mapping)
+            and fact.get("key") == "correlation_id"
+            and isinstance((value := fact.get("value")), str)
+            and value.strip()
+            and len(value) <= 256
+        ),
+        None,
+    )
+    if correlation_id is None:
+        return None
+    return {
+        "kind": "incident",
+        "incident_id": f"INC-{correlation_id}",
+        "correlation_id": correlation_id,
+    }
 
 
 async def _with_agent_evidence(

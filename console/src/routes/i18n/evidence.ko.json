@@ -77,15 +77,20 @@
     "end": "로그 끝입니다."
   },
   "trace": {
-    "subtitle": "하나의 상관관계 ID에 대한 파이프라인 경로를 재구성합니다. 감사 로그의 읽기 전용 투영이며 추적을 다시 실행하지 않습니다.",
+    "subtitle": "서로 연관된 감사 활동과 기록된 파이프라인 단계를 재구성합니다. 읽기 전용 투영이며 추적을 다시 실행하지 않습니다.",
     "lookupTitle": "상관관계 ID 조회",
     "correlationId": "상관관계 ID",
     "fetch": "추적 가져오기",
     "resource": "추적",
     "idle": "상관관계 ID를 입력하고 추적 가져오기를 선택하세요.",
-    "viewPurpose": "감사 로그에서 하나의 인시던트를 처음부터 끝까지 재구성합니다. 단일 상관관계 ID의 모든 파이프라인 단계를 순서대로 표시하고 각 단계의 결정과 기록된 이유를 보여 주는 읽기 전용 화면입니다.",
+    "viewPurpose": "감사 로그에서 하나의 상관관계를 처음부터 끝까지 재구성합니다. 파이프라인 단계와 관련 인시던트 또는 전달 활동을 순서대로 표시하고 기록된 결정과 이유를 보여 주는 읽기 전용 화면입니다.",
     "headline": "{correlation}의 단계 {count}개",
     "headlineTerminal": "{correlation}의 단계 {count}개 - 최종 단계 {stage}",
+    "headlineIdle": "{correlation}의 추적을 아직 불러오지 않음",
+    "headlineLoading": "{correlation}의 추적을 불러오는 중",
+    "headlineError": "{correlation}의 추적을 사용할 수 없음",
+    "invalidEvidence": "추적 근거가 일관되지 않습니다. 연결된 감사 로그를 열고 읽기 API 데이터가 복구된 후 다시 시도하세요.",
+    "loadError": "추적을 불러오지 못했습니다: {message}",
     "column": {
       "recordedAt": "기록 시각",
       "stage": "단계",
@@ -94,7 +99,7 @@
       "reason": "이유",
       "mode": "모드"
     },
-    "unnamed": "(이름 없음)",
+    "unnamed": "(연관 활동)",
     "steps": "단계",
     "terminalStage": "최종 단계",
     "evidence": "상관관계 근거",

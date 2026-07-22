@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 6099aaf29e7c1964750236e55c3b3c74eedd618c
+translation_source_sha: 4d71c3252d1b79f939b3d77b809eaf0d62d7e762
 translation_revised: 2026-07-22
 ---
 
@@ -1211,7 +1211,7 @@ API 계약은 다음과 같습니다.
 |-------|------|
 | `GET /incidents?status=active|resolved|all&limit=<n>&cursor=<opaque>` | 최근 활동 순으로 인시던트 요약을 반환합니다. |
 | `GET /audit?correlation_id=<id>&limit=<n>&cursor=<opaque>` | 선택한 인시던트의 추가 전용 이력을 반환합니다. |
-| `GET /audit/{correlation_id}/trace` | 순서가 지정된 파이프라인 추적을 재구성합니다. |
+| `GET /audit/{correlation_id}/trace` | 순서가 지정된 연관 감사 활동과 기록된 파이프라인 단계를 재구성합니다. |
 | `POST /chat/action` | 인증된 write-direction chat path에서 incident 생성 요청을 준비하거나 확인합니다. |
 
 Incident roster는 read-only로 유지됩니다. Incident 생성은 별도의 인증된 chat

@@ -45,7 +45,7 @@ the safety-core modules held to the >= 90% coverage floor.
 | hil_resume | Park + push + resume on human decision | [src/fdai/core/hil_resume/](../../../src/fdai/core/hil_resume/) | [tests/core/hil_resume/](../../../tests/core/hil_resume/) | project-structure.md |
 | executor | Per-resource lock, idempotent apply | [src/fdai/core/executor/](../../../src/fdai/core/executor/) | [tests/core/](../../../tests/core/) (executor tests) | project-structure.md |
 | execution_backend | Profile intersection, durable reconciliation, and shadow health probes; no eligibility authority ([design](../interfaces/execution-backends.md)) | [src/fdai/core/execution_backend/](../../../src/fdai/core/execution_backend/) | [tests/core/execution_backend/](../../../tests/core/execution_backend/) | [execution-backends.md](../interfaces/execution-backends.md) |
-| audit | Append-only hash-chained log + KPI emission | [src/fdai/core/audit/](../../../src/fdai/core/audit/) | [tests/core/audit/](../../../tests/core/audit/) | [security-and-identity.md](security-and-identity.md) |
+| audit | Append-only hash-chained log, nullable-stage correlation traces, and KPI emission | [src/fdai/core/audit/](../../../src/fdai/core/audit/) | [tests/core/audit/](../../../tests/core/audit/) | [security-and-identity.md](security-and-identity.md) |
 | control_loop | Pipeline orchestrator (Stage protocol) | [src/fdai/core/control_loop/](../../../src/fdai/core/control_loop/) | [tests/core/](../../../tests/core/) | project-structure.md |
 | pipeline | Domain-group facade for the above | [src/fdai/core/pipeline/](../../../src/fdai/core/pipeline/) | (same as members) | project-structure.md |
 

@@ -60,6 +60,33 @@ class _BlockingBackend:
         raise AssertionError("unreachable")
 
 
+class _FixedBackend:
+    async def answer(
+        self,
+        *,
+        prompt: str,  # noqa: ARG002
+        view_context: dict[str, Any],  # noqa: ARG002
+        history: list[dict[str, str]],  # noqa: ARG002
+    ) -> dict[str, str]:
+        return {"answer": "recorded answer", "model": "fixed"}
+
+
+class _FailingFinishCoordinator(BusyInputCoordinator):
+    async def finish_turn(
+        self,
+        *,
+        session_id: str,
+        turn_id: str,
+        principal_id: str,
+    ) -> None:
+        await super().finish_turn(
+            session_id=session_id,
+            turn_id=turn_id,
+            principal_id=principal_id,
+        )
+        raise RuntimeError("cleanup failed after state release")
+
+
 class _SteerBackend:
     def __init__(self) -> None:
         self.started = asyncio.Event()
@@ -279,6 +306,34 @@ async def test_stream_interrupt_emits_no_done_and_skips_assistant_history() -> N
     assert "event: done" not in response.text
     assert backend.cancelled.is_set()
     assert [turn.role for turn in turns] == [ConversationTurnRole.OPERATOR]
+    assert coordinator.active("session-one") is None
+
+
+async def test_stream_cleanup_failure_does_not_break_terminal_response() -> None:
+    coordinator = _FailingFinishCoordinator(store=InMemoryBusyInputStore())
+    app = Starlette(
+        routes=[
+            make_chat_stream_route(
+                backend=_FixedBackend(),
+                authorize=_authorize,
+                busy_input_coordinator=coordinator,
+            )
+        ]
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/chat/stream",
+            json={
+                "prompt": "status",
+                "session_id": "session-one",
+                "request_id": "request-cleanup",
+            },
+        )
+
+    assert response.status_code == 200
+    assert "event: done" in response.text
+    assert "event: error" not in response.text
     assert coordinator.active("session-one") is None
 
 

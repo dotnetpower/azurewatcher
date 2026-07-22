@@ -65,6 +65,10 @@ export function GroundedReply({
     verification.reason_code === "screen_unsupported_sentences_removed" ||
     verification.reason_code === "concept_scope_claims_removed"
   );
+  const verifiedAmbiguity = verification?.status === "verified" &&
+    verification.reason_code === "ambiguous_incident";
+  const recordedFailure = verification?.status === "verified" &&
+    verification.reason_code === "recorded_failure_reason";
 
   const copy = () => {
     void navigator.clipboard?.writeText(text).then(
@@ -148,16 +152,18 @@ export function GroundedReply({
           {verification ? (
             <Tooltip content={verificationLabel(verification)}>
               <div
-                class={`deck-verification is-${boundedCorrection ? "verified" : verification.status}`}
+                class={`deck-verification is-${verifiedAmbiguity || recordedFailure ? "consistent" : boundedCorrection ? "verified" : verification.status}`}
                 role="status"
                 aria-label={verificationLabel(verification)}
               >
                 <span class="deck-verification-mark" aria-hidden="true">
-                  {verification.status === "verified" ||
+                  {!verifiedAmbiguity && !recordedFailure && (verification.status === "verified" ||
                   verification.status === "consistent" ||
-                  boundedCorrection
+                  boundedCorrection)
                     ? "\u2713"
-                    : verification.status === "corrected"
+                    : verifiedAmbiguity || recordedFailure
+                      ? "!"
+                      : verification.status === "corrected"
                       ? "\u21bb"
                       : "!"}
                 </span>
@@ -238,6 +244,8 @@ function shortVerificationStatus(
   verification: AnswerVerification,
   boundedCorrection: boolean,
 ): string {
+  if (verification.reason_code === "ambiguous_incident") return "Needs selection";
+  if (verification.reason_code === "recorded_failure_reason") return "Recorded failure";
   if (boundedCorrection) return "Verified";
   switch (verification.status) {
     case "verified":
@@ -357,6 +365,12 @@ export function verificationLabel(verification: AnswerVerification): string {
   const supportedSummary = supportedClaims > 0
     ? ` (${supportedClaims} ${supportedClaims === 1 ? "claim" : "claims"} supported)`
     : "";
+  if (verification.reason_code === "ambiguous_incident") {
+    return "Server evidence confirms that multiple incidents match; select one to continue.";
+  }
+  if (verification.reason_code === "recorded_failure_reason") {
+    return "Audit evidence confirms the displayed failure reason; no complete RCA is recorded.";
+  }
   switch (verification.status) {
     case "verified":
       return `Verified against ${verification.evidence_refs.length} evidence reference(s)${claimSummary}`;

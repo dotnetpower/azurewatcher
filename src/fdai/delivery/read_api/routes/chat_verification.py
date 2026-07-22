@@ -432,6 +432,34 @@ def verify_answer(
         )
         return _result(_changed(provisional, answer), answer, "grounded_rca", tuple(refs))
 
+    failure_lines, failure_refs = _recorded_failure_lines(evidence)
+    if failure_lines:
+        refs.extend(failure_refs)
+        recorded_failures = "\n".join(failure_lines)
+        answer = (
+            f"{correlation} ({title})\uc758 \uc0c1\ud0dc\ub294 {incident_status}\uc774\uba70 "
+            f"{recorded_at}\uc5d0 \ub9c8\uc9c0\ub9c9\uc73c\ub85c "
+            "\uac31\uc2e0\ub418\uc5c8\uc2b5\ub2c8\ub2e4. citation\uc744 \uac16\ucd98 grounded "
+            "root cause\ub294 \uae30\ub85d\ub418\uc9c0 \uc54a\uc558\uc9c0\ub9cc, "
+            "\uac10\uc0ac \ub85c\uadf8\uc5d0 \ub2e4\uc74c \uc2e4\ud328 "
+            "\uc774\uc720\uac00 \uae30\ub85d\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4:\n"
+            f"{recorded_failures}\n\uc774 \ub0b4\uc6a9\uc740 \uad00\ucc30\ub41c "
+            "\uc2e4\ud328 \uc774\uc720\uc774\uba70 \uc644\uc804\ud55c RCA\ub294 "
+            "\uc544\ub2d9\ub2c8\ub2e4."
+            f"{activity_suffix}"
+            if korean
+            else f"{correlation} ({title}) is {incident_status} and was last updated at "
+            f"{recorded_at}. No citation-grounded root cause is recorded, but the audit log "
+            f"records this failure reason:\n{recorded_failures}\nThis is an observed failure "
+            f"reason, not a complete RCA.{activity_suffix}"
+        )
+        return _result(
+            _changed(provisional, answer),
+            answer,
+            "recorded_failure_reason",
+            tuple(refs),
+        )
+
     answer = (
         f"{correlation} ({title})\uc758 \uc0c1\ud0dc\ub294 {incident_status}\uc774\uba70 "
         f"{recorded_at}\uc5d0 \ub9c8\uc9c0\ub9c9\uc73c\ub85c "
@@ -449,6 +477,34 @@ def verify_answer(
         "no_grounded_rca",
         tuple(refs),
     )
+
+
+def _recorded_failure_lines(evidence: Mapping[str, Any]) -> tuple[list[str], list[str]]:
+    lines: list[str] = []
+    refs: list[str] = []
+    failure_values = {"abstain", "deny", "error", "failed", "failure", "route_unresolved"}
+    for item in _mappings(evidence.get("audit_evidence")):
+        action_kind = _text(item.get("action_kind"), "recorded.failure")
+        fields = item.get("fields")
+        if not isinstance(fields, Mapping):
+            continue
+        reason = _optional_text(fields.get("reason"))
+        outcomes = {
+            str(fields.get(key) or "").casefold() for key in ("decision", "outcome", "status")
+        }
+        failure_action = any(
+            marker in action_kind.casefold()
+            for marker in ("error", "escalation", "fail", "unresolved")
+        )
+        if reason is None or (not failure_action and outcomes.isdisjoint(failure_values)):
+            continue
+        lines.append(f"- {action_kind}: {reason}")
+        seq = item.get("seq")
+        if isinstance(seq, int) and seq >= 0:
+            refs.append(f"audit:{seq}")
+        if len(lines) >= 5:
+            break
+    return lines, refs
 
 
 def _agent_activity_lines(evidence: Mapping[str, Any], *, korean: bool) -> list[str]:

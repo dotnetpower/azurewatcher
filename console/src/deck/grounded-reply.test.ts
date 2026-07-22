@@ -40,4 +40,24 @@ describe("verificationLabel", () => {
       "Consistent with the current screen (1/1 claims supported)",
     );
   });
+
+  it("does not present verified ambiguity as a verified cause", () => {
+    expect(verificationLabel({
+      ...verification("server_read_model"),
+      status: "verified",
+      reason_code: "ambiguous_incident",
+    })).toBe(
+      "Server evidence confirms that multiple incidents match; select one to continue.",
+    );
+  });
+
+  it("labels a recorded failure separately from a complete RCA", () => {
+    expect(verificationLabel({
+      ...verification("server_read_model"),
+      status: "verified",
+      reason_code: "recorded_failure_reason",
+    })).toBe(
+      "Audit evidence confirms the displayed failure reason; no complete RCA is recorded.",
+    );
+  });
 });

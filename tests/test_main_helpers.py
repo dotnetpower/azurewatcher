@@ -33,6 +33,9 @@ from fdai.__main__ import (
     _summarize_config,
 )
 from fdai.core.control_loop import ControlLoopOutcome, ControlLoopResult
+from fdai.core.notifications.matrix import load_matrix_from_yaml
+from fdai.core.notifications.router import ChannelRegistry
+from fdai.runtime.delivery import _validate_incident_notification_route
 from fdai.shared.config import AppConfig
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus
 
@@ -720,6 +723,7 @@ def test_build_notification_registry_binds_a2_and_a4_email_channels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clear_email_env(monkeypatch)
+    monkeypatch.delenv("FDAI_RUNTIME_LOCAL_AZURE_CLI", raising=False)
     monkeypatch.setenv("FDAI_EMAIL_ENDPOINT", "https://acs.example")
     monkeypatch.setenv("FDAI_EMAIL_SENDER_ADDRESS", "sender@example.com")
     monkeypatch.setenv(
@@ -735,6 +739,10 @@ def test_build_notification_registry_binds_a2_and_a4_email_channels(
     assert set(registry.channels) == {"email-oncall", "email-governance"}
     channel = registry.channels["email-oncall"]
     assert channel._config.recipient_addresses == ("operator@example.com",)
+    _validate_incident_notification_route(
+        load_matrix_from_yaml(Path("config/notifications-matrix.yaml")),
+        registry,
+    )
 
 
 def test_build_notification_registry_rejects_partial_configuration(
@@ -744,6 +752,28 @@ def test_build_notification_registry_rejects_partial_configuration(
     monkeypatch.setenv("FDAI_EMAIL_ENDPOINT", "https://acs.example")
     with pytest.raises(RuntimeError, match="requires FDAI_EMAIL_SENDER_ADDRESS"):
         _build_notification_registry(httpx.AsyncClient())
+
+
+def test_incident_notification_route_fails_fast_without_channel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FDAI_RUNTIME_LOCAL_AZURE_CLI", raising=False)
+    matrix = load_matrix_from_yaml(Path("config/notifications-matrix.yaml"))
+
+    with pytest.raises(RuntimeError, match="operational_alert.*no registered channel"):
+        _validate_incident_notification_route(matrix, ChannelRegistry())
+
+
+def test_incident_notification_route_allows_explicit_local_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("FDAI_RUNTIME_LOCAL_AZURE_CLI", "1")
+    matrix = load_matrix_from_yaml(Path("config/notifications-matrix.yaml"))
+
+    _validate_incident_notification_route(matrix, ChannelRegistry())
+
+    assert "notification_route_unavailable" in caplog.messages
 
 
 # ---------------------------------------------------------------------------

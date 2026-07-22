@@ -207,7 +207,7 @@ export function useCommandDeckSessionController({
     setSessionKey(key);
     setSessionLabel(conversationLabel ?? agent);
     setTurns(next);
-    if (next.length === 0) void hydrateDurableTurns(key);
+    if (shouldHydrateServerTurns(register, next.length)) void hydrateDurableTurns(key);
     setSearchQuery("");
     setActiveSearchMatch(0);
     historyRef.current = EMPTY_HISTORY;
@@ -300,4 +300,8 @@ export function useCommandDeckSessionController({
   ]);
 
   return { hydrateDurableTurns, removeCachedConversation, startNewConversation, switchSession };
+}
+
+export function shouldHydrateServerTurns(register: boolean, turnCount: number): boolean {
+  return register && turnCount === 0;
 }

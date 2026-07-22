@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decodeTraceResponse } from "./rule-trace";
+import { buildTraceViewSnapshot, decodeTraceResponse } from "./rule-trace";
 
 const step = (seq: number) => ({
   seq,
@@ -33,6 +33,19 @@ describe("trace response contract", () => {
     expect(() => decodeTraceResponse({ ...root, step_count: 3 })).toThrow(/step_count MUST match/);
     expect(() => decodeTraceResponse({ ...root, steps: [step(1), step(1)] })).toThrow(/unique ascending/);
     expect(() => decodeTraceResponse({ ...root, steps: [step(2), step(1)] })).toThrow(/unique ascending/);
+    expect(() => decodeTraceResponse({ ...root, terminal_stage: "execute" })).toThrow(/last named stage/);
+  });
+
+  it("accepts correlated activity without a pipeline stage", () => {
+    const decoded = decodeTraceResponse({
+      correlation_id: "corr-activity",
+      step_count: 2,
+      steps: [step(1), { ...step(2), stage: null, action_kind: "notification.escalation" }],
+      terminal_stage: "risk-gate",
+    });
+
+    expect(decoded.steps[1]?.stage).toBeNull();
+    expect(decoded.terminal_stage).toBe("risk-gate");
   });
 
   it("rejects incomplete identifiers and malformed evidence times", () => {
@@ -45,5 +58,36 @@ describe("trace response contract", () => {
     expect(() => decodeTraceResponse({ ...root, correlation_id: " " })).toThrow(/MUST NOT be empty/);
     expect(() => decodeTraceResponse({ ...root, steps: [{ ...step(1), recorded_at: "2026-07-17" }] }))
       .toThrow(/MUST be RFC 3339/);
+    expect(() => decodeTraceResponse({ ...root, steps: [{ ...step(1), stage: " " }] }))
+      .toThrow(/MUST be null or non-empty/);
+  });
+});
+
+describe("trace view context", () => {
+  it("preserves correlation and the actionable load error", () => {
+    const snapshot = buildTraceViewSnapshot("corr-error", {
+      status: "error",
+      message: "Trace evidence is inconsistent.",
+    });
+
+    expect(snapshot?.facts).toContainEqual(expect.objectContaining({ key: "correlation_id", value: "corr-error" }));
+    expect(snapshot?.facts).toContainEqual(expect.objectContaining({ key: "load_error", value: "Trace evidence is inconsistent." }));
+  });
+
+  it("publishes stage-less causal activity and its audit hash", () => {
+    const data = decodeTraceResponse({
+      correlation_id: "corr-activity",
+      step_count: 1,
+      steps: [{ ...step(1), stage: null, reason: "no delivery channel is available", entry_hash: "hash-activity" }],
+      terminal_stage: null,
+    });
+
+    const snapshot = buildTraceViewSnapshot("corr-activity", { status: "ready", data });
+
+    expect(snapshot?.records?.["steps"]?.[0]).toEqual(expect.objectContaining({
+      stage: null,
+      reason: "no delivery channel is available",
+      entry_hash: "hash-activity",
+    }));
   });
 });

@@ -268,6 +268,38 @@ def test_matched_without_grounded_rca_refuses_causal_claim() -> None:
     assert "caused by a leak" not in result.answer
 
 
+def test_matched_without_rca_surfaces_recorded_failure_reason() -> None:
+    result = verify_answer(
+        "The incident was caused by a network outage.",
+        _context(
+            {
+                "status": "matched",
+                "selected_incident": {
+                    "correlation_id": "corr-notification",
+                    "title": "Notification delivery",
+                    "last_updated_at": "2026-07-22T03:11:04Z",
+                },
+                "grounded_hypotheses": [],
+                "audit_evidence": [
+                    {
+                        "seq": 31,
+                        "action_kind": "notification.escalation",
+                        "fields": {"reason": "no registered delivery channel is available"},
+                    }
+                ],
+            }
+        ),
+        locale="en",
+    )
+
+    assert result.status == "corrected"
+    assert result.reason_code == "recorded_failure_reason"
+    assert "notification.escalation: no registered delivery channel" in result.answer
+    assert "not a complete RCA" in result.answer
+    assert "caused by a network outage" not in result.answer
+    assert result.evidence_refs == ("incident:corr-notification", "audit:31")
+
+
 def test_unavailable_state_is_explicitly_unverified() -> None:
     result = verify_answer(
         "Everything is healthy.",

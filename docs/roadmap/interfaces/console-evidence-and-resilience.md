@@ -29,6 +29,8 @@ An optional incident conversation binding carries a bounded incident id, correla
 allowlisted Pantheon agent. The browser and server enforce the same bounds. Invalid persisted
 bindings are discarded without deleting the conversation. Agent activity describes bounded
 historical audit evidence; missing activity does not prove that an agent has no current task.
+A new ephemeral conversation does not query durable history before its first operator turn creates
+the server record, so a normal first-open state is not reported as a missing-history error.
 
 ## Verified evidence
 
@@ -41,6 +43,15 @@ Operational evidence remains one of `matched`, `ambiguous`, `none`, or `unavaila
 cannot change the selected incident, search scope, supported cause, or absence claim. A source with
 `availability=unavailable` never reports `reachable=true`; unconfigured or unprobed sources use
 `reachable=null`.
+
+The Trace route publishes `correlation_id`, `load_status`, and an actionable `load_error` when
+present, including during an error render. The server may use that correlation only as a selection
+hint and rechecks it against the authorized read model before returning operational evidence.
+Trace keeps correlated audit rows in sequence order, represents activity without a pipeline stage
+as `stage: null`, and derives `terminal_stage` from the last named stage.
+When no citation-grounded RCA exists, deterministic verification may quote a recorded failure or
+escalation reason from that audit evidence, but labels it as an observation rather than a complete
+root-cause conclusion.
 
 Each manifest route has one owner. The SPA strips query and fragment components, matches exact
 paths or descendants on a path-segment boundary, and selects the longest owner. Similar prefixes do

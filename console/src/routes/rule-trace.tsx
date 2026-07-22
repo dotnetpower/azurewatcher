@@ -3,6 +3,7 @@ import type { ReadApiClient } from "../api";
 import {
   AsyncBoundary,
   DataTable,
+  ErrorState,
   KpiCard,
   KpiGrid,
   PageHeader,
@@ -11,7 +12,7 @@ import {
   type Column,
   type PillKind,
 } from "../components/ui";
-import { usePublishViewContext } from "../deck/context";
+import { usePublishViewContext, type ViewSnapshot } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { currentRoute, navigate, routeHref } from "../router";
 import { isRfc3339Timestamp } from "../time-format";
@@ -34,7 +35,7 @@ import {
 interface TraceStep {
   readonly seq: number;
   readonly recorded_at: string;
-  readonly stage: string;
+  readonly stage: string | null;
   readonly decision: string | null;
   readonly reason: string | null;
   readonly action_kind: string;
@@ -72,6 +73,11 @@ export function RuleTraceRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<TraceResponse>>({ status: "idle" });
   const requestGeneration = useRef(0);
 
+  usePublishViewContext(
+    () => buildTraceViewSnapshot(correlationId, state),
+    [correlationId, state],
+  );
+
   async function fetchTrace(id: string = correlationId): Promise<void> {
     if (!id) return;
     const generation = requestGeneration.current + 1;
@@ -86,7 +92,7 @@ export function RuleTraceRoute({ client }: Props) {
       if (requestGeneration.current === generation) {
         setState({
           status: "error",
-          message: err instanceof Error ? err.message : String(err),
+          message: traceLoadErrorMessage(err),
         });
       }
     }
@@ -156,15 +162,29 @@ export function RuleTraceRoute({ client }: Props) {
         </form>
       </section>
 
-      <AsyncBoundary
-        state={state}
-        resourceLabel={t("evidence.trace.resource")}
-        idle={<p class="muted footnote">{t("evidence.trace.idle")}</p>}
-      >
-        {(data) => <TraceView data={data} />}
-      </AsyncBoundary>
+      {state.status === "error" ? (
+        <div class="stack">
+          <ErrorState message={state.message} />
+          <TraceEvidenceLinks correlationId={correlationId} />
+        </div>
+      ) : (
+        <AsyncBoundary
+          state={state}
+          resourceLabel={t("evidence.trace.resource")}
+          idle={<p class="muted footnote">{t("evidence.trace.idle")}</p>}
+        >
+          {(data) => <TraceView data={data} />}
+        </AsyncBoundary>
+      )}
     </div>
   );
+}
+
+function traceLoadErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.startsWith("invalid read API response:")
+    ? t("evidence.trace.invalidEvidence")
+    : t("evidence.trace.loadError", { message });
 }
 
 export function decodeTraceResponse(value: unknown): TraceResponse {
@@ -176,10 +196,14 @@ export function decodeTraceResponse(value: unknown): TraceResponse {
     if (!isRfc3339Timestamp(recordedAt)) {
       throw new Error("invalid read API response: trace step.recorded_at MUST be RFC 3339");
     }
+    const stage = panelNullableString(row, "stage", "trace step");
+    if (stage !== null && stage.trim().length === 0) {
+      throw new Error("invalid read API response: trace step.stage MUST be null or non-empty");
+    }
     return {
       seq: panelNonNegativeInteger(row, "seq", "trace step"),
       recorded_at: recordedAt,
-      stage: panelNonEmptyString(row, "stage", "trace step"),
+      stage,
       decision: panelNullableString(row, "decision", "trace step"),
       reason: panelNullableString(row, "reason", "trace step"),
       action_kind: panelNonEmptyString(row, "action_kind", "trace step"),
@@ -195,11 +219,22 @@ export function decodeTraceResponse(value: unknown): TraceResponse {
   if (new Set(sequence).size !== sequence.length || sequence.some((seq, index) => index > 0 && seq <= sequence[index - 1]!)) {
     throw new Error("invalid read API response: trace steps MUST have unique ascending seq values");
   }
+  const terminalStage = panelNullableString(root, "terminal_stage", "trace");
+  if (terminalStage !== null && terminalStage.trim().length === 0) {
+    throw new Error("invalid read API response: trace.terminal_stage MUST be null or non-empty");
+  }
+  let lastNamedStage: string | null = null;
+  for (const step of steps) {
+    if (step.stage !== null) lastNamedStage = step.stage;
+  }
+  if (terminalStage !== lastNamedStage) {
+    throw new Error("invalid read API response: trace.terminal_stage MUST match the last named stage");
+  }
   return {
     correlation_id: correlationId,
     step_count: stepCount,
     steps,
-    terminal_stage: panelNullableString(root, "terminal_stage", "trace"),
+    terminal_stage: terminalStage,
   };
 }
 
@@ -221,20 +256,30 @@ function modePill(mode: string): PillKind {
   return "neutral";
 }
 
-function TraceView({ data }: { readonly data: TraceResponse }) {
-  usePublishViewContext(
-    () => ({
+export function buildTraceViewSnapshot(
+  correlationId: string,
+  state: AsyncState<TraceResponse>,
+): ViewSnapshot | null {
+  if (!correlationId) return null;
+  const base = {
+    routeId: "trace",
+    routeLabel: t("route.ruleTrace"),
+    purpose: t("evidence.trace.viewPurpose"),
+    glossary: composeGlossary([
+      TERMS.correlationId,
+      TERMS.actionKind,
+      TERMS.gateDecision,
+      TERMS.tier,
+      TERMS.mode,
+      TERMS.outcome,
+    ]),
+    capturedAt: new Date().toISOString(),
+  } as const;
+  if (state.status === "ready") {
+    const data = state.data;
+    return {
+      ...base,
       routeId: "trace",
-      routeLabel: t("route.ruleTrace"),
-      purpose: t("evidence.trace.viewPurpose"),
-      glossary: composeGlossary([
-        TERMS.correlationId,
-        TERMS.actionKind,
-        TERMS.gateDecision,
-        TERMS.tier,
-        TERMS.mode,
-        TERMS.outcome,
-      ]),
       headline: t(
         data.terminal_stage ? "evidence.trace.headlineTerminal" : "evidence.trace.headline",
         {
@@ -243,8 +288,8 @@ function TraceView({ data }: { readonly data: TraceResponse }) {
           ...(data.terminal_stage ? { stage: data.terminal_stage } : {}),
         },
       ),
-      capturedAt: new Date().toISOString(),
       facts: [
+        { key: "load_status", value: "ready", group: "trace" },
         { key: "correlation_id", value: data.correlation_id, group: "trace" },
         { key: "step_count", value: data.step_count, group: "trace" },
         { key: "terminal_stage", value: data.terminal_stage, group: "trace" },
@@ -261,12 +306,45 @@ function TraceView({ data }: { readonly data: TraceResponse }) {
           reason: s.reason,
           action_kind: s.action_kind,
           mode: s.mode,
+          entry_hash: s.entry_hash,
           correlation_id: data.correlation_id,
         })),
       },
-    }),
-    [data],
+    };
+  }
+  const message = state.status === "error" || state.status === "unavailable"
+    ? state.message
+    : null;
+  const headlineKey = state.status === "loading"
+    ? "evidence.trace.headlineLoading"
+    : state.status === "error" || state.status === "unavailable"
+      ? "evidence.trace.headlineError"
+      : "evidence.trace.headlineIdle";
+  return {
+    ...base,
+    headline: t(headlineKey, { correlation: correlationId }),
+    facts: [
+      { key: "load_status", value: state.status, group: "trace" },
+      { key: "correlation_id", value: correlationId, group: "trace" },
+      ...(message === null ? [] : [{ key: "load_error", value: message, group: "trace" }]),
+    ],
+    records: {
+      status: [{ correlation_id: correlationId, status: state.status, reason: message }],
+    },
+  };
+}
+
+function TraceEvidenceLinks({ correlationId }: { readonly correlationId: string }) {
+  return (
+    <nav class="trace-evidence-links" aria-label={t("evidence.trace.evidence")}>
+      <a href={routeHref("incidents", { params: { status: "all", correlation: correlationId } })}>{t("evidence.trace.incident")}</a>
+      <a href={routeHref("audit", { params: { correlation: correlationId } })}>{t("evidence.trace.audit")}</a>
+      <a href={routeHref("rca", { params: { correlation: correlationId } })}>{t("evidence.trace.rca")}</a>
+    </nav>
   );
+}
+
+function TraceView({ data }: { readonly data: TraceResponse }) {
 
   const columns: readonly Column<TraceStep>[] = [
     {
@@ -281,7 +359,7 @@ function TraceView({ data }: { readonly data: TraceResponse }) {
       headerClass: "num",
     },
     { key: "at", header: t("evidence.trace.column.recordedAt"), render: (s) => s.recorded_at, cellClass: "mono" },
-    { key: "stage", header: t("evidence.trace.column.stage"), render: (s) => s.stage || <span class="muted">{t("evidence.trace.unnamed")}</span>, cellClass: "mono" },
+    { key: "stage", header: t("evidence.trace.column.stage"), render: (s) => s.stage ?? <span class="muted">{t("evidence.trace.unnamed")}</span>, cellClass: "mono" },
     { key: "kind", header: t("evidence.trace.column.actionKind"), render: (s) => s.action_kind, cellClass: "mono" },
     {
       key: "dec",
@@ -312,11 +390,7 @@ function TraceView({ data }: { readonly data: TraceResponse }) {
           value={<span class="mono small">{data.correlation_id}</span>}
         />
       </KpiGrid>
-      <nav class="trace-evidence-links" aria-label={t("evidence.trace.evidence")}>
-        <a href={routeHref("incidents", { params: { status: "all", correlation: data.correlation_id } })}>{t("evidence.trace.incident")}</a>
-        <a href={routeHref("audit", { params: { correlation: data.correlation_id } })}>{t("evidence.trace.audit")}</a>
-        <a href={routeHref("rca", { params: { correlation: data.correlation_id } })}>{t("evidence.trace.rca")}</a>
-      </nav>
+      <TraceEvidenceLinks correlationId={data.correlation_id} />
       <section class="stack-section">
         <h3 class="section-title">{t("evidence.trace.timeline")}</h3>
         <DataTable

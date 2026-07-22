@@ -50,10 +50,10 @@ class RuleFireTraceStep:
 
     seq: int
     recorded_at: str
-    stage: str
+    stage: str | None
     """PipelineStage value from the audit entry (``L1_evaluate``,
-    ``remediate``, ``escalate``, ...). Empty string when the source
-    entry did not name a stage."""
+    ``remediate``, ``escalate``, ...), or ``None`` when the source
+    entry records correlated activity without a pipeline stage."""
     decision: str | None
     reason: str | None
     action_kind: str
@@ -63,7 +63,7 @@ class RuleFireTraceStep:
     @classmethod
     def from_audit_item(cls, item: AuditItemLike) -> RuleFireTraceStep:
         entry = dict(item.entry)
-        stage = _extract_string(entry, "pipeline_stage") or _extract_string(entry, "stage") or ""
+        stage = _extract_string(entry, "pipeline_stage") or _extract_string(entry, "stage")
         decision = _extract_string(entry, "decision")
         reason = _extract_string(entry, "reason") or _extract_string(entry, "deny_reason")
         return cls(
@@ -86,6 +86,10 @@ class RuleFireTrace:
     steps: tuple[RuleFireTraceStep, ...]
 
     def as_json(self) -> dict[str, Any]:
+        terminal_stage = next(
+            (step.stage for step in reversed(self.steps) if step.stage is not None),
+            None,
+        )
         return {
             "correlation_id": self.correlation_id,
             "step_count": len(self.steps),
@@ -102,7 +106,7 @@ class RuleFireTrace:
                 }
                 for step in self.steps
             ],
-            "terminal_stage": self.steps[-1].stage if self.steps else None,
+            "terminal_stage": terminal_stage,
         }
 
 
@@ -133,7 +137,7 @@ def build_rule_fire_trace(
 
 def _extract_string(entry: Mapping[str, Any], key: str) -> str | None:
     value = entry.get(key)
-    if isinstance(value, str) and value:
+    if isinstance(value, str) and value.strip():
         return value
     return None
 
