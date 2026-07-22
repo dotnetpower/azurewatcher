@@ -23,13 +23,13 @@ from fdai.delivery.read_api.routes.rca_projection import project_rca
 _LOG = logging.getLogger(__name__)
 
 _OPERATIONAL_INTENT: Final = re.compile(
-    r"\b(recent|latest|last|incident|issue|outage|failure|problem|root cause|cause|why did)\b"
+    r"\b(recent|latest|last|incidents?|issue|outage|failure|problem|root cause|cause|why did)\b"
     "|\ucd5c\uadfc|\ucd5c\uc2e0|\uc9c1\uc804|\uc778\uc2dc\ub358\ud2b8|\uc774\uc288|\uc7a5\uc560"
     "|\uc2e4\ud328|\ubb38\uc81c|\uc6d0\uc778|\uadfc\ubcf8 \uc6d0\uc778",
     re.IGNORECASE,
 )
 _EXPLICIT_OPERATIONAL_CONTEXT: Final = re.compile(
-    r"\b(recent|latest|last|incident|outage|failure|root cause|cause|why did)\b"
+    r"\b(recent|latest|last|incidents?|outage|failure|root cause|cause|why did)\b"
     "|\ucd5c\uadfc|\ucd5c\uc2e0|\uc9c1\uc804|\uc778\uc2dc\ub358\ud2b8|\uc7a5\uc560"
     "|\uc2e4\ud328|\uc6d0\uc778|\uadfc\ubcf8 \uc6d0\uc778",
     re.IGNORECASE,
@@ -44,23 +44,37 @@ _RECENCY_INTENT: Final = re.compile(
     r"\b(recent|latest|last|newest)\b|\ucd5c\uadfc|\ucd5c\uc2e0|\uc9c1\uc804",
     re.IGNORECASE,
 )
+_SUMMARY_INTENT: Final = re.compile(
+    r"\b(summarize|summarise|summary|recap|overview)\b|\uc694\uc57d|\uc815\ub9ac",
+    re.IGNORECASE,
+)
 _WORD: Final = re.compile(r"[a-z][a-z0-9_-]{2,}", re.IGNORECASE)
 _STOP_WORDS: Final = frozenset(
     {
+        "all",
         "about",
         "cause",
         "caused",
         "could",
         "failure",
         "incident",
+        "incidents",
         "issue",
         "latest",
         "last",
+        "me",
         "problem",
+        "overview",
+        "please",
         "recent",
+        "recap",
         "root",
+        "summarise",
+        "summarize",
+        "summary",
         "tell",
         "that",
+        "the",
         "what",
         "when",
         "where",
@@ -305,6 +319,14 @@ class OperationalEvidenceResolver:
             }
 
         candidates.sort(key=lambda item: (-item[0], item[1]))
+        if _SUMMARY_INTENT.search(prompt):
+            return {
+                "authority": "server_read_model",
+                "status": "summary",
+                "topic_terms": list(terms),
+                "incidents": [_incident_dict(item[2]) for item in candidates],
+                "searched_recent_incidents": len(page.items),
+            }
         recent_requested = bool(_RECENCY_INTENT.search(prompt))
         top_score = candidates[0][0]
         top = [candidate for candidate in candidates if candidate[0] == top_score]

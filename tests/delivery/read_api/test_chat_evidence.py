@@ -211,6 +211,32 @@ async def test_returns_ambiguous_candidates_without_recency_tiebreak() -> None:
     assert len(evidence["candidates"]) == 2
 
 
+async def test_summary_request_returns_all_matching_incidents_without_selection() -> None:
+    model = InMemoryConsoleReadModel()
+    _seed_memory_incident(model, "corr-memory-a")
+    _seed_memory_incident(model, "corr-memory-b")
+
+    evidence = await OperationalEvidenceResolver(model).resolve(
+        "\uc778\uc2dc\ub358\ud2b8\ub97c \uc694\uc57d\ud574\uc918"
+    )
+
+    assert evidence is not None
+    assert evidence["status"] == "summary"
+    assert {item["correlation_id"] for item in evidence["incidents"]} == {
+        "corr-memory-a",
+        "corr-memory-b",
+    }
+    assert evidence["searched_recent_incidents"] == 2
+
+    english_evidence = await OperationalEvidenceResolver(model).resolve(
+        "please summarize all the incidents"
+    )
+
+    assert english_evidence is not None
+    assert english_evidence["status"] == "summary"
+    assert len(english_evidence["incidents"]) == 2
+
+
 async def test_exact_incident_binding_wins_over_equal_topic_matches() -> None:
     model = InMemoryConsoleReadModel()
     _seed_memory_incident(model, "corr-memory-a")

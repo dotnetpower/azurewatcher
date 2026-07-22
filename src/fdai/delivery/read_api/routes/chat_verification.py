@@ -356,6 +356,34 @@ def verify_answer(
             "no_matching_incident",
             search_refs,
         )
+    if state == "summary":
+        incidents = _mappings(evidence.get("incidents"))
+        searched = _integer(evidence.get("searched_recent_incidents"))
+        lines = [_incident_summary_line(item, korean=korean) for item in incidents]
+        count = len(lines)
+        answer = (
+            f"\ucd5c\uadfc \uc778\uc2dc\ub358\ud2b8 {count}\uac74 \uc694\uc57d\uc785\ub2c8\ub2e4:\n"
+            if korean
+            else f"Summary of {count} recent incident(s):\n"
+        ) + "\n".join(lines)
+        if searched is not None and searched > count:
+            answer += (
+                f"\n\ucd5c\uadfc {searched}\uac74\uc744 \uac80\uc0c9\ud574 "
+                f"\uc77c\uce58\ud55c {count}\uac74\uc744 \ud45c\uc2dc\ud588\uc2b5\ub2c8\ub2e4."
+                if korean
+                else f"\nSearched {searched} recent incidents and displayed {count} matches."
+            )
+        summary_refs = tuple(
+            f"incident:{correlation}"
+            for item in incidents
+            if (correlation := _optional_text(item.get("correlation_id"))) is not None
+        )
+        return _result(
+            _changed(provisional, answer),
+            answer,
+            "incident_summary",
+            summary_refs,
+        )
     if state == "ambiguous":
         candidates = _mappings(evidence.get("candidates"))[:5]
         lines = [
@@ -476,6 +504,26 @@ def verify_answer(
         answer,
         "no_grounded_rca",
         tuple(refs),
+    )
+
+
+def _incident_summary_line(incident: Mapping[str, Any], *, korean: bool) -> str:
+    correlation = _text(incident.get("correlation_id"), "unknown")
+    title = _text(incident.get("title"), "untitled incident")
+    status = _text(incident.get("status"), "unknown")
+    severity = _text(incident.get("severity"), "unknown")
+    updated = _text(incident.get("last_updated_at"), "unknown time")
+    agents = _strings(incident.get("involved_agents"))
+    agent_text = ", ".join(agents) if agents else ("\uc5c6\uc74c" if korean else "none recorded")
+    if korean:
+        return (
+            f"- {correlation}: {title} - \uc0c1\ud0dc {status}, \uc2ec\uac01\ub3c4 {severity}, "
+            f"\ucd5c\uc885 \uac31\uc2e0 {updated}, "
+            f"\uad00\uc5ec \uc5d0\uc774\uc804\ud2b8 {agent_text}"
+        )
+    return (
+        f"- {correlation}: {title} - status {status}, severity {severity}, "
+        f"last updated {updated}, involved agents {agent_text}"
     )
 
 

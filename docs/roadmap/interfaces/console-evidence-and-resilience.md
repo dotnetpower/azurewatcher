@@ -39,8 +39,10 @@ rendered deterministically from typed evidence. Ontology browse requires a targe
 forwards only allowlisted identity fields with prompt values up to 256 characters, and renders
 duplicate or malformed counts and selections unavailable.
 
-Operational evidence remains one of `matched`, `ambiguous`, `none`, or `unavailable`. Model prose
-cannot change the selected incident, search scope, supported cause, or absence claim. A source with
+Operational evidence remains one of `matched`, `summary`, `ambiguous`, `none`, or `unavailable`.
+For a collection summary request, `summary` renders the bounded matching set immediately without
+requiring a single incident selection. Model prose cannot change the selected incident, search
+scope, supported cause, collection membership, or absence claim. A source with
 `availability=unavailable` never reports `reachable=true`; unconfigured or unprobed sources use
 `reachable=null`.
 

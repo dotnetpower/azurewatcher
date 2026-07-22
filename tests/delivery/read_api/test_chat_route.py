@@ -339,6 +339,38 @@ class _NoMatchEvidenceResolver:
         }
 
 
+class _SummaryEvidenceResolver:
+    async def resolve(
+        self,
+        prompt: str,  # noqa: ARG002
+        *,
+        conversation_context: dict[str, str] | None = None,  # noqa: ARG002
+    ) -> dict[str, Any] | None:
+        return {
+            "authority": "server_read_model",
+            "status": "summary",
+            "searched_recent_incidents": 2,
+            "incidents": [
+                {
+                    "correlation_id": "corr-a",
+                    "title": "Memory pressure",
+                    "status": "open",
+                    "severity": "high",
+                    "last_updated_at": "2026-07-22T01:00:00Z",
+                    "involved_agents": ["Huginn"],
+                },
+                {
+                    "correlation_id": "corr-b",
+                    "title": "Deployment latency",
+                    "status": "investigating",
+                    "severity": "medium",
+                    "last_updated_at": "2026-07-22T00:30:00Z",
+                    "involved_agents": ["Forseti"],
+                },
+            ],
+        }
+
+
 class _AgentDelegate:
     def __init__(self) -> None:
         self.calls: list[dict[str, str]] = []
@@ -1022,6 +1054,30 @@ class TestChatRouteLatencySurface:
         assert payload["verification"]["status"] == "verified"
         assert payload["verification"]["reason_code"] == "no_matching_incident"
 
+    def test_incident_summary_non_stream_fast_path_skips_model(self) -> None:
+        backend = _RecordingBackend(model="must-not-run", delay_ms=10_000)
+        app = Starlette(
+            routes=[
+                make_chat_route(
+                    backend=backend,
+                    authorize=_allow,
+                    evidence_resolver=_SummaryEvidenceResolver(),
+                )
+            ]
+        )
+
+        response = TestClient(app).post(
+            "/chat",
+            json={"prompt": "summarize incidents", "view_context": {"_locale": "en"}},
+        )
+
+        payload = response.json()
+        assert response.status_code == 200
+        assert backend.calls == 0
+        assert payload["verification"]["reason_code"] == "incident_summary"
+        assert "Summary of 2 recent incident(s)" in payload["answer"]
+        assert "Choose one" not in payload["answer"]
+
     def test_agent_delegation_is_server_owned_and_user_scoped(self) -> None:
         backend = _RecordingBackend(model="gpt-x", delay_ms=0)
         delegate = _AgentDelegate()
@@ -1501,6 +1557,34 @@ class TestChatStreamEvidence:
         assert done["source"] == "evidence:verified"
         assert done["verification"]["status"] == "verified"
         assert done["verification"]["evidence_refs"] == ["incident-search:recent:11"]
+
+    def test_incident_summary_fast_path_streams_without_selection(self) -> None:
+        backend = _RecordingBackend(model="must-not-run", delay_ms=10_000)
+        app = Starlette(
+            routes=[
+                make_chat_stream_route(
+                    backend=backend,
+                    authorize=_allow,
+                    evidence_resolver=_SummaryEvidenceResolver(),
+                )
+            ]
+        )
+
+        response = TestClient(app).post(
+            "/chat/stream",
+            json={
+                "request_id": "req-summary",
+                "prompt": "summarize incidents",
+                "view_context": {"_locale": "en"},
+            },
+        )
+
+        events = _parse_sse(response.text)
+        assert backend.calls == 0
+        done = events[-1][1]
+        assert done["verification"]["reason_code"] == "incident_summary"
+        assert "Summary of 2 recent incident(s)" in done["answer"]
+        assert "Choose one" not in done["answer"]
 
     def test_supported_screen_claim_finishes_consistent_with_manifest(self) -> None:
         app = Starlette(

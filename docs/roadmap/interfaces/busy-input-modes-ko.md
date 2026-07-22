@@ -2,7 +2,7 @@
 title: 처리 중인 Conversation 입력 모드
 translation_of: busy-input-modes.md
 translation_source: docs/roadmap/interfaces/busy-input-modes.md
-translation_source_sha: f6260094a4b10c26a16b7823c32032ee3988b8ec
+translation_source_sha: c39de906ab2de92b7062c8beccaa3c1a86cf0f8d
 translation_revised: 2026-07-22
 ---
 
@@ -98,6 +98,9 @@ consume하며 content를 in-memory user guidance로 append한 후 narrator를 �
 disposition을 `queued`로 원자적으로 변경합니다.
 Queued 및 steered follow-up은 active incident conversation binding을 유지합니다. Rerun은 fuzzy
 incident selection으로 돌아가거나 Bragi의 narrator identity를 변경하지 않습니다.
+Intent scope도 유지합니다. Incident collection-summary 후속 입력은 operator에게 incident 하나를
+선택하도록 요청하지 않고 bounded matching set을 결정론적으로 렌더링합니다. Cause analysis처럼
+incident 하나가 필요한 질문은 ambiguous-selection 동작을 유지합니다.
 
 ## Queue 동작
 

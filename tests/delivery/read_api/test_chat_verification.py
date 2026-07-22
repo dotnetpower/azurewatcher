@@ -214,6 +214,72 @@ def test_ambiguous_state_lists_candidates_instead_of_choosing() -> None:
     assert "corr-b" in result.answer
 
 
+def test_summary_state_renders_all_incidents_without_requesting_selection() -> None:
+    result = verify_answer(
+        "Select an incident.",
+        _context(
+            {
+                "status": "summary",
+                "searched_recent_incidents": 2,
+                "incidents": [
+                    {
+                        "correlation_id": "corr-a",
+                        "title": "Memory pressure",
+                        "status": "open",
+                        "severity": "high",
+                        "last_updated_at": "2026-07-22T01:00:00Z",
+                        "involved_agents": ["Huginn", "Forseti"],
+                    },
+                    {
+                        "correlation_id": "corr-b",
+                        "title": "Deployment latency",
+                        "status": "investigating",
+                        "severity": "medium",
+                        "last_updated_at": "2026-07-22T00:30:00Z",
+                        "involved_agents": [],
+                    },
+                ],
+            }
+        ),
+        locale="en",
+    )
+
+    assert result.status == "corrected"
+    assert result.reason_code == "incident_summary"
+    assert "Summary of 2 recent incident(s)" in result.answer
+    assert "corr-a" in result.answer
+    assert "corr-b" in result.answer
+    assert "Choose one" not in result.answer
+    assert result.evidence_refs == ("incident:corr-a", "incident:corr-b")
+
+
+def test_summary_state_renders_korean_answer_without_requesting_selection() -> None:
+    result = verify_answer(
+        "\uc778\uc2dc\ub358\ud2b8\ub97c \uc120\ud0dd\ud574 \uc8fc\uc138\uc694.",
+        _context(
+            {
+                "status": "summary",
+                "searched_recent_incidents": 1,
+                "incidents": [
+                    {
+                        "correlation_id": "corr-a",
+                        "title": "Memory pressure",
+                        "status": "open",
+                        "severity": "high",
+                        "last_updated_at": "2026-07-22T01:00:00Z",
+                        "involved_agents": ["Huginn"],
+                    }
+                ],
+            }
+        ),
+        locale="ko",
+    )
+
+    assert result.reason_code == "incident_summary"
+    assert "\ucd5c\uadfc \uc778\uc2dc\ub358\ud2b8 1\uac74 \uc694\uc57d" in result.answer
+    assert "\uc120\ud0dd\ud574 \uc8fc\uc138\uc694" not in result.answer
+
+
 def test_grounded_match_renders_canonical_cause_and_refs() -> None:
     result = verify_answer(
         "The cause might be load.",
