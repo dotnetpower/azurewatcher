@@ -1,7 +1,7 @@
 ---
 title: Provisioning 실행 Profile
 translation_of: provisioning-execution-profiles.md
-translation_source_sha: b645ea9bdf0f98f983a9f3a67bd17d3dd1c747de
+translation_source_sha: e1350643936bfb835fd3b21445a0003ded8cb8d0
 translation_revised: 2026-07-22
 ---
 # Provisioning 실행 Profile
@@ -11,9 +11,10 @@ translation_revised: 2026-07-22
 전에 적용되는 사람 승인과 workload-identity 경계를 정의합니다.
 
 > **구현 상태:** 읽기 전용 `fdaictl provision inspect`와 private `provision init` profile
-> persistence가 구현되었습니다. Signed offline-kit verification, bootstrap plan/apply
-> orchestration, temporary public-access cleanup, post-provision verification은 목표 동작으로
-> 남아 있습니다.
+> persistence가 구현되었습니다. Injected release root를 사용하는 offline-kit manifest,
+> signature, compatibility, exact file-set verification이 구현되었습니다. Pinned root packaging,
+> kit construction, bootstrap plan/apply orchestration, temporary public-access cleanup,
+> post-provision verification은 목표 동작으로 남아 있습니다.
 >
 > **범위:** Azure가 구현된 대상입니다. 이 profile은 Terraform source of truth를 변경하거나
 > private endpoint를 우회하는 local fallback을 허용하지 않습니다.
@@ -141,6 +142,13 @@ Disconnected delivery는 platform별 offline kit에서 같은 `fdai` wheel과 co
 Offline mode는 PyPI, GitHub, public Terraform registry fallback을 차단합니다. Artifact source로
 승인된 internal mirror 또는 removable media를 사용할 수 있습니다. Installer와 `fdaictl`은 두
 경우 모두 같은 pinned release root를 검증합니다.
+
+`verify_offline_kit`은 manifest parsing 전에 Ed25519 signature를 검사하고 exact CLI 및 platform
+version을 binding하며 symlink와 extra file을 거부합니다. 모든 file digest를 streaming하고 wheel,
+signed deployment bundle, Terraform binary 및 provider mirror, OPA, SBOM을 요구합니다. Release
+root injection은 test와 release construction에서만 사용합니다. `fdaictl`은 `--release-root`
+override를 제공하지 않습니다. Public root가 wheel에 pin될 때까지 inspection은 `review`로
+유지됩니다.
 
 ## 승인 및 apply
 

@@ -8,9 +8,10 @@ transport, and access path. It also defines the human approval and workload-iden
 that applies before Terraform changes infrastructure or role assignments.
 
 > **Implementation status:** Read-only `fdaictl provision inspect` and private `provision init`
-> profile persistence are implemented. Signed offline-kit verification, bootstrap plan/apply
-> orchestration, temporary public-access cleanup, and post-provision verification remain target
-> behavior.
+> profile persistence are implemented. Offline-kit manifest, signature, compatibility, and exact
+> file-set verification are implemented behind an injected release root. Pinned root packaging,
+> kit construction, bootstrap plan/apply orchestration, temporary public-access cleanup, and
+> post-provision verification remain target behavior.
 >
 > **Scope:** Azure is the implemented target. The profiles do not change the Terraform source of
 > truth or allow local fallback around a private endpoint.
@@ -137,6 +138,12 @@ offline kit. The kit contains:
 Offline mode blocks fallback to PyPI, GitHub, and the public Terraform registry. The artifact
 source may be an approved internal mirror or removable media. The installer and `fdaictl` verify
 the same pinned release root in both cases.
+
+`verify_offline_kit` checks an Ed25519 signature before parsing the manifest, binds exact CLI and
+platform versions, rejects symlinks and extra files, streams every file digest, and requires the
+wheel, signed deployment bundle, Terraform binary and provider mirror, OPA, and SBOM. The release
+root is injectable for tests and release construction only. `fdaictl` does not expose a
+`--release-root` override; inspection remains `review` until a public root is pinned in the wheel.
 
 ## Approval and apply
 
