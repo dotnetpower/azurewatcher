@@ -139,6 +139,31 @@ export interface RetrievalSourcePreview {
   readonly side_effect_class: "read" | "route" | "simulate" | "ground";
 }
 
+export type InvestigationActivityStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "unavailable"
+  | "failed";
+
+export interface InvestigationActivity {
+  readonly activityId: string;
+  readonly kind: string;
+  readonly status: InvestigationActivityStatus;
+  readonly label: string;
+  readonly detail?: string;
+  readonly completed: number | null;
+  readonly total: number | null;
+  readonly authority?: string;
+  readonly observedAt?: string;
+}
+
+export interface InvestigationMilestone {
+  readonly messageId: string;
+  readonly text: string;
+  readonly agent?: string;
+}
+
 export type CodeValidationStatus = "valid" | "invalid" | "not_checked";
 
 export interface GroundedCodeArtifact {
@@ -171,6 +196,8 @@ export interface BackendHealth {
 export interface StreamCallbacks {
   readonly onToken: (delta: string) => void;
   readonly onProgress?: (progress: VerificationProgress) => void;
+  readonly onActivity?: (activity: InvestigationActivity) => void;
+  readonly onMilestone?: (milestone: InvestigationMilestone) => void;
   readonly onRevision?: (
     answer: string,
     revision: number,

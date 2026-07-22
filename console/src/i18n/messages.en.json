@@ -1504,6 +1504,16 @@
       "groundingReadOnly": "grounding on read-only sources",
       "readingSources": "Reading sources"
     },
+    "investigation": {
+      "label": "Investigation activity",
+      "title": "Investigation",
+      "pending": "Pending",
+      "running": "In progress",
+      "completed": "Completed",
+      "unavailable": "Unavailable",
+      "failed": "Failed",
+      "finished": "Finished"
+    },
     "rich": {
       "code": "Code",
       "streaming": "streaming",

@@ -20,6 +20,7 @@ import {
   type AnswerPlanningMetadata,
   type AnswerVerification,
   type GroundedCodeArtifact,
+  type InvestigationActivity,
 } from "./backend";
 
 export const TRANSCRIPT_KEY = "fdai.deck.transcript.v1";
@@ -41,6 +42,8 @@ export interface PersistedTurn {
   readonly id: string;
   readonly role: "operator" | "deck";
   readonly text: string;
+  readonly kind?: "message" | "activity";
+  readonly activities?: readonly InvestigationActivity[];
   readonly at: string;
   readonly source?: string;
   /** Agent name when this turn speaks as a specific agent (icon + name header). */
@@ -80,6 +83,8 @@ export function serializeTurns(
       return {
         ...base,
         ...(t.source ? { source: t.source } : {}),
+        ...(t.kind ? { kind: t.kind } : {}),
+        ...(validActivities(t.activities) ? { activities: t.activities } : {}),
         ...(t.agent ? { agent: t.agent } : {}),
         ...(t.citations ? { citations: t.citations } : {}),
         ...(t.followUps ? { followUps: t.followUps } : {}),
@@ -123,6 +128,8 @@ export function parseTurns(raw: string | null): PersistedTurn[] {
       text: rec.text,
       at: rec.at,
       ...(typeof rec.source === "string" ? { source: rec.source } : {}),
+      ...(rec.kind === "message" || rec.kind === "activity" ? { kind: rec.kind } : {}),
+      ...(validActivities(rec.activities) ? { activities: rec.activities } : {}),
       ...(typeof rec.agent === "string" ? { agent: rec.agent } : {}),
       ...(validCitations(rec.citations) ? { citations: rec.citations } : {}),
       ...(validStringArray(rec.followUps) ? { followUps: rec.followUps } : {}),
@@ -138,6 +145,27 @@ export function parseTurns(raw: string | null): PersistedTurn[] {
     out.push(turn);
   }
   return out;
+}
+
+function validActivities(value: unknown): value is readonly InvestigationActivity[] {
+  if (!Array.isArray(value)) return false;
+  return value.length <= 64 && value.every((item) => {
+    if (typeof item !== "object" || item === null) return false;
+    const record = item as Record<string, unknown>;
+    return (
+      typeof record.activityId === "string" &&
+      typeof record.kind === "string" &&
+      ["pending", "running", "completed", "unavailable", "failed"].includes(
+        String(record.status),
+      ) &&
+      typeof record.label === "string" &&
+      (record.detail === undefined || typeof record.detail === "string") &&
+      (record.completed === null || typeof record.completed === "number") &&
+      (record.total === null || typeof record.total === "number") &&
+      (record.authority === undefined || typeof record.authority === "string") &&
+      (record.observedAt === undefined || typeof record.observedAt === "string")
+    );
+  });
 }
 
 function validVerification(value: unknown): value is NonNullable<PersistedTurn["verification"]> {

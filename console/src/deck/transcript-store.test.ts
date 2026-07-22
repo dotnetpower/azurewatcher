@@ -136,6 +136,32 @@ describe("serializeTurns", () => {
     expect(parsed[0]!.id).toBe("1");
   });
 
+  it("round-trips a completed investigation timeline", () => {
+    const turns = [{
+      id: "activity-1",
+      role: "deck" as const,
+      kind: "activity" as const,
+      text: "Resolve scope\nCheck health",
+      at: "10:00:00",
+      terminal: true,
+      activities: [
+        {
+          activityId: "scope",
+          kind: "scope.resolved",
+          status: "completed" as const,
+          label: "Resolve scope",
+          completed: 1,
+          total: 1,
+        },
+      ],
+    }];
+
+    const parsed = parseTurns(serializeTurns(turns));
+
+    expect(parsed[0]?.kind).toBe("activity");
+    expect(parsed[0]?.activities?.[0]?.activityId).toBe("scope");
+  });
+
   it("drops a stopped provisional assistant turn", () => {
     const turns = [
       { id: "1", role: "operator" as const, text: "hi", at: "10:00:00" },

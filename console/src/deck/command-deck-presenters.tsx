@@ -6,6 +6,7 @@ import {
   type AnswerPlanningMetadata,
   type BackendHealth,
   type GroundedCodeArtifact,
+  type InvestigationActivity,
   type RouterSnapshot,
   type VerificationProgress,
 } from "./backend";
@@ -17,12 +18,15 @@ import {
 } from "./conversation-sessions";
 import { useViewContext } from "./context";
 import { GroundedReply } from "./grounded-reply";
+import { InvestigationTimeline } from "./investigation-timeline";
 import { introSuggestions } from "./intro-suggestions";
 
 export interface Turn {
   readonly id: string;
   readonly role: "operator" | "deck";
   readonly text: string;
+  readonly kind?: "message" | "activity";
+  readonly activities?: readonly InvestigationActivity[];
   readonly citations?: readonly { readonly label: string; readonly value?: string }[];
   readonly followUps?: readonly string[];
   readonly source?: string;
@@ -223,12 +227,13 @@ export function TurnBubble({
   readonly activeSearchMatch: boolean;
 }) {
   const isDeck = turn.role === "deck";
+  const isActivity = turn.kind === "activity";
   return (
     <article
       id={`deck-turn-${turn.id}`}
       class={`deck-turn deck-turn-${turn.role}${turn.streaming ? " is-streaming" : ""}${searchMatch ? " is-search-match" : ""}${activeSearchMatch ? " is-active-search-match" : ""}`}
     >
-      {isDeck ? (
+      {isDeck && !isActivity ? (
         <header class="deck-turn-head">
           <span class="deck-turn-role deck-turn-agent">
             <span
@@ -248,7 +253,12 @@ export function TurnBubble({
           ) : null}
         </header>
       ) : null}
-      {isDeck ? (
+      {isActivity ? (
+        <InvestigationTimeline
+          activities={turn.activities ?? []}
+          running={turn.streaming === true}
+        />
+      ) : isDeck ? (
         <GroundedReply
           turnId={turn.id}
           text={turn.text}

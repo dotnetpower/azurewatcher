@@ -5142,6 +5142,95 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   margin-left: 8px;
 }
 
+.deck-turn-activity {
+  width: min(100%, 780px);
+}
+.deck-investigation {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 2px 0 4px;
+}
+.deck-investigation-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 2px 7px;
+  font-size: 12px;
+}
+.deck-investigation-head > span {
+  font-size: 11px;
+}
+.deck-investigation-list {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.deck-investigation-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--bg-subtle) 55%, transparent);
+}
+.deck-investigation-state {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--fg-muted) 18%, transparent);
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+.deck-investigation-item.is-running .deck-investigation-state,
+.deck-investigation-item.is-pending .deck-investigation-state {
+  box-sizing: border-box;
+  border: 2px solid color-mix(in oklab, var(--accent) 28%, transparent);
+  border-top-color: var(--accent);
+  background: transparent;
+  animation: deck-rt-rot 0.8s linear infinite;
+}
+.deck-investigation-item.is-completed .deck-investigation-state {
+  background: color-mix(in oklab, var(--tier-t0, #4dab7a) 18%, transparent);
+  color: var(--tier-t0, #237a4b);
+}
+.deck-investigation-item.is-unavailable .deck-investigation-state {
+  background: color-mix(in oklab, var(--warning, #a76b12) 16%, transparent);
+  color: var(--warning, #8a5a00);
+}
+.deck-investigation-item.is-failed .deck-investigation-state {
+  background: color-mix(in oklab, var(--danger, #b3261e) 14%, transparent);
+  color: var(--danger, #b3261e);
+}
+.deck-investigation-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.deck-investigation-copy strong,
+.deck-investigation-copy small {
+  overflow-wrap: anywhere;
+}
+.deck-investigation-copy strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+.deck-investigation-copy small,
+.deck-investigation-meta {
+  font-size: 10.5px;
+}
+.deck-investigation-meta {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* Retrieval trace (deck/retrieval-trace.tsx) - the pending "preparing
  * answer" surface. Streams the read-only sources the deck grounds on
  * (the current screen snapshot) in a slot-machine window. */

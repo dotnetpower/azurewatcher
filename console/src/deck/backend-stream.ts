@@ -9,6 +9,8 @@ import {
   newRequestId,
   parseAnswerVerification,
   parseDelegation,
+  parseInvestigationActivity,
+  parseInvestigationMilestone,
   parseRetrievalSourcePreviews,
   parseRouter,
   parseVerificationStatus,
@@ -237,6 +239,12 @@ export async function askBackendStream(
           : null,
         sources: parseRetrievalSourcePreviews(object.sources),
       });
+    } else if (event === "activity") {
+      const activity = parseInvestigationActivity(object);
+      if (activity !== null) callbacks.onActivity?.(activity);
+    } else if (event === "milestone") {
+      const milestone = parseInvestigationMilestone(object);
+      if (milestone !== null) callbacks.onMilestone?.(milestone);
     } else if (event === "revision") {
       const replacement = typeof object.answer === "string" ? object.answer : null;
       const status = parseVerificationStatus(object.status);

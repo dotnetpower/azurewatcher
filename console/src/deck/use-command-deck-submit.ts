@@ -5,11 +5,14 @@ import {
   renderActionResult,
   submitAction,
   type BackendTurn,
+  type InvestigationActivity,
+  type InvestigationMilestone,
   type VerificationProgress,
 } from "./backend";
 import { detectActionIntent } from "./action-intent";
 import { watchActionProgress } from "./action-progress";
 import { DEFAULT_NARRATOR, type Turn } from "./command-deck-presenters";
+import { upsertInvestigationActivity } from "./investigation-timeline";
 import { replyAgent, sessionIdFor } from "./command-deck-session";
 import {
   conversationLabelForPrompt,
@@ -224,12 +227,17 @@ export function useCommandDeckSubmit({
       return;
     }
 
-    const history: BackendTurn[] = turns.map((turn) => ({
-      role: turn.role === "operator" ? "user" : "assistant",
-      content: turn.text,
-    }));
+    const history: BackendTurn[] = turns
+      .filter((turn) => turn.kind !== "activity")
+      .map((turn) => ({
+        role: turn.role === "operator" ? "user" : "assistant",
+        content: turn.text,
+      }));
+    const deckId = newId();
+    const activityTurnId = newId();
+    const milestoneIds = new Set<string>();
+    let hasActivityTurn = false;
     try {
-      const deckId = newId();
       let started = false;
       let visibleAcc = "";
       let pendingRevision = 0;
@@ -343,6 +351,68 @@ export function useCommandDeckSubmit({
               return next;
             });
           },
+          onActivity: (activity: InvestigationActivity) => {
+            if (!isCurrent()) return;
+            hasActivityTurn = true;
+            setPending(false);
+            setRetrievalProgress(null);
+            setSrStatus(activity.label);
+            setTurns((current) => {
+              const existing = current.find((turn) => turn.id === activityTurnId);
+              const activities = upsertInvestigationActivity(
+                existing?.activities ?? [],
+                activity,
+              );
+              const text = activities.map((item) => item.label).join("\n");
+              const next = existing
+                ? current.map((turn) => turn.id === activityTurnId
+                  ? { ...turn, text, activities }
+                  : turn)
+                : [
+                    ...current,
+                    {
+                      id: activityTurnId,
+                      role: "deck" as const,
+                      kind: "activity" as const,
+                      text,
+                      activities,
+                      source: "investigation",
+                      streaming: true,
+                      terminal: false,
+                      at: shortTime(),
+                    },
+                  ];
+              turnsRef.current = next;
+              return next;
+            });
+            pinTranscriptToLatest();
+          },
+          onMilestone: (milestone: InvestigationMilestone) => {
+            if (!isCurrent() || milestoneIds.has(milestone.messageId)) return;
+            milestoneIds.add(milestone.messageId);
+            setPending(false);
+            setRetrievalProgress(null);
+            setSrStatus(milestone.text);
+            setTurns((current) => {
+              const next = [
+                ...current,
+                {
+                  id: `milestone-${milestone.messageId}`,
+                  role: "deck" as const,
+                  kind: "message" as const,
+                  text: milestone.text,
+                  agent: milestone.agent ?? DEFAULT_NARRATOR,
+                  source: "investigation",
+                  streaming: false,
+                  terminal: true,
+                  at: shortTime(),
+                },
+              ];
+              turnsRef.current = next;
+              return next;
+            });
+            pinTranscriptToLatest();
+          },
           onRevision: (answer, revision, status) => {
             if (!isCurrent()) return;
             visibleAcc = answer;
@@ -397,8 +467,11 @@ export function useCommandDeckSubmit({
       await waitForPaintDrain();
       if (isCurrent()) {
         setTurns((current) => {
-          const next = current.map((turn) =>
-            turn.id === deckId
+          const next = current.map((turn) => {
+            if (turn.id === activityTurnId) {
+              return { ...turn, streaming: false, terminal: true };
+            }
+            return turn.id === deckId
               ? {
                   ...turn,
                   text: reply.text,
@@ -414,8 +487,8 @@ export function useCommandDeckSubmit({
                   ...(reply.answerPlanning ? { answerPlanning: reply.answerPlanning } : {}),
                   ...(reply.codeArtifacts ? { codeArtifacts: reply.codeArtifacts } : {}),
                 }
-              : turn,
-          );
+              : turn;
+          });
           turnsRef.current = next;
           return next;
         });
@@ -423,6 +496,15 @@ export function useCommandDeckSubmit({
       }
     } finally {
       if (isCurrent()) {
+        if (hasActivityTurn) {
+          setTurns((current) => {
+            const next = current.map((turn) => turn.id === activityTurnId
+              ? { ...turn, streaming: false, terminal: true }
+              : turn);
+            turnsRef.current = next;
+            return next;
+          });
+        }
         activeRequestRef.current = null;
         abortRef.current = null;
         inFlightRef.current = false;

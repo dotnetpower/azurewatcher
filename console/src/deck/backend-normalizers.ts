@@ -7,10 +7,78 @@ import type {
   AtomicClaimStatus,
   DelegationMetadata,
   EvidenceManifestEntry,
+  InvestigationActivity,
+  InvestigationActivityStatus,
+  InvestigationMilestone,
   RetrievalSourcePreview,
   RouterCandidate,
   RouterSnapshot,
 } from "./backend-types";
+
+const ACTIVITY_STATUSES = new Set<InvestigationActivityStatus>([
+  "pending",
+  "running",
+  "completed",
+  "unavailable",
+  "failed",
+]);
+
+export function parseInvestigationActivity(raw: unknown): InvestigationActivity | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const status = record.status;
+  if (
+    typeof record.activity_id !== "string" ||
+    record.activity_id.length === 0 ||
+    typeof record.kind !== "string" ||
+    record.kind.length === 0 ||
+    typeof status !== "string" ||
+    !ACTIVITY_STATUSES.has(status as InvestigationActivityStatus) ||
+    typeof record.label !== "string" ||
+    record.label.length === 0
+  ) return null;
+  const completed = finiteProgress(record.completed);
+  const total = finiteProgress(record.total);
+  return {
+    activityId: record.activity_id,
+    kind: record.kind,
+    status: status as InvestigationActivityStatus,
+    label: record.label,
+    ...(typeof record.detail === "string" && record.detail.length > 0
+      ? { detail: record.detail }
+      : {}),
+    completed,
+    total,
+    ...(typeof record.authority === "string" && record.authority.length > 0
+      ? { authority: record.authority }
+      : {}),
+    ...(typeof record.observed_at === "string" && record.observed_at.length > 0
+      ? { observedAt: record.observed_at }
+      : {}),
+  };
+}
+
+export function parseInvestigationMilestone(raw: unknown): InvestigationMilestone | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  if (
+    typeof record.message_id !== "string" ||
+    record.message_id.length === 0 ||
+    typeof record.text !== "string" ||
+    record.text.trim().length === 0
+  ) return null;
+  return {
+    messageId: record.message_id,
+    text: record.text,
+    ...(typeof record.agent === "string" && record.agent.length > 0
+      ? { agent: record.agent }
+      : {}),
+  };
+}
+
+function finiteProgress(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 ? raw : null;
+}
 
 export function parseRetrievalSourcePreviews(
   raw: unknown,

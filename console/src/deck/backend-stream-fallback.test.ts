@@ -380,12 +380,32 @@ describe("askBackendStream fallback typewriter", () => {
           side_effect_class: "read",
         }],
       }],
-      ["token", { seq: 3, revision: 0, delta: "Unsupported draft" }],
+      ["activity", {
+        seq: 3,
+        revision: 0,
+        activity_id: "health-sweep",
+        kind: "health.querying",
+        status: "running",
+        label: "Checking Resource Health",
+        detail: "24 of 128 resources",
+        completed: 24,
+        total: 128,
+        authority: "azure.resource_health",
+        observed_at: "2026-07-22T05:00:00Z",
+      }],
+      ["milestone", {
+        seq: 4,
+        revision: 0,
+        message_id: "candidate-summary",
+        text: "Found seven candidates and started metric checks.",
+        agent: "Bragi",
+      }],
+      ["token", { seq: 5, revision: 0, delta: "Unsupported draft" }],
       // Same sequence is a replay and MUST be ignored.
-      ["token", { seq: 3, revision: 0, delta: " duplicate" }],
-      ["provisional", { seq: 4, revision: 0, answer: "Unsupported draft" }],
+      ["token", { seq: 5, revision: 0, delta: " duplicate" }],
+      ["provisional", { seq: 6, revision: 0, answer: "Unsupported draft" }],
       ["verification", {
-        seq: 5,
+        seq: 7,
         revision: 0,
         phase: "verifying",
         label: "Verifying answer",
@@ -393,7 +413,7 @@ describe("askBackendStream fallback typewriter", () => {
         total: 1,
       }],
       ["verification", {
-        seq: 6,
+        seq: 8,
         revision: 0,
         phase: "corrected",
         label: "Verification corrected",
@@ -401,20 +421,20 @@ describe("askBackendStream fallback typewriter", () => {
         total: 1,
       }],
       ["revision", {
-        seq: 7,
+        seq: 9,
         revision: 1,
         answer: "Verified canonical answer",
         status: "corrected",
       }],
       // A later frame carrying the same revision is stale and MUST be ignored.
       ["revision", {
-        seq: 8,
+        seq: 10,
         revision: 1,
         answer: "Stale replacement",
         status: "corrected",
       }],
       ["done", {
-        seq: 9,
+        seq: 11,
         revision: 1,
         answer: "Verified canonical answer",
         model: "gpt-test",
@@ -473,6 +493,8 @@ describe("askBackendStream fallback typewriter", () => {
     const progress: string[] = [];
     let generatingSources: readonly { readonly kind: string; readonly label: string }[] = [];
     const revisions: Array<{ answer: string; revision: number; status: string }> = [];
+    const activities: string[] = [];
+    const milestones: string[] = [];
     const callbackOrder: string[] = [];
     const reply = await mod.askBackendStream("q", snap(), [], {
       onToken: (delta) => {
@@ -483,6 +505,10 @@ describe("askBackendStream fallback typewriter", () => {
         progress.push(item.phase);
         if (item.phase === "generating") generatingSources = item.sources ?? [];
       },
+      onActivity: (activity) => activities.push(
+        `${activity.activityId}:${activity.status}:${activity.completed}/${activity.total}`,
+      ),
+      onMilestone: (milestone) => milestones.push(`${milestone.agent}:${milestone.text}`),
       onRevision: (answer, revision, status) => {
         revisions.push({ answer, revision, status });
         callbackOrder.push("revision");
@@ -501,6 +527,10 @@ describe("askBackendStream fallback typewriter", () => {
         kind: "operational",
         label: "Operational evidence",
       }),
+    ]);
+    expect(activities).toEqual(["health-sweep:running:24/128"]);
+    expect(milestones).toEqual([
+      "Bragi:Found seven candidates and started metric checks.",
     ]);
     expect(revisions).toEqual([
       { answer: "Verified canonical answer", revision: 1, status: "corrected" },
