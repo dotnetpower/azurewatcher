@@ -13,6 +13,38 @@
       margin-left: 0;
       margin-right: auto;
     }
+    .dashboard-v2.cs-container { padding: 40px 24px 72px; }
+    .db-page-header {
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--cs-hairline);
+      margin-bottom: 20px;
+    }
+    .db-page-title {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      margin: 0 0 4px;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .db-page-domain {
+      overflow: hidden;
+      color: var(--cs-text-soft);
+      font-size: 13px;
+      font-weight: 550;
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .db-page-separator { color: #A19D98; font-size: 14px; }
+    .db-page-subtitle {
+      max-width: 720px;
+      margin: 0;
+      color: var(--cs-text-soft);
+      font-size: 13px;
+    }
     .dashboard-v2 .cs-section { margin: 36px 0; }
     .db-posture {
       padding: 24px;
@@ -167,12 +199,15 @@
 </head>
 <body>
   <main class="cs-container cs-page dashboard-v2">
-    <div class="cs-page-header cs-mb-16">
-      <div class="cs-eyebrow">Overview / Dashboard</div>
-      <h1>Operating overview</h1>
-      <p class="cs-lead">Decision-first posture, measured outcomes, control signals, and the
+    <header class="db-page-header">
+      <h1 class="db-page-title">
+        <span class="db-page-domain">Overview</span>
+        <span class="db-page-separator" aria-hidden="true">/</span>
+        <span>Dashboard</span>
+      </h1>
+      <p class="db-page-subtitle">Decision-first posture, measured outcomes, control signals, and the
         work that requires human attention.</p>
-    </div>
+    </header>
 
     <div class="cs-readonly-banner">
       <strong>Illustrative data.</strong> Values demonstrate the intended evidence contract and
