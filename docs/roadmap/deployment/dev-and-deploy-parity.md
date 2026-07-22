@@ -90,6 +90,12 @@ development operations gateway URL emitted by Terraform. The gateway accepts onl
 operations, uses separate reader and executor managed identities, and does not give the local read
 API an execution identity.
 
+The same read-investigation wiring constructs the bounded Azure subscription-health provider from
+the applied subscription and resource groups, so local development answers subscription-health
+questions through the identical Azure adapter that deployment uses. The local factory injects that
+provider into the read API only when the read-investigation wiring is present, preserving the
+read-only, server-owned data-plane boundary.
+
 The local factory starts all 15 agents by default. `FDAI_START_PANTHEON` is a disable-only control:
 unset means enabled, while `0`, `false`, `no`, or `off` disables the runtime. When Event Hubs is
 configured, the agents use that Azure transport under a dedicated local consumer group. Otherwise,
