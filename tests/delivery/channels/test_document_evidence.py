@@ -11,7 +11,10 @@ from fdai.delivery.channels import (
     ChannelDocumentEvidenceConfig,
     ProtectedChannelAttachmentIngestor,
 )
-from fdai.delivery.channels.document_evidence import ChannelAttachmentFetchError
+from fdai.delivery.channels.document_evidence import (
+    ChannelAttachmentFetchError,
+    ChannelDocumentProcessingError,
+)
 from fdai.shared.contracts import (
     IngestionCapabilities,
     MalwareVerdict,
@@ -64,12 +67,28 @@ class _FailingFetcher:
         raise ChannelAttachmentFetchError("provider timeout")
 
 
+class _ImmediateTerminalResolver:
+    def __init__(self, worker: DocumentIngestionWorker) -> None:
+        self._worker = worker
+        self.upload_ids: list[UUID] = []
+
+    async def wait(self, upload_id: UUID):
+        self.upload_ids.append(upload_id)
+        return await self._worker.process(upload_id)
+
+
+class _FailingTerminalResolver:
+    async def wait(self, upload_id: UUID):
+        raise ChannelDocumentProcessingError("agent pipeline unavailable")
+
+
 def _bridge(
     content: bytes,
     *,
     malware: MalwareVerdict = MalwareVerdict.CLEAN,
     fetcher_enabled: bool = True,
     fetch_fails: bool = False,
+    terminal_fails: bool = False,
 ) -> tuple[ProtectedChannelAttachmentIngestor, _Fetcher]:
     access = InMemoryDocumentAccessProvider(
         contributors={"channel-evidence": frozenset({"operator-example"})},
@@ -111,7 +130,9 @@ def _bridge(
     fetcher = _Fetcher(content)
     bridge = ProtectedChannelAttachmentIngestor(
         service=service,
-        worker=worker,
+        terminal_resolver=(
+            _FailingTerminalResolver() if terminal_fails else _ImmediateTerminalResolver(worker)
+        ),
         fetchers=(
             {"slack": _FailingFetcher() if fetch_fails else fetcher} if fetcher_enabled else {}
         ),
@@ -197,6 +218,19 @@ async def test_vendor_fetch_failure_rejects_only_the_attachment_turn() -> None:
     assert result.status == "rejected"
     assert result.reason == "channel attachment download failed"
     assert result.evidence_refs == ()
+
+
+async def test_agent_pipeline_failure_rejects_without_direct_worker_fallback() -> None:
+    content = b"evidence"
+    bridge, _ = _bridge(content, terminal_fails=True)
+
+    result = await bridge.ingest(
+        turn=_turn(content),
+        principal=Principal(id="operator-example", role=Role.READER),
+    )
+
+    assert result.status == "rejected"
+    assert result.reason == "attachment processing did not reach a terminal state"
 
 
 async def test_all_attachment_sizes_are_checked_before_first_fetch() -> None:

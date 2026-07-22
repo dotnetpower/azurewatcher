@@ -6,6 +6,7 @@ import hashlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol
+from uuid import UUID
 
 from fdai.core.conversation.attachment_directive import parse_attachment_directive
 from fdai.core.conversation.channel_gateway import AttachmentIngestionResult
@@ -17,11 +18,11 @@ from fdai.core.conversation.session import (
 from fdai.core.document_ingestion import (
     CreateUploadRequest,
     DocumentIngestionService,
-    DocumentIngestionWorker,
 )
 from fdai.shared.contracts import (
     DocumentPurpose,
     DocumentState,
+    DocumentVersion,
     SourceStorageMode,
 )
 from fdai.shared.providers.conversation_channel import ChannelAttachment, InboundTurn
@@ -35,6 +36,16 @@ class ChannelAttachmentFetcher(Protocol):
 
 class ChannelAttachmentFetchError(RuntimeError):
     """A vendor attachment could not be resolved or downloaded safely."""
+
+
+class ChannelDocumentProcessingError(RuntimeError):
+    """The agent-owned ingestion pipeline did not produce a terminal version."""
+
+
+class ChannelDocumentTerminalResolver(Protocol):
+    """Wait for the terminal result produced by the agent-owned pipeline."""
+
+    async def wait(self, upload_id: UUID) -> DocumentVersion: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,12 +72,12 @@ class ProtectedChannelAttachmentIngestor:
         self,
         *,
         service: DocumentIngestionService,
-        worker: DocumentIngestionWorker,
+        terminal_resolver: ChannelDocumentTerminalResolver,
         fetchers: dict[str, ChannelAttachmentFetcher],
         config: ChannelDocumentEvidenceConfig,
     ) -> None:
         self._service = service
-        self._worker = worker
+        self._terminal_resolver = terminal_resolver
         self._fetchers = dict(fetchers)
         self._config = config
 
@@ -135,7 +146,10 @@ class ProtectedChannelAttachmentIngestor:
                 actor_id=principal.id,
                 upload_id=session.upload_id,
             )
-            version = await self._worker.process(session.upload_id)
+            try:
+                version = await self._terminal_resolver.wait(session.upload_id)
+            except ChannelDocumentProcessingError:
+                return _rejected("attachment processing did not reach a terminal state")
             if (
                 version.state
                 not in {
@@ -166,5 +180,7 @@ __all__ = [
     "ChannelAttachmentFetchError",
     "ChannelAttachmentFetcher",
     "ChannelDocumentEvidenceConfig",
+    "ChannelDocumentProcessingError",
+    "ChannelDocumentTerminalResolver",
     "ProtectedChannelAttachmentIngestor",
 ]

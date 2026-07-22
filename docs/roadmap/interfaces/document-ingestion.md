@@ -92,7 +92,8 @@ ChatOps adapters retain only an opaque vendor attachment id and bounded metadata
 fetcher with server-owned credentials retrieves the bytes; payload-supplied URLs never cross into
 core. Size and SHA-256 are recomputed before upload completion. Only versions that finish in
 `ready` or `ready_with_warnings` become `doc:` citations. Attachment content is not appended to the
-operator message or tool arguments.
+operator message or tool arguments. After completion, the adapter waits for the agent-owned event
+pipeline's terminal metadata; it never invokes the ingestion worker inline.
 
 ### Before the operator selects a file
 

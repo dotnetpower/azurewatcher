@@ -182,6 +182,19 @@ the resulting ingestor to an attachment-aware `ConversationChannelGateway` befor
 Teams consumers. A runtime configured with attachments and a gateway that cannot bind them fails
 startup.
 
+The channel bridge seals each upload and publishes `document.received`; it never calls
+`DocumentIngestionWorker.process()` directly. `MetadataDocumentTerminalResolver` waits only for the
+terminal version produced by the agent-owned event pipeline. Configure its positive finite bound
+with `FDAI_CHANNEL_ATTACHMENT_PROCESSING_TIMEOUT_SECONDS` and its bounded observation interval with
+`FDAI_CHANNEL_ATTACHMENT_PROCESSING_POLL_SECONDS`. A timeout returns no citation and does not run an
+inline worker fallback.
+
+A message with multiple attachments creates one governed `UploadSession` per file. The files keep
+independent lifecycle, retention, and audit records; the channel message is not a storage
+transaction. If one file is held or fails, the turn returns no citations, while any sibling already
+accepted by the pipeline remains visible through document-ingestion operations rather than being
+silently deleted.
+
 ## Failure behavior
 
 | Failure | Behavior |
@@ -193,6 +206,7 @@ startup.
 | Redirect or host mismatch | Reject before token disclosure or download. |
 | Byte cap exceeded | Abort stream and reject. |
 | Malware or protected-content hold | Return no citation and do not call the narrator. |
+| Agent pipeline misses the terminal wait bound | Reject the turn; never run a worker inline. |
 | OCR configured but unavailable or malformed | Fail extraction; no searchable evidence. |
 | Web reference malformed | Return 400. |
 | Web resolver absent | Return 501. |

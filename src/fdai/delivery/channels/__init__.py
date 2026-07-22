@@ -16,6 +16,8 @@ from fdai.delivery.channels.attachment_fetchers import (
 from fdai.delivery.channels.document_evidence import (
     ChannelAttachmentFetcher,
     ChannelDocumentEvidenceConfig,
+    ChannelDocumentProcessingError,
+    ChannelDocumentTerminalResolver,
     ProtectedChannelAttachmentIngestor,
 )
 from fdai.delivery.channels.pairing import (
@@ -32,6 +34,7 @@ from fdai.delivery.channels.prod import (
     build_channel_app,
 )
 from fdai.delivery.channels.production_attachments import (
+    MetadataDocumentTerminalResolver,
     ProductionAttachmentConfig,
     ProductionAttachmentConfigError,
     build_production_attachment_ingestor,
@@ -79,7 +82,10 @@ __all__ = [
     "ChannelDeliveryStartupReconciler",
     "ChannelGatewayRunner",
     "ChannelDocumentEvidenceConfig",
+    "ChannelDocumentProcessingError",
+    "ChannelDocumentTerminalResolver",
     "NativePairingChallengeFlow",
+    "MetadataDocumentTerminalResolver",
     "PairingChallengeDeliveryError",
     "PairingDeliveryReceipt",
     "PairingResponseSender",

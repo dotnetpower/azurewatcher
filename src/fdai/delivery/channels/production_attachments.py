@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass
 from math import isfinite
+from uuid import UUID
 
 import httpx
 
-from fdai.core.document_ingestion import DocumentIngestionService, DocumentIngestionWorker
+from fdai.core.document_ingestion import DocumentIngestionService
 from fdai.delivery.channels.attachment_fetchers import (
     SlackAttachmentFetcherConfig,
     SlackPrivateFileFetcher,
@@ -19,7 +21,13 @@ from fdai.delivery.channels.attachment_fetchers import (
 from fdai.delivery.channels.document_evidence import (
     ChannelAttachmentFetcher,
     ChannelDocumentEvidenceConfig,
+    ChannelDocumentProcessingError,
     ProtectedChannelAttachmentIngestor,
+)
+from fdai.shared.contracts import DocumentState, DocumentVersion
+from fdai.shared.providers.document_ingestion import (
+    DocumentIngestionError,
+    DocumentMetadataStore,
 )
 from fdai.shared.providers.secret_provider import SecretProvider
 from fdai.shared.providers.workload_identity import WorkloadIdentity
@@ -27,6 +35,64 @@ from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 class ProductionAttachmentConfigError(ValueError):
     """Raised when protected channel attachments are partially configured."""
+
+
+_TERMINAL_STATES = frozenset(
+    {
+        DocumentState.READY,
+        DocumentState.READY_WITH_WARNINGS,
+        DocumentState.HELD,
+        DocumentState.FAILED,
+        DocumentState.DELETED,
+    }
+)
+
+
+class MetadataDocumentTerminalResolver:
+    """Wait for the event-driven ingestion worker without running it inline."""
+
+    def __init__(
+        self,
+        *,
+        metadata: DocumentMetadataStore,
+        timeout_seconds: float,
+        poll_interval_seconds: float,
+    ) -> None:
+        if (
+            not isfinite(timeout_seconds)
+            or timeout_seconds <= 0
+            or not isfinite(poll_interval_seconds)
+            or poll_interval_seconds <= 0
+        ):
+            raise ValueError("document terminal wait limits MUST be positive finite numbers")
+        self._metadata = metadata
+        self._timeout_seconds = timeout_seconds
+        self._poll_interval_seconds = poll_interval_seconds
+
+    async def wait(self, upload_id: UUID) -> DocumentVersion:
+        try:
+            async with asyncio.timeout(self._timeout_seconds):
+                while True:
+                    session = await self._metadata.get_upload(upload_id)
+                    version = await self._metadata.get_version(
+                        session.document_id,
+                        session.version_id,
+                    )
+                    if version.state in _TERMINAL_STATES:
+                        return version
+                    await asyncio.sleep(self._poll_interval_seconds)
+        except TimeoutError as exc:
+            raise ChannelDocumentProcessingError(
+                "document processing exceeded the terminal wait limit"
+            ) from exc
+        except DocumentIngestionError as exc:
+            raise ChannelDocumentProcessingError(
+                "document processing state is unavailable"
+            ) from exc
+        except Exception as exc:  # noqa: BLE001 - provider details stay behind the boundary
+            raise ChannelDocumentProcessingError(
+                "document processing state is unavailable"
+            ) from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +106,8 @@ class ProductionAttachmentConfig:
     teams_allowed_hosts: tuple[str, ...] = ()
     teams_allowed_audiences: tuple[str, ...] = ()
     timeout_seconds: float = 30.0
+    processing_timeout_seconds: float = 120.0
+    processing_poll_interval_seconds: float = 0.25
 
     def __post_init__(self) -> None:
         if (
@@ -48,6 +116,10 @@ class ProductionAttachmentConfig:
             or not self.retention_policy_version
             or not isfinite(self.timeout_seconds)
             or self.timeout_seconds <= 0
+            or not isfinite(self.processing_timeout_seconds)
+            or self.processing_timeout_seconds <= 0
+            or not isfinite(self.processing_poll_interval_seconds)
+            or self.processing_poll_interval_seconds <= 0
         ):
             raise ProductionAttachmentConfigError(
                 "channel attachment collection, access, retention, and timeout are required"
@@ -82,6 +154,14 @@ class ProductionAttachmentConfig:
                 environ.get("FDAI_CHANNEL_ATTACHMENT_TIMEOUT_SECONDS", ""),
                 30.0,
             ),
+            processing_timeout_seconds=_positive_float(
+                environ.get("FDAI_CHANNEL_ATTACHMENT_PROCESSING_TIMEOUT_SECONDS", ""),
+                120.0,
+            ),
+            processing_poll_interval_seconds=_positive_float(
+                environ.get("FDAI_CHANNEL_ATTACHMENT_PROCESSING_POLL_SECONDS", ""),
+                0.25,
+            ),
         )
 
 
@@ -89,7 +169,7 @@ def build_production_attachment_ingestor(
     *,
     config: ProductionAttachmentConfig,
     service: DocumentIngestionService,
-    worker: DocumentIngestionWorker,
+    metadata: DocumentMetadataStore,
     secrets: SecretProvider,
     http_client: httpx.AsyncClient,
     slack_enabled: bool,
@@ -134,7 +214,11 @@ def build_production_attachment_ingestor(
         )
     return ProtectedChannelAttachmentIngestor(
         service=service,
-        worker=worker,
+        terminal_resolver=MetadataDocumentTerminalResolver(
+            metadata=metadata,
+            timeout_seconds=config.processing_timeout_seconds,
+            poll_interval_seconds=config.processing_poll_interval_seconds,
+        ),
         fetchers=fetchers,
         config=ChannelDocumentEvidenceConfig(
             collection_id=config.collection_id,
@@ -169,6 +253,7 @@ def _positive_float(raw: str, default: float) -> float:
 
 
 __all__ = [
+    "MetadataDocumentTerminalResolver",
     "ProductionAttachmentConfig",
     "ProductionAttachmentConfigError",
     "build_production_attachment_ingestor",

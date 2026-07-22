@@ -1,6 +1,6 @@
 ---
 translation_of: conversation-attachments.md
-translation_source_sha: 4dcae43747546cb2a58f7449f24cbee5332df1b6
+translation_source_sha: 9efa748be0bf0ca95edac398a2e8c508268b7954
 translation_revised: 2026-07-23
 title: 대화 첨부파일
 ---
@@ -193,6 +193,19 @@ resolver, host allowlist 및 token audience allowlist가 필요합니다. `Produ
 `ConversationChannelGateway`에 bind합니다. Attachment가 설정됐지만 gateway가 이를 bind할 수
 없으면 startup이 실패합니다.
 
+Channel bridge는 각 upload를 seal하고 `document.received`를 publish하며
+`DocumentIngestionWorker.process()`를 직접 호출하지 않습니다.
+`MetadataDocumentTerminalResolver`는 agent-owned event pipeline이 만든 terminal version만
+기다립니다. Positive finite bound는 `FDAI_CHANNEL_ATTACHMENT_PROCESSING_TIMEOUT_SECONDS`, bounded
+observation interval은 `FDAI_CHANNEL_ATTACHMENT_PROCESSING_POLL_SECONDS`로 설정합니다. Timeout은
+citation 없이 반환하며 inline worker fallback을 실행하지 않습니다.
+
+Attachment가 여러 개인 message는 file마다 governed `UploadSession` 하나를 만듭니다. File은
+독립적인 lifecycle, retention, audit record를 유지하며 channel message는 storage transaction이
+아닙니다. File 하나가 held 또는 failed 상태가 되면 turn은 citation을 반환하지 않습니다. Pipeline이
+이미 수락한 sibling은 조용히 삭제되지 않고 document-ingestion operations에서 계속 확인할 수
+있습니다.
+
 ## Failure behavior
 
 | Failure | 동작 |
@@ -204,6 +217,7 @@ resolver, host allowlist 및 token audience allowlist가 필요합니다. `Produ
 | Redirect 또는 host mismatch | Token disclosure 또는 download 전에 거부 |
 | Byte cap 초과 | Stream 중단 및 거부 |
 | Malware 또는 protected-content hold | Citation 없이 반환하고 narrator 미호출 |
+| Agent pipeline이 terminal wait bound 초과 | Turn 거부, inline worker 미실행 |
 | OCR configured 상태에서 unavailable 또는 malformed | Extraction 실패, searchable evidence 미생성 |
 | Web reference malformed | 400 반환 |
 | Web resolver absent | 501 반환 |
