@@ -169,3 +169,63 @@ async def test_storage_failure_blocks_the_mutation_path() -> None:
 
     assert error.value.status_code == 503
     assert error.value.code == "idempotency_unavailable"
+
+
+async def test_resource_lock_uses_a_bounded_blob_lease() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(201)
+        if len(requests) == 2:
+            return httpx.Response(201, headers={"x-ms-lease-id": "lease-one"})
+        return httpx.Response(200)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        ledger = AzureBlobIdempotencyLedger(
+            config=_config(), token_provider=_Tokens(), http_client=client
+        )
+        lease_id = await ledger.acquire_resource("sub/rg/vm/private-name")
+        await ledger.release_resource("sub/rg/vm/private-name", lease_id)
+
+    assert lease_id == "lease-one"
+    assert [request.method for request in requests] == ["PUT", "PUT", "PUT"]
+    assert requests[0].headers["If-None-Match"] == "*"
+    assert requests[1].url.query == b"comp=lease"
+    assert requests[1].headers["x-ms-lease-action"] == "acquire"
+    assert requests[1].headers["x-ms-lease-duration"] == "60"
+    assert requests[2].headers["x-ms-lease-action"] == "release"
+    assert requests[2].headers["x-ms-lease-id"] == "lease-one"
+    assert "private-name" not in str(requests[0].url)
+
+
+async def test_stale_pending_claim_is_replaced_with_etag_cas() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(412)
+        if len(requests) == 2:
+            return httpx.Response(
+                200,
+                headers={"ETag": '"stale-etag"'},
+                json={
+                    "state": "pending",
+                    "request_digest": "request-digest",
+                    "claimed_at": "2000-01-01T00:00:00+00:00",
+                },
+            )
+        return httpx.Response(201, headers={"ETag": '"replacement-etag"'})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        replay = await AzureBlobIdempotencyLedger(
+            config=_config(), token_provider=_Tokens(), http_client=client
+        ).begin("operation:one", "request-digest")
+
+    assert replay is None
+    assert requests[2].headers["If-Match"] == '"stale-etag"'
+    replacement = json.loads(requests[2].content)
+    assert replacement["state"] == "pending"
+    assert replacement["claimed_at"] != "2000-01-01T00:00:00+00:00"

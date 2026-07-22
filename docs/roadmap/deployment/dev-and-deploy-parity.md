@@ -88,7 +88,10 @@ to the bounded Azure read-investigation adapter. NSG and VNet peering questions 
 Azure CLI token against server-owned ARM paths. Private data-plane probes use the optional
 development operations gateway URL emitted by Terraform. The gateway accepts only registered
 operations, uses separate reader and executor managed identities, and does not give the local read
-API an execution identity.
+API an execution identity. Mutations use a target-scoped Blob lease and durable idempotency claim.
+An ARM long-running operation remains `submitted`; only the executor can resolve its server-owned
+status URL through the original idempotency key. A stale pending claim is recovered with ETag
+compare-and-swap after its bounded timeout instead of remaining blocked indefinitely.
 
 The same read-investigation wiring constructs the bounded Azure subscription-health provider from
 the applied subscription and resource groups, so local development answers subscription-health

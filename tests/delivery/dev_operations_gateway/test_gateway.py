@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from typing import cast
 
@@ -12,6 +13,7 @@ from delivery.dev_operations_gateway.gateway import (
     ManagedIdentityTokenProvider,
     OperationsGateway,
 )
+from delivery.dev_operations_gateway.idempotency import IdempotencyError
 
 
 class _Ledger:
@@ -39,6 +41,20 @@ class _Ledger:
         assert self.records.get(idempotency_key) == (request_digest, None)
         self.records.pop(idempotency_key)
 
+    async def lookup(self, idempotency_key: str) -> Mapping[str, object]:
+        existing = self.records.get(idempotency_key)
+        assert existing is not None
+        assert existing[1] is not None
+        return existing[1]
+
+    async def acquire_resource(self, resource_key: str) -> str:
+        assert resource_key
+        return "lease-one"
+
+    async def release_resource(self, resource_key: str, lease_id: str) -> None:
+        assert resource_key
+        assert lease_id == "lease-one"
+
 
 class _Tokens:
     async def get_token(self, audience: str) -> str:
@@ -59,9 +75,9 @@ def _config() -> GatewayConfig:
     )
 
 
-def _safety() -> Mapping[str, object]:
+def _safety(idempotency_key: str = "operation:one") -> Mapping[str, object]:
     return {
-        "idempotency_key": "operation:one",
+        "idempotency_key": idempotency_key,
         "audit_ref": "audit:one",
         "dry_run_receipt": "dry-run:one",
         "stop_condition": "provisioning_state_terminal",
@@ -263,7 +279,7 @@ async def test_executor_requires_complete_safety_envelope() -> None:
         nonlocal calls
         calls += 1
         assert request.method == "POST"
-        return httpx.Response(202, json={"status": "accepted"})
+        return httpx.Response(200, json={"status": "succeeded"})
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         gateway = OperationsGateway(
@@ -316,7 +332,7 @@ async def test_executor_mutation_is_idempotent_across_duplicate_delivery() -> No
         nonlocal calls
         calls += 1
         assert request.method == "POST"
-        return httpx.Response(202, json={"status": "accepted"})
+        return httpx.Response(200, json={"status": "succeeded"})
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         gateway = OperationsGateway(
@@ -338,3 +354,120 @@ async def test_executor_mutation_is_idempotent_across_duplicate_delivery() -> No
 
     assert duplicate == first
     assert calls == 1
+
+
+async def test_executor_tracks_arm_long_running_operation_by_idempotency_key() -> None:
+    status_url = (
+        "https://management.azure.com/subscriptions/sub-example/providers/"
+        "Microsoft.Compute/locations/koreacentral/operations/operation-one"
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(202, headers={"Azure-AsyncOperation": status_url})
+        assert str(request.url) == status_url
+        return httpx.Response(200, json={"status": "Succeeded"})
+
+    ledger = _Ledger()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gateway = OperationsGateway(
+            config=_config(),
+            reader_token_provider=_Tokens(),
+            executor_token_provider=_Tokens(),
+            http_client=client,
+            idempotency_ledger=ledger,
+        )
+        principal = GatewayPrincipal("principal-executor", frozenset())
+        payload = {
+            "resource_group": "rg-example",
+            "vm_name": "vm-app",
+            "safety": _safety(),
+        }
+
+        submitted = await gateway.invoke("azure.compute.vm.start", payload, principal)
+        status = await gateway.invoke(
+            "azure.operation.status",
+            {"idempotency_key": "operation:one"},
+            principal,
+        )
+
+    assert submitted == {
+        "operation_id": "azure.compute.vm.start",
+        "status": "submitted",
+        "result": {"accepted": True, "status": "submitted"},
+    }
+    assert status == {
+        "operation_id": "azure.operation.status",
+        "status": "succeeded",
+        "result": {"provider_status": "Succeeded", "status": "succeeded"},
+    }
+    assert status_url not in repr(submitted)
+
+
+async def test_same_resource_different_idempotency_keys_are_serialized() -> None:
+    entered_token = asyncio.Event()
+    release_token = asyncio.Event()
+
+    class BlockingTokens:
+        async def get_token(self, audience: str) -> str:
+            assert audience
+            entered_token.set()
+            await release_token.wait()
+            return "token"
+
+    class BusyLedger(_Ledger):
+        def __init__(self) -> None:
+            super().__init__()
+            self.held: set[str] = set()
+
+        async def acquire_resource(self, resource_key: str) -> str:
+            if resource_key in self.held:
+                raise IdempotencyError(
+                    409,
+                    "resource_busy",
+                    "another mutation is already operating on this resource",
+                )
+            self.held.add(resource_key)
+            return "lease-one"
+
+        async def release_resource(self, resource_key: str, lease_id: str) -> None:
+            assert lease_id == "lease-one"
+            self.held.remove(resource_key)
+
+    transport = httpx.MockTransport(lambda _request: httpx.Response(200, json={"ok": True}))
+    async with httpx.AsyncClient(transport=transport) as client:
+        gateway = OperationsGateway(
+            config=_config(),
+            reader_token_provider=_Tokens(),
+            executor_token_provider=BlockingTokens(),
+            http_client=client,
+            idempotency_ledger=BusyLedger(),
+        )
+        principal = GatewayPrincipal("principal-executor", frozenset())
+        first = asyncio.create_task(
+            gateway.invoke(
+                "azure.compute.vm.start",
+                {
+                    "resource_group": "rg-example",
+                    "vm_name": "vm-app",
+                    "safety": _safety("operation:first"),
+                },
+                principal,
+            )
+        )
+        await entered_token.wait()
+        with pytest.raises(GatewayError) as busy:
+            await gateway.invoke(
+                "azure.compute.vm.deallocate",
+                {
+                    "resource_group": "rg-example",
+                    "vm_name": "vm-app",
+                    "safety": _safety("operation:second"),
+                },
+                principal,
+            )
+        release_token.set()
+        await first
+
+    assert busy.value.status_code == 409
+    assert busy.value.code == "resource_busy"

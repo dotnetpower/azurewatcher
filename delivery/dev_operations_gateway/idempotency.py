@@ -6,7 +6,7 @@ import hashlib
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 from typing import Protocol
 from urllib.parse import urlparse
@@ -16,6 +16,8 @@ import httpx
 _STORAGE_AUDIENCE = "https://storage.azure.com/"
 _STORAGE_API_VERSION = "2025-05-05"
 _MAX_RECORD_BYTES = 262_144
+_CLAIM_TIMEOUT = timedelta(seconds=90)
+_RESOURCE_LEASE_SECONDS = "60"
 
 
 class IdempotencyError(RuntimeError):
@@ -42,6 +44,12 @@ class IdempotencyLedger(Protocol):
     ) -> None: ...
 
     async def abort(self, idempotency_key: str, request_digest: str) -> None: ...
+
+    async def lookup(self, idempotency_key: str) -> Mapping[str, object]: ...
+
+    async def acquire_resource(self, resource_key: str) -> str: ...
+
+    async def release_resource(self, resource_key: str, lease_id: str) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,7 +88,7 @@ class AzureBlobIdempotencyLedger:
 
     async def begin(self, idempotency_key: str, request_digest: str) -> Mapping[str, object] | None:
         blob_url = self._blob_url(idempotency_key)
-        record = self._encode_record({"state": "pending", "request_digest": request_digest})
+        record = self._pending_record(request_digest)
         headers = await self._headers()
         headers.update(
             {
@@ -108,7 +116,7 @@ class AzureBlobIdempotencyLedger:
         if response.status_code not in {409, 412}:
             self._raise_storage_error(response)
 
-        existing, _etag = await self._read(blob_url)
+        existing, existing_etag = await self._read(blob_url)
         if existing.get("request_digest") != request_digest:
             raise IdempotencyError(
                 409,
@@ -125,6 +133,15 @@ class AzureBlobIdempotencyLedger:
                 "completed idempotency record did not contain a response",
             )
         if existing.get("state") == "pending":
+            claimed_at = _parse_timestamp(existing.get("claimed_at"))
+            if claimed_at is not None and datetime.now(UTC) - claimed_at >= _CLAIM_TIMEOUT:
+                await self._replace_stale_claim(
+                    blob_url,
+                    existing_etag,
+                    idempotency_key,
+                    request_digest,
+                )
+                return None
             raise IdempotencyError(
                 409,
                 "idempotency_in_progress",
@@ -135,6 +152,72 @@ class AzureBlobIdempotencyLedger:
             "idempotency_unavailable",
             "idempotency record state was invalid",
         )
+
+    async def lookup(self, idempotency_key: str) -> Mapping[str, object]:
+        response = await self._request(
+            "GET",
+            self._blob_url(idempotency_key),
+            headers=await self._headers(),
+        )
+        if response.status_code == 404:
+            raise IdempotencyError(404, "idempotency_not_found", "operation record was not found")
+        if response.status_code != 200:
+            self._raise_storage_error(response)
+        record, _etag = self._decode_record(response)
+        if record.get("state") == "pending":
+            raise IdempotencyError(409, "idempotency_in_progress", "operation is still in progress")
+        result = record.get("response")
+        if record.get("state") != "completed" or not isinstance(result, Mapping):
+            raise IdempotencyError(
+                503,
+                "idempotency_unavailable",
+                "operation record did not contain a completed response",
+            )
+        return dict(result)
+
+    async def acquire_resource(self, resource_key: str) -> str:
+        lock_url = self._lock_url(resource_key)
+        create_headers = await self._headers()
+        create_headers.update({"If-None-Match": "*", "x-ms-blob-type": "BlockBlob"})
+        created = await self._request("PUT", lock_url, headers=create_headers, content=b"")
+        if created.status_code not in {201, 409, 412}:
+            self._raise_storage_error(created)
+
+        lease_headers = await self._headers()
+        lease_headers.update(
+            {
+                "x-ms-lease-action": "acquire",
+                "x-ms-lease-duration": _RESOURCE_LEASE_SECONDS,
+            }
+        )
+        leased = await self._request("PUT", f"{lock_url}?comp=lease", headers=lease_headers)
+        if leased.status_code in {409, 412}:
+            raise IdempotencyError(
+                409,
+                "resource_busy",
+                "another mutation is already operating on this resource",
+            )
+        if leased.status_code != 201:
+            self._raise_storage_error(leased)
+        lease_id = leased.headers.get("x-ms-lease-id", "")
+        if not isinstance(lease_id, str) or not lease_id:
+            raise IdempotencyError(
+                503,
+                "idempotency_unavailable",
+                "resource lease response did not include a lease id",
+            )
+        return lease_id
+
+    async def release_resource(self, resource_key: str, lease_id: str) -> None:
+        headers = await self._headers()
+        headers.update({"x-ms-lease-action": "release", "x-ms-lease-id": lease_id})
+        response = await self._request(
+            "PUT",
+            f"{self._lock_url(resource_key)}?comp=lease",
+            headers=headers,
+        )
+        if response.status_code not in {200, 404, 409, 412}:
+            self._raise_storage_error(response)
 
     async def complete(
         self,
@@ -193,6 +276,9 @@ class AzureBlobIdempotencyLedger:
         response = await self._request("GET", blob_url, headers=await self._headers())
         if response.status_code != 200:
             self._raise_storage_error(response)
+        return self._decode_record(response)
+
+    def _decode_record(self, response: httpx.Response) -> tuple[Mapping[str, object], str]:
         if len(response.content) > _MAX_RECORD_BYTES:
             raise IdempotencyError(
                 503,
@@ -215,6 +301,44 @@ class AzureBlobIdempotencyLedger:
                 "idempotency record was incomplete",
             )
         return payload, etag
+
+    async def _replace_stale_claim(
+        self,
+        blob_url: str,
+        etag: str,
+        idempotency_key: str,
+        request_digest: str,
+    ) -> None:
+        headers = await self._headers()
+        headers.update(
+            {
+                "Content-Type": "application/json",
+                "If-Match": etag,
+                "x-ms-blob-type": "BlockBlob",
+            }
+        )
+        response = await self._request(
+            "PUT",
+            blob_url,
+            headers=headers,
+            content=self._pending_record(request_digest),
+        )
+        if response.status_code in {409, 412}:
+            raise IdempotencyError(
+                409,
+                "idempotency_in_progress",
+                "another invocation reclaimed this operation",
+            )
+        if response.status_code != 201:
+            self._raise_storage_error(response)
+        replacement_etag = response.headers.get("ETag", "")
+        if not replacement_etag:
+            raise IdempotencyError(
+                503,
+                "idempotency_unavailable",
+                "replacement claim response did not include an ETag",
+            )
+        self._claims[idempotency_key] = replacement_etag
 
     async def _headers(self) -> dict[str, str]:
         token = await self._tokens.get_token(_STORAGE_AUDIENCE)
@@ -251,6 +375,20 @@ class AzureBlobIdempotencyLedger:
         key_digest = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()
         return f"{self._container_url}/{key_digest}.json"
 
+    def _lock_url(self, resource_key: str) -> str:
+        key_digest = hashlib.sha256(resource_key.encode("utf-8")).hexdigest()
+        return f"{self._container_url}/locks/{key_digest}.lock"
+
+    @staticmethod
+    def _pending_record(request_digest: str) -> bytes:
+        return AzureBlobIdempotencyLedger._encode_record(
+            {
+                "state": "pending",
+                "request_digest": request_digest,
+                "claimed_at": datetime.now(UTC).isoformat(),
+            }
+        )
+
     @staticmethod
     def _encode_record(record: Mapping[str, object]) -> bytes:
         encoded = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -269,6 +407,18 @@ class AzureBlobIdempotencyLedger:
             "idempotency_unavailable",
             f"idempotency storage returned HTTP {response.status_code}",
         )
+
+
+def _parse_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        timestamp = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if timestamp.tzinfo is None:
+        return None
+    return timestamp.astimezone(UTC)
 
 
 __all__ = [

@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
@@ -42,6 +43,11 @@ class GatewayPrincipal:
     object_id: str
     groups: frozenset[str]
     roles: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True, slots=True)
+class _ArmSubmission:
+    status_url: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +202,8 @@ class OperationsGateway:
         principal: GatewayPrincipal,
     ) -> Mapping[str, object]:
         self._authorize_read(principal)
+        if operation_id == "azure.operation.status":
+            return await self._operation_status(payload, principal)
         handlers = {
             "azure.network.nsg.read": self._read_nsg,
             "azure.network.peering.read": self._read_peerings,
@@ -231,29 +239,85 @@ class OperationsGateway:
         except IdempotencyError as exc:
             raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
         if replay is not None:
-            return replay
+            return _public_response(replay)
+        resource_key = self._mutation_resource_key(operation_id, payload)
         try:
-            result = await handler(payload)
-            response = {
-                "operation_id": operation_id,
-                "status": "succeeded",
-                "result": result,
-            }
-        except Exception as exc:
+            lease_id = await self._idempotency.acquire_resource(resource_key)
+        except IdempotencyError as exc:
             try:
                 await self._idempotency.abort(idempotency_key, request_digest)
             except IdempotencyError as abort_error:
-                raise GatewayError(
-                    abort_error.status_code,
-                    abort_error.code,
-                    str(abort_error),
-                ) from exc
-            raise
+                exc.add_note(f"idempotency claim cleanup also failed: {abort_error.code}")
+            raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
         try:
+            try:
+                result = await handler(payload)
+            except Exception as exc:
+                try:
+                    await self._idempotency.abort(idempotency_key, request_digest)
+                except IdempotencyError as abort_error:
+                    exc.add_note(f"idempotency claim cleanup also failed: {abort_error.code}")
+                raise
+            if isinstance(result, _ArmSubmission):
+                response: dict[str, object] = {
+                    "operation_id": operation_id,
+                    "status": "submitted",
+                    "result": {
+                        "accepted": True,
+                        "status": "submitted",
+                        "_provider_operation_url": result.status_url,
+                    },
+                }
+            else:
+                response = {
+                    "operation_id": operation_id,
+                    "status": "succeeded",
+                    "result": result,
+                }
             await self._idempotency.complete(idempotency_key, request_digest, response)
         except IdempotencyError as exc:
             raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
-        return response
+        finally:
+            active_error = sys.exception()
+            try:
+                await self._idempotency.release_resource(resource_key, lease_id)
+            except IdempotencyError as release_error:
+                if active_error is not None:
+                    active_error.add_note(
+                        f"resource lease cleanup also failed: {release_error.code}"
+                    )
+                else:
+                    raise GatewayError(
+                        release_error.status_code,
+                        release_error.code,
+                        str(release_error),
+                    ) from release_error
+        return _public_response(response)
+
+    async def _operation_status(
+        self,
+        payload: Mapping[str, object],
+        principal: GatewayPrincipal,
+    ) -> Mapping[str, object]:
+        self._authorize_executor(principal)
+        if self._idempotency is None:
+            raise GatewayError(503, "idempotency_unavailable", "operation ledger is unavailable")
+        idempotency_key = _bounded(payload, "idempotency_key", maximum=512)
+        try:
+            record = await self._idempotency.lookup(idempotency_key)
+        except IdempotencyError as exc:
+            raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
+        result = record.get("result")
+        status_url = result.get("_provider_operation_url") if isinstance(result, Mapping) else None
+        if not isinstance(status_url, str):
+            raise GatewayError(409, "operation_not_async", "operation has no asynchronous status")
+        provider_status = await self._poll_arm_status(status_url)
+        normalized = _normalize_provider_status(provider_status)
+        return {
+            "operation_id": "azure.operation.status",
+            "status": normalized,
+            "result": {"provider_status": provider_status, "status": normalized},
+        }
 
     def _authorize_read(self, principal: GatewayPrincipal) -> None:
         if (
@@ -284,6 +348,24 @@ class OperationsGateway:
             if not isinstance(value, str) or not value.strip() or len(value) > 512:
                 raise GatewayError(400, "safety_invalid", f"safety.{field} MUST be bounded")
         return str(safety["idempotency_key"])
+
+    def _authorize_executor(self, principal: GatewayPrincipal) -> None:
+        if principal.object_id != self._config.executor_principal_id:
+            raise GatewayError(403, "executor_required", "Thor executor identity is required")
+
+    def _mutation_resource_key(
+        self,
+        operation_id: str,
+        payload: Mapping[str, object],
+    ) -> str:
+        subscription, group = self._scope(payload)
+        if operation_id.startswith("azure.compute.vm."):
+            target = f"vm/{_identifier(payload, 'vm_name')}"
+        else:
+            target = (
+                f"nsg/{_identifier(payload, 'nsg_name')}/rule/{_identifier(payload, 'rule_name')}"
+            )
+        return f"{subscription}/{group}/{target}".casefold()
 
     def _scope(self, payload: Mapping[str, object]) -> tuple[str, str]:
         resource_group = _identifier(payload, "resource_group")
@@ -483,18 +565,90 @@ class OperationsGateway:
             json=json_body,
             timeout=30.0,
         )
+        if response.status_code == 429 or response.status_code >= 500:
+            raise GatewayError(
+                503,
+                "azure_temporarily_unavailable",
+                f"Azure operation returned retryable HTTP {response.status_code}",
+            )
         if response.status_code >= 400:
             raise GatewayError(
                 502,
                 "azure_operation_failed",
                 f"Azure operation returned HTTP {response.status_code}",
             )
+        if response.status_code == 202:
+            status_url = response.headers.get("Azure-AsyncOperation") or response.headers.get(
+                "Location"
+            )
+            if not status_url:
+                raise GatewayError(
+                    502,
+                    "azure_response_invalid",
+                    "Azure accepted the operation without a status URL",
+                )
+            self._validate_arm_status_url(status_url)
+            return _ArmSubmission(status_url=status_url)
         if response.status_code == 204 or not response.content:
             return {"accepted": True}
         body = response.json()
         if not isinstance(body, (Mapping, list)):
             raise GatewayError(502, "azure_response_invalid", "Azure response was not JSON")
         return body
+
+    async def _poll_arm_status(self, status_url: str) -> str:
+        self._validate_arm_status_url(status_url)
+        token = await self._executor_tokens.get_token(_ARM_AUDIENCE)
+        response = await self._http.get(
+            status_url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30.0,
+        )
+        if response.status_code == 429 or response.status_code >= 500:
+            raise GatewayError(
+                503,
+                "azure_temporarily_unavailable",
+                f"Azure operation status returned retryable HTTP {response.status_code}",
+            )
+        if response.status_code >= 400:
+            raise GatewayError(
+                502,
+                "azure_operation_failed",
+                f"Azure operation status returned HTTP {response.status_code}",
+            )
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise GatewayError(
+                502,
+                "azure_response_invalid",
+                "Azure operation status was not JSON",
+            ) from exc
+        provider_status = body.get("status") if isinstance(body, Mapping) else None
+        if not isinstance(provider_status, str) or not provider_status:
+            raise GatewayError(
+                502,
+                "azure_response_invalid",
+                "Azure operation status was missing",
+            )
+        return provider_status[:64]
+
+    def _validate_arm_status_url(self, status_url: str) -> None:
+        parsed = urlparse(status_url)
+        subscription_prefix = f"/subscriptions/{self._config.subscription_id}/".casefold()
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "management.azure.com"
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.fragment
+            or not parsed.path.casefold().startswith(subscription_prefix)
+        ):
+            raise GatewayError(
+                502,
+                "azure_response_invalid",
+                "Azure operation status URL was outside the configured subscription",
+            )
 
 
 def _identifier(payload: Mapping[str, object], name: str) -> str:
@@ -516,11 +670,31 @@ def _request_digest(operation_id: str, payload: Mapping[str, object]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _bounded(payload: Mapping[str, object], name: str) -> str:
+def _bounded(payload: Mapping[str, object], name: str, *, maximum: int = 256) -> str:
     value = payload.get(name)
-    if not isinstance(value, str) or not value.strip() or len(value) > 256:
+    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
         raise GatewayError(400, "argument_invalid", f"{name} MUST be bounded")
     return value
+
+
+def _public_response(response: Mapping[str, object]) -> Mapping[str, object]:
+    result = response.get("result")
+    if not isinstance(result, Mapping) or "_provider_operation_url" not in result:
+        return dict(response)
+    public_result = dict(result)
+    public_result.pop("_provider_operation_url", None)
+    public_response = dict(response)
+    public_response["result"] = public_result
+    return public_response
+
+
+def _normalize_provider_status(status: str) -> str:
+    normalized = status.casefold()
+    if normalized in {"succeeded", "success", "completed"}:
+        return "succeeded"
+    if normalized in {"failed", "canceled", "cancelled"}:
+        return "failed"
+    return "running"
 
 
 def _choice(payload: Mapping[str, object], name: str, choices: set[str]) -> str:
