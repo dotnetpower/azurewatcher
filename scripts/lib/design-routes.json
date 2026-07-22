@@ -508,11 +508,13 @@
         ".github/instructions/coding-conventions.instructions.md",
         "docs/roadmap/interfaces/conversation-attachments.md",
         "docs/roadmap/interfaces/document-ingestion.md",
+        "docs/roadmap/interfaces/document-ingestion-agent-ownership.md",
         "docs/roadmap/interfaces/operator-console.md"
       ],
       "docs_update": [
         "docs/roadmap/interfaces/conversation-attachments.md",
         "docs/roadmap/interfaces/document-ingestion.md",
+        "docs/roadmap/interfaces/document-ingestion-agent-ownership.md",
         "docs/roadmap/interfaces/operator-console.md",
         "docs/roadmap/architecture/code-map.md",
         "docs/roadmap/architecture/project-structure.md"

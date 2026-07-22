@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: aa3028bf322e30ac3641c1802576a0300d588ec6
+translation_source_sha: cfe5bdc634c8ab0d7a0b3511ebabd44b7d33a967
 translation_revised: 2026-07-23
 ---
 
@@ -391,8 +391,6 @@ Terraform은 다음 항목을 프로비저닝합니다.
 
 - ACR pull, Key Vault DSN read, Event Hubs send, ADLS data, Azure OpenAI invoke 및 optional
   resource-scoped Document Intelligence OCR role만 가진 dedicated ingestion UAMI
-- Document Intelligence를 사용할 때 `document_ocr_operation_timeout_seconds`에서 가져오는 bounded
-  OCR operation deadline(기본 180초, 최대 1800초)
 - HNS, `documents`와 `derived` filesystem, quarantine expiry, derived-data cool tiering, soft
   delete, Shared Key 비활성화를 적용한 StorageV2 account
 - `blob` 및 `dfs` private endpoint. App VNet은 endpoint zone에 link하고, ops runner는 기존

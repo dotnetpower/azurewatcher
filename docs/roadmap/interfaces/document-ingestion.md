@@ -41,59 +41,18 @@ flowchart LR
 
 ## Agent ownership of the ingestion pipeline
 
-Document ingestion is **not a standalone service**. It reuses the same agent-driven control loop as
-every other event: the gateway is a mechanical relay (authenticate, stream to quarantine, seal size
-and hash) with **no judgment authority**, and each pipeline stage is **owned by a pantheon agent**
-that emits and consumes typed objects on the shared `aw.pipeline.stages` topic. An upload is an
-event; admission, indexing, audit, and catalog growth are agent decisions, not gateway side effects.
-The gateway's dedicated ingestion identity never holds Thor's executor permissions.
-
-```mermaid
-flowchart LR
-  U[Upload event] --> HU[Huginn - ingress]
-  HU --> HE[Heimdall - safety signals]
-  HE --> FO[Forseti - admissibility]
-  FO -->|malware / RMS-denied| X[abandon or deny]
-  FO -->|sensitive / authoritative| VA[Var - HIL approval]
-  FO -->|admit| MU[Muninn - retrieval index]
-  VA --> MU
-  MU --> SA[Saga - audit seal]
-  SA --> KM[Mimir / Norns - catalog growth]
-  MU --> BR[Bragi - progress + citation]
-```
-
-| Stage | Owning agent | Owned object / basis |
-|-------|--------------|----------------------|
-| Ingress - accept the upload as an event | **Huginn** (Event Collector) | `Event`; the upload arrives via an external adapter, not the bus |
-| Safety observation - malware, secret, protection, RMS signals | **Heimdall** (Observer) | `Anomaly` / `SecurityEvent` on a malicious, protected, or suspicious upload |
-| Admissibility - admit / hold / abandon | **Forseti** (Judge) | `Verdict`; RMS-denied or malware becomes abandon/deny, not a silent gateway drop |
-| Approval - sensitive or authoritative documents | **Var** (Approver) | `Approval`; HIL before a document is promoted to authoritative knowledge, no self-approval |
-| Retrieval indexing - chunk and embed into the context index | **Muninn** (Memory) | `ContextIndex`; the accepted governed version becomes retrievable |
-| Audit seal - lifecycle transitions and access decisions | **Saga** (Auditor, hard dependency) | `AuditEntry`; nothing progresses unaudited, and the record never contains document text |
-| Catalog growth - authoritative docs and recurring patterns | **Mimir** / **Norns** | `Rule` / `Policy`, `RuleCandidate`; a manual or runbook can seed rule candidates through the discovery loop |
-| Narration - progress and grounded citation | **Bragi** (Narrator, translator only) | `Turn`; renders progress and later cites `doc:` sources, never a judge |
-| Conflict / rollback - contradicting or bad versions | **Odin** / **Vidar** | `ArbitrationDecision` / `Rollback`; retract or supersede a version |
-
-A newly ingested document is **advisory** first: Bragi may cite it, but it does not drive a T2
-decision until Forseti admits it, Var approves any sensitive promotion, and Saga seals the audit -
-the same shadow-to-enforce discipline the control loop applies to every capability. The gateway and
-its worker MUST express each stage transition as the owning agent's typed object; a stage that
-mutates ingestion state without an owning agent and a Saga audit entry is a defect.
+Document ingestion reuses the agent-driven control loop rather than introducing a standalone
+decision service. See [Document ingestion agent ownership](document-ingestion-agent-ownership.md)
+for the stage-to-agent map, typed objects, promotion discipline, and mandatory Saga audit boundary.
 
 ## Product contract for the drop zone
 
-The drop zone is one entry point for a document ingestion service. Drag and drop, a file picker,
-ChatOps attachment, email-in gateway, and connector all create the same `UploadSession` and enter
-the same pipeline. A channel adapter cannot skip scanning or classification. The concrete Slack,
-Teams, web chat, purpose, and OCR contract lives in
-[conversation-attachments.md](conversation-attachments.md).
+The drop zone, ChatOps attachments, email ingress, and connectors create the same `UploadSession`
+and enter the same scanning and classification pipeline. Concrete Slack, Teams, web chat, purpose,
+terminal waiting, and OCR contracts live in [Conversation attachments](conversation-attachments.md).
 
-ChatOps adapters retain only an opaque vendor attachment id and bounded metadata. A delivery-layer
-fetcher with server-owned credentials retrieves the bytes; payload-supplied URLs never cross into
-core. Size and SHA-256 are recomputed before upload completion. Only versions that finish in
-`ready` or `ready_with_warnings` become `doc:` citations. Attachment content is not appended to the
-operator message or tool arguments. After completion, the adapter waits for the agent-owned event
-pipeline's terminal metadata; it never invokes the ingestion worker inline.
+Channel adapters cannot skip scanning or classification. They never append attachment content to
+operator messages or tool arguments, and only terminal governed versions can become `doc:` sources.
 
 ### Before the operator selects a file
 
@@ -527,11 +486,6 @@ Set `FDAI_DOCUMENT_INDEXING_STAGE_TIMEOUT_SECONDS` to a positive number of secon
 deployment defaults to 90. A timeout records `indexing_failed`, leaves the accepted source in
 quarantine, removes partial derived/index data, and emits a structured stage log containing the
 upload id and stage name but no document content or provider error text.
-
-Azure Document Intelligence OCR also has an end-to-end deadline across submission, every poll, and
-poll delays. Set `FDAI_OCR_OPERATION_TIMEOUT_SECONDS` through
-`document_ocr_operation_timeout_seconds`; the deployment defaults to 180 seconds and accepts at most
-1800. Per-request HTTP timeouts and maximum poll counts remain independent inner bounds.
 
 State transitions publish typed events such as `document.received`, `document.held`,
 `document.ready`, `document.superseded`, `document.access_changed`, and `document.deleted`.

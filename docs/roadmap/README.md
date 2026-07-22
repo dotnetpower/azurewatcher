@@ -94,6 +94,7 @@ Read the reference docs first, then the phases in order.
 | 19f | [console-evidence-and-resilience.md](interfaces/console-evidence-and-resilience.md) | console evidence provenance, localization, durable replay, stream recovery, and Architecture-map resilience |
 | 19a | [document-ingestion.md](interfaces/document-ingestion.md) | drop-zone UX, large and protected document handling, format extraction, private storage, shared visibility, retention, and deletion contracts |
 | 19g | [conversation-attachments.md](interfaces/conversation-attachments.md) | protected Slack/Teams fetch, explicit handover purpose, web chat document refs, image OCR, production binding, and security limits |
+| 19h | [document-ingestion-agent-ownership.md](interfaces/document-ingestion-agent-ownership.md) | stage-to-agent ownership, typed pipeline objects, advisory-first promotion, audit, conflict, and rollback boundaries |
 | 19b | [scheduled-result-continuations.md](interfaces/scheduled-result-continuations.md) | scoped conversation anchors for exact scheduled runs, evidence provenance, channel threads, access, expiry, and delivery ordering |
 | 19c | [skill-source-management.md](interfaces/skill-source-management.md) | durable approved sources, quarantine, ETag refresh, disabled-first approval, and provenance-preserving revocation |
 | 19d | [durable-conversation-delivery.md](interfaces/durable-conversation-delivery.md) | verified cross-channel bindings, durable reply ledger, process-loss recovery, adapter controls, and read-only reliability metrics |

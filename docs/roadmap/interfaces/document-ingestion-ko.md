@@ -1,7 +1,7 @@
 ---
 title: 문서 인제스트와 Drop Zone
 translation_of: document-ingestion.md
-translation_source_sha: 53004a9a21c2ddd73e9286fca70348495ac3ee76
+translation_source_sha: 2fe3c5d1fb7613091b996dbadc3deaa6702e3205
 translation_revised: 2026-07-23
 ---
 # 문서 인제스트와 Drop Zone
@@ -46,59 +46,15 @@ flowchart LR
 
 ## 인제스트 파이프라인의 에이전트 소유
 
-문서 인제스트는 **독립 서비스가 아닙니다**. 다른 모든 이벤트와 동일한 에이전트 주도 제어
-루프를 재사용합니다. Gateway는 기계적 relay(인증, quarantine으로 스트리밍, 크기와 해시 봉인)일
-뿐 **판단 권한이 없으며**, 각 파이프라인 단계는 공유 `aw.pipeline.stages` 토픽에서 typed object를
-발행하고 소비하는 **pantheon 에이전트가 소유**합니다. 업로드는 이벤트이며, admission, 인덱싱,
-감사, 카탈로그 성장은 gateway의 부수 효과가 아니라 에이전트 결정입니다. Gateway의 전용 ingestion
-identity는 Thor의 executor 권한을 절대 보유하지 않습니다.
-
-```mermaid
-flowchart LR
-  U[Upload event] --> HU[Huginn - ingress]
-  HU --> HE[Heimdall - safety signals]
-  HE --> FO[Forseti - admissibility]
-  FO -->|malware / RMS-denied| X[abandon or deny]
-  FO -->|sensitive / authoritative| VA[Var - HIL approval]
-  FO -->|admit| MU[Muninn - retrieval index]
-  VA --> MU
-  MU --> SA[Saga - audit seal]
-  SA --> KM[Mimir / Norns - catalog growth]
-  MU --> BR[Bragi - progress + citation]
-```
-
-| 단계 | 소유 에이전트 | 소유 오브젝트 / 근거 |
-|------|--------------|----------------------|
-| Ingress - 업로드를 이벤트로 수용 | **Huginn** (Event Collector) | `Event`; 업로드는 버스가 아니라 외부 어댑터로 도착 |
-| 안전 관측 - 악성코드, 시크릿, 보호, RMS 신호 | **Heimdall** (Observer) | 악성/보호/의심 업로드에 대한 `Anomaly` / `SecurityEvent` |
-| Admissibility - admit / hold / abandon | **Forseti** (Judge) | `Verdict`; RMS 거부나 악성코드는 조용한 gateway drop이 아니라 abandon/deny |
-| 승인 - 민감하거나 권위 있는 문서 | **Var** (Approver) | `Approval`; 문서를 권위 지식으로 승격하기 전 HIL, self-approval 금지 |
-| 검색 인덱싱 - 청크로 나눠 컨텍스트 인덱스에 임베딩 | **Muninn** (Memory) | `ContextIndex`; 수용된 거버넌스 버전이 검색 가능해짐 |
-| 감사 봉인 - 라이프사이클 전이와 액세스 결정 | **Saga** (Auditor, hard dependency) | `AuditEntry`; 감사 없이 진행 불가, 기록에 문서 본문 미포함 |
-| 카탈로그 성장 - 권위 문서와 반복 패턴 | **Mimir** / **Norns** | `Rule` / `Policy`, `RuleCandidate`; 매뉴얼이나 런북이 discovery loop로 rule 후보를 시딩 |
-| 서술 - 진행과 grounded citation | **Bragi** (Narrator, translator only) | `Turn`; 진행을 렌더하고 이후 `doc:` 소스를 인용, 판단자 아님 |
-| 충돌 / 롤백 - 상충하거나 잘못된 버전 | **Odin** / **Vidar** | `ArbitrationDecision` / `Rollback`; 버전 retract 또는 supersede |
-
-새로 인제스트된 문서는 먼저 **advisory**입니다. Bragi가 인용할 수는 있지만, Forseti가 admit하고
-Var가 민감한 승격을 승인하고 Saga가 감사를 봉인하기 전까지는 T2 결정을 구동하지 않습니다.
-제어 루프가 모든 capability에 적용하는 shadow-to-enforce 규율과 동일합니다. Gateway와 worker는
-각 단계 전이를 소유 에이전트의 typed object로 표현해야 하며, 소유 에이전트와 Saga 감사 항목 없이
-인제스트 상태를 변경하는 단계는 결함입니다.
+문서 인제스트는 독립적인 decision service를 만들지 않고 에이전트 주도 제어 루프를 재사용합니다.
+단계별 에이전트 맵, typed object, 승격 규율 및 필수 Saga 감사 경계는 [문서 인제스트 에이전트 소유권](document-ingestion-agent-ownership-ko.md)을 참조하세요.
 
 ## Drop zone 제품 계약
 
-Drop zone은 문서 인제스트 서비스의 진입점 중 하나입니다. Drag and drop, file picker,
-ChatOps attachment, email-in gateway, connector는 모두 동일한 `UploadSession`을 만들고
-동일한 파이프라인으로 들어갑니다. 채널 adapter는 검사나 분류를 건너뛸 수 없습니다. 구체적인
-Slack, Teams, web chat, purpose 및 OCR contract는
-[conversation-attachments-ko.md](conversation-attachments-ko.md)를 참조하세요.
+Drop zone, ChatOps attachment, email ingress 및 connector는 동일한 `UploadSession`을 만들고
+동일한 scanning 및 classification pipeline으로 들어갑니다. Slack, Teams, web chat, purpose, terminal waiting 및 OCR 계약은 [대화 첨부 파일](conversation-attachments-ko.md)을 참조하세요.
 
-ChatOps adapter는 opaque vendor attachment id와 bounded metadata만 유지합니다. Server-owned
-credential을 사용하는 delivery-layer fetcher가 byte를 가져오며 payload가 제공한 URL은 core로
-넘어가지 않습니다. Upload 완료 전에 size 및 SHA-256을 다시 계산합니다. `ready` 또는
-`ready_with_warnings`로 끝난 version만 `doc:` citation이 됩니다. Attachment content는 operator
-message 또는 tool argument에 추가되지 않습니다. Completion 후 adapter는 agent-owned event
-pipeline의 terminal metadata를 기다리며 ingestion worker를 inline으로 호출하지 않습니다.
+Channel adapter는 scanning이나 classification을 건너뛸 수 없습니다. Attachment content를 operator message 또는 tool argument에 추가하지 않으며 terminal governed version만 `doc:` source가 됩니다.
 
 ### 운영자가 파일을 선택하기 전
 
@@ -537,11 +493,6 @@ Artifact write, index commit, purpose별 consumer delivery에는 각각 bounded 
 기본값은 90입니다. Timeout이 발생하면 `indexing_failed`를 기록하고 수락된 source를 quarantine에
 유지하며 partial derived/index data를 제거합니다. Structured stage log에는 upload id와 stage
 name만 기록하고 document content나 provider error text는 기록하지 않습니다.
-
-Azure Document Intelligence OCR은 submission, 각 poll 및 poll delay 전체에 end-to-end deadline도
-적용합니다. `document_ocr_operation_timeout_seconds`를 통해
-`FDAI_OCR_OPERATION_TIMEOUT_SECONDS`를 설정합니다. Deployment 기본값은 180초이고 최대 1800초를
-허용합니다. Per-request HTTP timeout과 maximum poll count는 독립적인 inner bound로 유지됩니다.
 
 State transition은 `document.received`, `document.held`, `document.ready`,
 `document.superseded`, `document.access_changed`, `document.deleted` 같은 typed event를

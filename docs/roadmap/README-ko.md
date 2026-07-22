@@ -1,7 +1,7 @@
 ---
 title: FDAI 로드맵
 translation_of: README.md
-translation_source_sha: 87a0122e452882a4439a8e67311efd46f9174962
+translation_source_sha: b2607f0950110661f6d2c6626becc1bf2db60ef5
 translation_revised: 2026-07-23
 ---
 
@@ -92,6 +92,7 @@ FDAI 뒤편의 엔지니어링 계획. 이 폴더는
 | 19f | [console-evidence-and-resilience-ko.md](interfaces/console-evidence-and-resilience-ko.md) | 콘솔 evidence provenance, localization, durable replay, stream recovery 및 Architecture map resilience |
 | 19a | [document-ingestion-ko.md](interfaces/document-ingestion-ko.md) | Drop-zone UX, 대용량 및 보호 문서 처리, format extraction, private storage, 공유 가시성, retention, deletion 계약 |
 | 19g | [conversation-attachments-ko.md](interfaces/conversation-attachments-ko.md) | protected Slack/Teams fetch, explicit handover purpose, web chat document ref, image OCR, production binding 및 security limit |
+| 19h | [document-ingestion-agent-ownership-ko.md](interfaces/document-ingestion-agent-ownership-ko.md) | 단계별 에이전트 소유권, typed pipeline object, advisory-first 승격, 감사, 충돌 및 rollback 경계 |
 | 19b | [scheduled-result-continuations-ko.md](interfaces/scheduled-result-continuations-ko.md) | 정확한 예약 실행을 위한 범위 제한 대화 앵커, evidence provenance, channel thread, access, expiry, delivery ordering |
 | 19c | [skill-source-management-ko.md](interfaces/skill-source-management-ko.md) | Durable approved source, quarantine, ETag refresh, disabled-first approval, provenance-preserving revocation |
 | 19d | [durable-conversation-delivery-ko.md](interfaces/durable-conversation-delivery-ko.md) | 검증된 cross-channel binding, durable reply ledger, process-loss recovery, adapter control 및 read-only reliability metric |
