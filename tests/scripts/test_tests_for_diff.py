@@ -286,6 +286,22 @@ def test_parent_test_directory_suppresses_duplicate_child_path(git_repo: Path) -
     assert result.stdout.splitlines() == ["tests/scripts"]
 
 
+def test_impact_resolver_failure_aborts_selection(git_repo: Path) -> None:
+    source = git_repo / "src" / "fdai" / "core" / "risk_gate" / "new_rule.py"
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    failing_resolver = git_repo.parent / f"{git_repo.name}-failing-resolver.py"
+    failing_resolver.write_text("raise SystemExit(7)\n", encoding="utf-8")
+    env = {
+        **os.environ,
+        "FDAI_TEST_IMPACT_RESOLVER": str(failing_resolver),
+    }
+
+    result = _run(git_repo, "bash", str(_SELECTOR), env=env)
+
+    assert result.returncode == 7
+    assert "impact resolver failed" in result.stderr
+
+
 def test_run_uses_uv_managed_pytest(git_repo: Path) -> None:
     test_file = git_repo / "tests" / "scripts" / "test_changed.py"
     test_file.write_text("def test_changed(): pass\n", encoding="utf-8")

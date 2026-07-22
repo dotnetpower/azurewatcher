@@ -187,12 +187,20 @@ while IFS= read -r file; do
 done <<< "$changed"
 
 if [[ ${#python_sources[@]} -gt 0 && -z "${seen[tests]:-}" ]]; then
+    impact_resolver="${FDAI_TEST_IMPACT_RESOLVER:-$selector_dir/resolve_test_impact.py}"
+    set +e
+    impacted_output=$(
+        python3 "$impact_resolver" --root "$repo_root" "${python_sources[@]}"
+    )
+    impact_status=$?
+    set -e
+    if [[ $impact_status -ne 0 ]]; then
+        echo "tests-for-diff.sh: impact resolver failed with status $impact_status" >&2
+        exit "$impact_status"
+    fi
     while IFS= read -r impacted_test; do
         add_test "$impacted_test"
-    done < <(
-        python3 "$selector_dir/resolve_test_impact.py" \
-            --root "$repo_root" "${python_sources[@]}"
-    )
+    done <<< "$impacted_output"
 fi
 
 if [[ ${#tests[@]} -eq 0 ]]; then
