@@ -9721,7 +9721,27 @@ main { padding-bottom: 60px !important; }
   font-size: 0.65rem;
   color: var(--fg-muted);
 }
-.incident-evidence-links { margin-top: -0.2rem; }
+.incident-related-views,
+.incident-progress { display: grid; gap: 0.4rem; }
+.incident-section-label {
+  color: var(--fg-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.incident-evidence-links { margin: 0; }
+.incident-related-views .incident-evidence-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+}
+.incident-related-views .incident-evidence-links a::after {
+  content: "\2192";
+  color: currentColor;
+  font-size: 0.78rem;
+}
 .scope-boundary-links {
   display: flex;
   gap: 6px;
@@ -9809,33 +9829,71 @@ main { padding-bottom: 60px !important; }
   flex-wrap: wrap;
 }
 
-/* Step chips: Detect / Ticket / RCA / Resolve, teal accent for done. */
+/* Read-only workflow stepper. Links above retain the button affordance. */
 .incident-steps {
   list-style: none;
-  display: flex;
-  gap: 0.4rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
   padding: 0;
 }
 .incident-steps li {
-  flex: 1;
-  text-align: center;
-  font-size: 0.7rem;
-  font-weight: 500;
-  padding: 0.35rem 0.2rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0;
   color: var(--fg-muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-align: center;
+}
+.incident-steps li::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 0.55rem;
+  left: calc(50% + 0.7rem);
+  width: calc(100% - 1.4rem);
+  height: 1px;
+  background: var(--border);
+}
+.incident-steps li:last-child::after { display: none; }
+.incident-step-marker {
+  position: relative;
+  z-index: 1;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid var(--border);
+  border-radius: 50%;
   background: var(--bg-elevated);
 }
-.incident-steps li.step-done {
-  background: color-mix(in srgb, var(--agent-teal) 10%, var(--bg-elevated));
-  border-color: color-mix(in srgb, var(--agent-teal) 35%, transparent);
+.incident-steps li.step-done,
+.incident-steps li.step-current {
   color: var(--agent-teal);
   font-weight: 600;
 }
-.incident-steps li.step-pending {
-  opacity: 0.55;
+.incident-steps li.step-done::after { background: var(--agent-teal); }
+.incident-steps li.step-done .incident-step-marker {
+  border-color: var(--agent-teal);
+  background: var(--agent-teal);
+}
+.incident-steps li.step-done .incident-step-marker::after {
+  content: "";
+  position: absolute;
+  top: 0.15rem;
+  left: 0.3rem;
+  width: 0.25rem;
+  height: 0.48rem;
+  border: solid var(--bg-elevated);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.incident-steps li.step-current .incident-step-marker {
+  border: 4px solid color-mix(in srgb, var(--agent-teal) 25%, var(--bg-elevated));
+  background: var(--agent-teal);
+  box-shadow: 0 0 0 1px var(--agent-teal);
 }
 
 /* Agent-to-agent conversation strip: intent uses a whole-row tint. */

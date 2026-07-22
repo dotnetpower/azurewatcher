@@ -20,6 +20,13 @@ export function isAgentEventExpanded(
   return correlationId === selectedIncidentId;
 }
 
+export function currentIncidentStepIndex(steps: readonly { readonly done: boolean }[]): number {
+  for (let index = steps.length - 1; index >= 0; index -= 1) {
+    if (steps[index]?.done) return index;
+  }
+  return -1;
+}
+
 /**
  * Focus panel shown when the operator clicks an agent. Answers "who is this
  * and what events is it working?" - the role title + one-line duty, its
@@ -144,6 +151,7 @@ export function IncidentWorkflow({
     },
     { key: "resolve", label: t("agents.workflow.step.resolve"), done: incident.status === "resolved" },
   ];
+  const currentStep = currentIncidentStepIndex(steps);
   return (
     <div class="incident-workflow">
       <div class="incident-workflow-head">
@@ -182,20 +190,31 @@ export function IncidentWorkflow({
         </span>
       </div>
 
-      <nav class="incident-evidence-links" aria-label={t("agents.workflow.evidenceLabel")}>
-        <a href={routeHref("incidents", { params: { status: "all", correlation: incident.correlationId } })}>{t("route.incidents")}</a>
-        <a href={routeHref("trace", { params: { correlation: incident.correlationId } })}>{t("route.ruleTrace")}</a>
-        <a href={routeHref("audit", { params: { correlation: incident.correlationId } })}>{t("route.audit")}</a>
-        <a href={routeHref("rca", { params: { correlation: incident.correlationId } })}>{t("route.rca")}</a>
-      </nav>
+      <div class="incident-related-views">
+        <span class="incident-section-label">{t("agents.workflow.relatedViews")}</span>
+        <nav class="incident-evidence-links" aria-label={t("agents.workflow.evidenceLabel")}>
+          <a href={routeHref("incidents", { params: { status: "all", correlation: incident.correlationId } })}>{t("route.incidents")}</a>
+          <a href={routeHref("trace", { params: { correlation: incident.correlationId } })}>{t("route.ruleTrace")}</a>
+          <a href={routeHref("audit", { params: { correlation: incident.correlationId } })}>{t("route.audit")}</a>
+          <a href={routeHref("rca", { params: { correlation: incident.correlationId } })}>{t("route.rca")}</a>
+        </nav>
+      </div>
 
-      <ol class="incident-steps">
-        {steps.map((s) => (
-          <li key={s.key} class={s.done ? "step-done" : "step-pending"}>
-            {s.label}
-          </li>
-        ))}
-      </ol>
+      <div class="incident-progress">
+        <span class="incident-section-label">{t("agents.workflow.progress")}</span>
+        <ol class="incident-steps" aria-label={t("agents.workflow.progress")}>
+          {steps.map((step, index) => (
+            <li
+              key={step.key}
+              class={index < currentStep ? "step-done" : index === currentStep ? "step-current" : "step-pending"}
+              aria-current={index === currentStep ? "step" : undefined}
+            >
+              <span class="incident-step-marker" aria-hidden="true" />
+              <span>{step.label}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
 
       <div class="incident-conversation" aria-label={t("agents.workflow.conversationLabel")}>
         {incident.turns.length === 0 ? (

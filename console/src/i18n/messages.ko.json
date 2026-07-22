@@ -610,13 +610,15 @@
       "ask": "이 인시던트를 대화 창에 질문",
       "askHint": "질문은 읽기 전용입니다. 명령은 제안서를 열며 여기서 실행되지 않고 판정을 거칩니다.",
       "evidenceLabel": "인시던트 근거",
+      "relatedViews": "관련 화면",
+      "progress": "진행 단계",
       "conversationLabel": "에이전트 대화",
       "noConversation": "아직 대화가 없습니다.",
       "rootCause": "근본 원인",
       "step": {
         "detect": "감지",
         "ticket": "티켓",
-        "rca": "RCA",
+        "rca": "원인 분석",
         "resolve": "해결"
       }
     },

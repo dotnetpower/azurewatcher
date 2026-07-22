@@ -610,13 +610,15 @@
       "ask": "Ask the deck about this incident",
       "askHint": "Questions are read-only; a command opens a proposal (judged, never executed here).",
       "evidenceLabel": "Incident evidence",
+      "relatedViews": "Related views",
+      "progress": "Progress",
       "conversationLabel": "Agent conversation",
       "noConversation": "No conversation yet.",
       "rootCause": "Root cause",
       "step": {
         "detect": "Detect",
         "ticket": "Ticket",
-        "rca": "RCA",
+        "rca": "Root cause analysis",
         "resolve": "Resolve"
       }
     },
