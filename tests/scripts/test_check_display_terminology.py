@@ -143,6 +143,21 @@ def test_normative_instruction_heading_is_contract_usage() -> None:
     assert violations == []
 
 
+def test_collaboration_and_hardening_records_are_intentional_usage() -> None:
+    for path in (
+        "CONTRIBUTING.md",
+        "console/example-hardening-review.md",
+        "console/operations-menu-review.md",
+    ):
+        occurrences, violations = CHECKER.audit_document(
+            path,
+            "A maintainer recorded the raw HIL finding for correlation.\n",
+        )
+
+        assert {item.classification for item in occurrences} == {"intentional-contract"}
+        assert violations == []
+
+
 def test_fixer_changes_only_reader_text() -> None:
     text = "# HIL verdicts\nUse `verdict=hil` at [/hil](/hil).\n"
 

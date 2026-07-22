@@ -260,6 +260,14 @@ def _is_normative_instruction(path: str) -> bool:
     return path.startswith(".github/")
 
 
+def _is_collaboration_or_review_record(path: str) -> bool:
+    return (
+        path == "CONTRIBUTING.md"
+        or path.endswith("hardening-review.md")
+        or (path.startswith("console/") and path.endswith("-review.md"))
+    )
+
+
 def _has_display_hint(text: str, term: Term) -> bool:
     lowered = text.casefold()
     return any(hint.casefold() in lowered for hint in term.display_hints)
@@ -309,6 +317,7 @@ def audit_document(path: str, text: str) -> tuple[list[Occurrence], list[Occurre
                 if (
                     protected
                     or _is_normative_instruction(path)
+                    or _is_collaboration_or_review_record(path)
                     or (in_frontmatter and not display_frontmatter)
                 ):
                     classification = "intentional-contract"
