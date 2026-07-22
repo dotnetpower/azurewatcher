@@ -57,22 +57,25 @@ class MetadataDocumentTerminalResolver:
         metadata: DocumentMetadataStore,
         timeout_seconds: float,
         poll_interval_seconds: float,
+        max_polls: int = 480,
     ) -> None:
         if (
             not isfinite(timeout_seconds)
             or timeout_seconds <= 0
             or not isfinite(poll_interval_seconds)
             or poll_interval_seconds <= 0
+            or not 1 <= max_polls <= 1000
         ):
-            raise ValueError("document terminal wait limits MUST be positive finite numbers")
+            raise ValueError("document terminal wait limits MUST be positive and bounded")
         self._metadata = metadata
         self._timeout_seconds = timeout_seconds
         self._poll_interval_seconds = poll_interval_seconds
+        self._max_polls = max_polls
 
     async def wait(self, upload_id: UUID) -> DocumentVersion:
         try:
             async with asyncio.timeout(self._timeout_seconds):
-                while True:
+                for poll in range(self._max_polls):
                     session = await self._metadata.get_upload(upload_id)
                     version = await self._metadata.get_version(
                         session.document_id,
@@ -80,11 +83,17 @@ class MetadataDocumentTerminalResolver:
                     )
                     if version.state in _TERMINAL_STATES:
                         return version
-                    await asyncio.sleep(self._poll_interval_seconds)
+                    if poll + 1 < self._max_polls:
+                        await asyncio.sleep(self._poll_interval_seconds)
+                raise ChannelDocumentProcessingError(
+                    "document processing exceeded the terminal poll limit"
+                )
         except TimeoutError as exc:
             raise ChannelDocumentProcessingError(
                 "document processing exceeded the terminal wait limit"
             ) from exc
+        except ChannelDocumentProcessingError:
+            raise
         except DocumentIngestionError as exc:
             raise ChannelDocumentProcessingError(
                 "document processing state is unavailable"
@@ -108,6 +117,7 @@ class ProductionAttachmentConfig:
     timeout_seconds: float = 30.0
     processing_timeout_seconds: float = 120.0
     processing_poll_interval_seconds: float = 0.25
+    processing_max_polls: int = 480
 
     def __post_init__(self) -> None:
         if (
@@ -122,6 +132,7 @@ class ProductionAttachmentConfig:
             or self.processing_timeout_seconds > 600
             or not isfinite(self.processing_poll_interval_seconds)
             or not 0.1 <= self.processing_poll_interval_seconds <= 10
+            or not 1 <= self.processing_max_polls <= 1000
         ):
             raise ProductionAttachmentConfigError(
                 "channel attachment collection, access, retention, and timeout are required"
@@ -167,6 +178,11 @@ class ProductionAttachmentConfig:
             processing_poll_interval_seconds=_positive_float(
                 environ.get("FDAI_CHANNEL_ATTACHMENT_PROCESSING_POLL_SECONDS", ""),
                 0.25,
+            ),
+            processing_max_polls=_bounded_int(
+                environ.get("FDAI_CHANNEL_ATTACHMENT_PROCESSING_MAX_POLLS", ""),
+                default=480,
+                maximum=1000,
             ),
         )
 
@@ -224,6 +240,7 @@ def build_production_attachment_ingestor(
             metadata=metadata,
             timeout_seconds=config.processing_timeout_seconds,
             poll_interval_seconds=config.processing_poll_interval_seconds,
+            max_polls=config.processing_max_polls,
         ),
         fetchers=fetchers,
         config=ChannelDocumentEvidenceConfig(
@@ -255,6 +272,20 @@ def _positive_float(raw: str, default: float) -> float:
         ) from exc
     if not isfinite(value) or value <= 0:
         raise ProductionAttachmentConfigError("channel attachment timeout MUST be positive")
+    return value
+
+
+def _bounded_int(raw: str, *, default: int, maximum: int) -> int:
+    try:
+        value = int(raw) if raw.strip() else default
+    except ValueError as exc:
+        raise ProductionAttachmentConfigError(
+            "channel attachment poll limit MUST be an integer"
+        ) from exc
+    if not 1 <= value <= maximum:
+        raise ProductionAttachmentConfigError(
+            f"channel attachment poll limit MUST be in [1, {maximum}]"
+        )
     return value
 
 

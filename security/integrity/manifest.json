@@ -160,7 +160,7 @@
     "src/fdai/core/conversation/busy_input_coordinator.py": "7e9a8d9f8443d9c9b79fa98fce6c904918975c3ac8e0cb2f3719bd13689913b9",
     "src/fdai/core/conversation/busy_input_store.py": "3b1e0aaf7e5ae68a164cf46d2f595f63a8ea00de0fbbd7f4023cd3c518a7a3ef",
     "src/fdai/core/conversation/channel_access.py": "4549300593ade7850b0eb2442b4efb8734da215c86e35bd81c307e035141322d",
-    "src/fdai/core/conversation/channel_gateway.py": "5862c493e47028e2342118f528e67550a66abe211567cedd5ad4709f4fbfd6b9",
+    "src/fdai/core/conversation/channel_gateway.py": "01329adb6015c4b14b11296f895b1545bf7714c2059ed1fbf829c7f0350227bb",
     "src/fdai/core/conversation/context_bridge.py": "934a22748fc9b755778bd5fefa1c391348bc4f9ef9e0a4a154b4d7dc96d4fe69",
     "src/fdai/core/conversation/coordinator.py": "fac39e3d016d62dcb464129e8409c96739c93fdb258a0cba1579cc5fda5465e9",
     "src/fdai/core/conversation/creation.py": "f220a81dc7636a6ac0ff57cc9981345119ee10152bd478ebbe5c01cc93c3410e",
@@ -765,7 +765,7 @@
     "src/fdai/shared/providers/workflow_definition.py": "01c40a52343b9b0f301a921d7931cc03ae5cc1d916b12f8fcaf06816d0b1c23a",
     "src/fdai/shared/providers/workload_identity.py": "96f26525f5d243ff4c818766d0ee9223a23f1c31c76b141708a01e405a8fd204"
   },
-  "generated_at": "2026-07-22T17:44:32Z",
+  "generated_at": "2026-07-22T17:52:05Z",
   "surface": [
     "src/fdai/core/",
     "src/fdai/composition.py",

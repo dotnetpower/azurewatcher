@@ -50,6 +50,7 @@ def test_attachment_config_parses_bounded_channel_policy() -> None:
     assert config.teams_allowed_audiences == ("api://attachments.example.com",)
     assert config.processing_timeout_seconds == 120.0
     assert config.processing_poll_interval_seconds == 0.25
+    assert config.processing_max_polls == 480
 
 
 @pytest.mark.parametrize("timeout", ("nan", "inf"))
@@ -73,10 +74,12 @@ def test_attachment_config_rejects_nonfinite_timeout(timeout: str) -> None:
         ("FDAI_CHANNEL_ATTACHMENT_PROCESSING_TIMEOUT_SECONDS", "601"),
         ("FDAI_CHANNEL_ATTACHMENT_PROCESSING_POLL_SECONDS", "0.01"),
         ("FDAI_CHANNEL_ATTACHMENT_PROCESSING_POLL_SECONDS", "11"),
+        ("FDAI_CHANNEL_ATTACHMENT_PROCESSING_MAX_POLLS", "0"),
+        ("FDAI_CHANNEL_ATTACHMENT_PROCESSING_MAX_POLLS", "1001"),
     ),
 )
 def test_attachment_config_rejects_unbounded_timing(key: str, value: str) -> None:
-    with pytest.raises(ProductionAttachmentConfigError, match="required"):
+    with pytest.raises(ProductionAttachmentConfigError, match="required|poll limit"):
         ProductionAttachmentConfig.from_env(
             {
                 "FDAI_CHANNEL_ATTACHMENTS_ENABLED": "1",
@@ -127,6 +130,27 @@ async def test_terminal_resolver_fails_closed_at_bounded_timeout() -> None:
 
     with pytest.raises(ChannelDocumentProcessingError, match="wait limit"):
         await resolver.wait(UUID(int=1))
+
+
+async def test_terminal_resolver_stops_at_bounded_poll_count() -> None:
+    metadata = SimpleNamespace(
+        get_upload=AsyncMock(
+            return_value=SimpleNamespace(document_id=UUID(int=2), version_id=UUID(int=3))
+        ),
+        get_version=AsyncMock(
+            return_value=SimpleNamespace(state=DocumentState.RECEIVED, available=False)
+        ),
+    )
+    resolver = MetadataDocumentTerminalResolver(
+        metadata=metadata,
+        timeout_seconds=1.0,
+        poll_interval_seconds=0.001,
+        max_polls=3,
+    )
+
+    with pytest.raises(ChannelDocumentProcessingError, match="poll limit"):
+        await resolver.wait(UUID(int=1))
+    assert metadata.get_version.await_count == 3
 
 
 async def test_terminal_resolver_normalizes_metadata_provider_failure() -> None:

@@ -1,6 +1,6 @@
 ---
 translation_of: durable-conversation-delivery.md
-translation_source_sha: 24811db0f40f963d66ffc357379b8f3c7b539be3
+translation_source_sha: 90cff5c3a37726722731f78e686e9a527d08fbda
 translation_revised: 2026-07-23
 ---
 # 영구 대화 전송
@@ -133,6 +133,10 @@ Governed attachment ingestion 후 downstream session 또는 tool이 실패하면
 유지하고 generic error response를 반환합니다. 따라서 redelivery가 동일 vendor message에 대해 다른
 document version을 만들지 않습니다. Attachment completion 전 failure는 claim을 release하고 한
 turn으로 격리하므로 channel consumer가 계속 동작합니다.
+
+Direct provider send, delivery-context lookup 또는 durable submit failure도 originating turn으로
+격리되고 sanitized `delivery.submit` transition을 emit합니다. Channel receive loop를 종료하거나
+provider response text를 노출하지 않습니다.
 
 `ScheduledContinuationDeliveryCoordinator`는 stable anchor id를 origin으로 사용해 외부 Slack 및
 Teams result를 제출합니다. 이미 저장된 result summary, digest, evidence, conversation reference,

@@ -186,33 +186,45 @@ class ConversationChannelGateway:
                 continue
             if handled is None:
                 continue
-            if self._outbound_delivery is None:
-                await adapter.send(handled.response)
-                continue
-            context_resolver = self._delivery_context_resolver
-            if context_resolver is None:
-                raise RuntimeError("durable channel delivery context resolver is unavailable")
-            context = await context_resolver.resolve(
-                turn=turn,
-                principal=handled.principal,
-                session_id=handled.session_id,
-            )
-            if context is None or context.principal_id != handled.principal.id:
+            try:
+                if self._outbound_delivery is None:
+                    await adapter.send(handled.response)
+                    continue
+                context_resolver = self._delivery_context_resolver
+                if context_resolver is None:
+                    raise RuntimeError("durable channel delivery context resolver is unavailable")
+                context = await context_resolver.resolve(
+                    turn=turn,
+                    principal=handled.principal,
+                    session_id=handled.session_id,
+                )
+                if context is None or context.principal_id != handled.principal.id:
+                    self._emit(
+                        turn,
+                        "delivery.binding",
+                        "rejected",
+                        {"reason_code": "binding_unavailable"},
+                    )
+                    continue
+                await self._outbound_delivery.submit(
+                    origin_ref=f"channel-message:{_message_key(turn)}",
+                    principal_id=context.principal_id,
+                    scope_ref=context.scope_ref,
+                    conversation_id=context.conversation_id,
+                    binding_id=context.binding_id,
+                    response=handled.response,
+                )
+            except Exception as exc:  # noqa: BLE001 - isolate one delivery attempt
                 self._emit(
                     turn,
-                    "delivery.binding",
+                    "delivery.submit",
                     "rejected",
-                    {"reason_code": "binding_unavailable"},
+                    {
+                        "reason_code": "delivery_error",
+                        "exception_type": type(exc).__name__,
+                    },
                 )
                 continue
-            await self._outbound_delivery.submit(
-                origin_ref=f"channel-message:{_message_key(turn)}",
-                principal_id=context.principal_id,
-                scope_ref=context.scope_ref,
-                conversation_id=context.conversation_id,
-                binding_id=context.binding_id,
-                response=handled.response,
-            )
 
     async def handle(
         self,

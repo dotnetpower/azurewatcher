@@ -116,6 +116,18 @@ class _Adapter:
         self.sent.append(response)
 
 
+class _FailingOnceAdapter(_Adapter):
+    def __init__(self, turns: tuple[InboundTurn, ...]) -> None:
+        super().__init__(turns)
+        self._failed = False
+
+    async def send(self, response: OutboundResponse) -> None:
+        if not self._failed:
+            self._failed = True
+            raise ConnectionError("provider unavailable")
+        await super().send(response)
+
+
 class _DeliveryContextResolver:
     async def resolve(
         self,
@@ -430,6 +442,20 @@ async def test_run_continues_after_one_turn_processing_error() -> None:
     assert any(
         transition.name == "message.processing"
         and transition.attributes.get("reason_code") == "processing_error"
+        for transition in transitions.transitions
+    )
+
+
+async def test_run_continues_after_one_direct_delivery_error() -> None:
+    transitions = InMemoryRoutingTransitionSink()
+    adapter = _FailingOnceAdapter((_turn("message-failed"), _turn("message-success")))
+
+    await _gateway(transition_sink=transitions).run(adapter)
+
+    assert [response.in_reply_to for response in adapter.sent] == ["message-success"]
+    assert any(
+        transition.name == "delivery.submit"
+        and transition.attributes.get("reason_code") == "delivery_error"
         for transition in transitions.transitions
     )
 

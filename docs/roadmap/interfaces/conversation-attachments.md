@@ -181,8 +181,10 @@ runtime without an injected production attachment ingestor fails startup.
 
 Fetch timeouts must be positive finite numbers no greater than 300 seconds. Terminal processing
 waits must be no greater than 600 seconds and use a polling interval from 0.1 through 10 seconds;
-`NaN`, infinity, and values outside those bounds fail startup. Vendor attachment names must be leaf
-names without path separators, dot-only names, or control and formatting characters.
+`FDAI_CHANNEL_ATTACHMENT_PROCESSING_MAX_POLLS` adds an independent ceiling from 1 through 1000
+(default 480). `NaN`, infinity, and values outside those bounds fail startup. Vendor attachment
+names must be leaf names without path separators, dot-only names, or control and formatting
+characters.
 
 `build_production_attachment_ingestor()` builds only fetchers for enabled channels. Teams requires
 identity, resolver, host allowlist, and token audience allowlist. `ProductionChannelRuntime` binds

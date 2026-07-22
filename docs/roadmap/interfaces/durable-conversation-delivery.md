@@ -133,6 +133,10 @@ inbound claim and returns a generic error response. This prevents redelivery fro
 document version for the same vendor message. Failures before attachment completion release the
 claim and are isolated to one turn so the channel consumer continues.
 
+A direct provider send, delivery-context lookup, or durable submit failure is also isolated to its
+originating turn and emits a sanitized `delivery.submit` transition. It does not terminate the
+channel receive loop or expose provider response text.
+
 `ScheduledContinuationDeliveryCoordinator` submits external Slack and Teams results with the
 stable anchor id as the origin. It uses the already persisted result summary, digest, evidence,
 conversation reference, and thread mode. Web continuations remain idempotent conversation turns.

@@ -1,6 +1,6 @@
 ---
 translation_of: conversation-attachments.md
-translation_source_sha: c8a821b9fdae82408a06f60f52cb00fc19ef2a1b
+translation_source_sha: f999496198f264e6e8c957f566cb453c986c0a01
 translation_revised: 2026-07-23
 title: 대화 첨부파일
 ---
@@ -190,8 +190,9 @@ retention policy, vendor host allowlist 및 timeout을 소유합니다.
 
 Fetch timeout은 300초 이하의 positive finite number여야 합니다. Terminal processing wait는 600초
 이하여야 하며 polling interval은 0.1초 이상 10초 이하여야 합니다. `NaN`, infinity 및 범위 밖의
-값은 startup을 실패시킵니다. Vendor attachment name은 path separator, dot-only name 또는
-control/formatting character가 없는 leaf name이어야 합니다.
+값은 startup을 실패시킵니다. `FDAI_CHANNEL_ATTACHMENT_PROCESSING_MAX_POLLS`는 1 이상 1000 이하의
+독립적인 ceiling을 추가하며 기본값은 480입니다. Vendor attachment name은 path separator,
+dot-only name 또는 control/formatting character가 없는 leaf name이어야 합니다.
 
 `build_production_attachment_ingestor()`는 enabled channel의 fetcher만 만듭니다. Teams에는 identity,
 resolver, host allowlist 및 token audience allowlist가 필요합니다. `ProductionChannelRuntime`은 Slack
