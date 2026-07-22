@@ -342,6 +342,18 @@ variable "autonomy_mode_default" {
   }
 }
 
+variable "dev_operations_gateway_url" {
+  description = "Development operations Function App HTTPS origin. Empty disables the runtime DirectApiExecutor binding."
+  type        = string
+  default     = ""
+}
+
+variable "dev_operations_gateway_audience" {
+  description = "Microsoft Entra audience requested by the core executor when calling the development operations gateway."
+  type        = string
+  default     = ""
+}
+
 variable "monitor_workspace_customer_id" {
   description = <<-EOT
     Log Analytics workspace **customer GUID** (from

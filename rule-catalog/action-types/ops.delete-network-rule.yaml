@@ -1,0 +1,76 @@
+schema_version: 1.0.0
+name: ops.delete-network-rule
+version: 1.0.0
+operation: delete
+interfaces:
+- ControlPlane
+- IdempotentByKey
+rollback_contract: state_forward_only
+irreversible: false
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 21
+  min_samples: 40
+  min_accuracy: 0.99
+  max_policy_escapes: 0
+preconditions:
+- kind: graph_fresh_within_seconds
+  value: 300
+- kind: no_conflicting_open_action_on_resource
+stop_conditions:
+- kind: dependent_resource_degraded
+- kind: provider_api_error_streak
+  count: 3
+- kind: time_box_exceeded_seconds
+  seconds: 300
+blast_radius:
+  computation: static_enum
+  static_bucket: resource
+description: Delete one bounded Azure NSG rule through the development operations gateway. Recovery
+  is a separately governed state-forward rule upsert using reviewed prior-state evidence.
+category: ops
+trigger_kind:
+  kind: both
+execution_path: direct_api
+ceiling_by_tier:
+  t0:
+    max_autonomy: enforce_hil
+    min_role: owner
+  t1:
+    max_autonomy: shadow_only
+    min_role: owner
+  t2:
+    max_autonomy: shadow_only
+    min_role: owner
+argument_schema:
+  type: object
+  additionalProperties: false
+  required:
+  - resource_group
+  - nsg_name
+  - rule_name
+  - reason
+  properties:
+    resource_group:
+      type: string
+      minLength: 1
+      maxLength: 128
+      x-fdai-audit-safe: true
+    nsg_name:
+      type: string
+      minLength: 1
+      maxLength: 128
+      x-fdai-audit-safe: true
+    rule_name:
+      type: string
+      minLength: 1
+      maxLength: 128
+      x-fdai-audit-safe: true
+    reason:
+      type: string
+      minLength: 10
+      maxLength: 200
+      x-fdai-audit-safe: true
+prod_downgrade:
+  mode: enforce_hil
+  detection_ref: risk-classification/env-detector

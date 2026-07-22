@@ -1,8 +1,8 @@
 ---
 title: Action 온톨로지
 translation_of: action-ontology.md
-translation_source_sha: 4b1ee9d80a4dc5db9d351847bcdbdff095516be4
-translation_revised: 2026-07-21
+translation_source_sha: 61b22b28deeeba0f865502f84de446d9b7b9fbe8
+translation_revised: 2026-07-22
 ---
 
 # Action 온톨로지
@@ -248,6 +248,12 @@ idempotent call 인 액션 별로 `direct_api` 로 override MAY.
   ObjectType `ChangeSummary` 와 LinkType `summarizes` 가 copy-ready
   scaffold ([downstream-fork-example-vertical-ko.md](../fork-and-sequencing/downstream-fork-example-vertical-ko.md)
   참조).
+- `ops.start-vm` / `ops.deallocate-vm` - development operations gateway를 통해 Azure VM 하나를
+  시작하거나 deallocate합니다. 둘 다 shadow-first를 유지하며 shipped T0 ceiling에서 사람 승인을
+  요구합니다.
+- `ops.upsert-network-rule` / `ops.delete-network-rule` - development operations gateway를 통해
+  bounded NSG rule 하나를 생성, 교체 또는 삭제합니다. 삭제는 Owner-tier 승인이 필요하며 recovery는
+  별도로 governed state-forward action입니다.
 
 **Vertical 매핑.** 각 ops ActionType 은 소유 vertical 로 태깅되어
 [verticals](../../../src/fdai/core/verticals) 가 claim 하고 vertical 룰이
@@ -255,7 +261,8 @@ idempotent call 인 액션 별로 `direct_api` 로 override MAY.
 -> Resilience; `ops.scale-in` / `ops.scale-out` -> Cost Governance;
 `ops.drain-connection` / `ops.rotate-cert` -> Change Safety.
 `ops.flush-cache` 와 `ops.publish-change-summary` 는 cross-vertical
-(오퍼레이터-트리거).
+(오퍼레이터-트리거). VM 및 network-rule gateway operation은 upstream operator action을 위한 Azure
+delivery binding이며 vertical ownership을 변경하지 않습니다.
 
 기본 `execution_path: direct_api` (ops 는 latency-sensitive; PR overhead
 는 목적을 defeat). Fork 는 모든 runtime change 가 reviewable diff 로

@@ -20,6 +20,7 @@ from fdai.shared.providers.resource_lock import ResourceLock
 from fdai.shared.providers.testing.direct_api import RecordingDirectApiExecutor
 from fdai.shared.providers.testing.remediation_pr import RecordingRemediationPrPublisher
 from fdai.shared.providers.testing.tool import RecordingToolExecutor
+from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 _LOGGER = logging.getLogger("fdai.startup")
 _ACS_SCOPE = "https://communication.azure.com/.default"
@@ -184,6 +185,8 @@ def _build_direct_api_executor(
     audit_store: Any,
     resource_lock: ResourceLock,
     idempotency: IdempotencyStore | None = None,
+    http_client: httpx.AsyncClient | None = None,
+    identity: WorkloadIdentity | None = None,
 ) -> DirectApiShadowExecutor | None:
     """Select the direct-API executor for this process.
 
@@ -200,7 +203,37 @@ def _build_direct_api_executor(
     shape.
     """
 
-    if os.environ.get("FDAI_DIRECT_API_FAKE", "").strip() != "1":
+    fake_enabled = os.environ.get("FDAI_DIRECT_API_FAKE", "").strip() == "1"
+    gateway_url = os.environ.get("FDAI_DEV_OPERATIONS_GATEWAY_URL", "").strip()
+    gateway_audience = os.environ.get("FDAI_DEV_OPERATIONS_GATEWAY_AUDIENCE", "").strip()
+    if fake_enabled and gateway_url:
+        raise RuntimeError("FDAI_DIRECT_API_FAKE conflicts with the operations gateway binding")
+    if bool(gateway_url) != bool(gateway_audience):
+        raise RuntimeError("operations gateway URL and audience MUST be configured together")
+    if gateway_url:
+        if http_client is None or identity is None:
+            raise RuntimeError("operations gateway binding requires HTTP and workload identity")
+        from fdai.delivery.azure.gateway_direct_api import (
+            AzureGatewayDirectApiConfig,
+            AzureGatewayDirectApiExecutor,
+        )
+
+        _LOGGER.info("direct_api_backend", extra={"backend": "azure-functions-gateway"})
+        return DirectApiShadowExecutor(
+            executor=AzureGatewayDirectApiExecutor(
+                config=AzureGatewayDirectApiConfig(
+                    base_url=gateway_url,
+                    audience=gateway_audience,
+                ),
+                identity=identity,
+                http_client=http_client,
+            ),
+            audit_store=audit_store,
+            resource_lock=resource_lock,
+            idempotency=idempotency,
+            allow_enforce=True,
+        )
+    if not fake_enabled:
         _LOGGER.info("direct_api_backend", extra={"backend": "none"})
         return None
 

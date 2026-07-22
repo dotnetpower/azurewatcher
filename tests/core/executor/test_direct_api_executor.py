@@ -100,6 +100,22 @@ def _executor(
     return exec_, adapter, audit
 
 
+def _enforce_executor() -> tuple[
+    DirectApiShadowExecutor,
+    RecordingDirectApiExecutor,
+    InMemoryStateStore,
+]:
+    adapter = RecordingDirectApiExecutor()
+    audit = InMemoryStateStore()
+    executor = DirectApiShadowExecutor(
+        executor=adapter,
+        audit_store=audit,
+        resource_lock=ResourceLockManager(),
+        allow_enforce=True,
+    )
+    return executor, adapter, audit
+
+
 def _unwrap(record: Any) -> dict[str, Any]:
     if isinstance(record, dict):
         inner = record.get("entry")
@@ -147,6 +163,24 @@ class TestHappyPath:
         request = adapter.records[0]
         assert request.arguments == {"cooldown_seconds": 60, "region": "krc"}
         assert request.action_type_name == "ops.restart-service"
+
+    @pytest.mark.asyncio
+    async def test_explicit_enforce_dispatch_forwards_safety_metadata(self) -> None:
+        executor, adapter, audit = _enforce_executor()
+        result = await executor.execute(action=_action(mode=Mode.ENFORCE))
+
+        assert result.outcome is DirectApiExecutionOutcome.DISPATCHED
+        request = adapter.records[0]
+        assert request.mode is Mode.ENFORCE
+        assert request.labels == ("enforce",)
+        assert request.metadata == {
+            "audit_ref": f"action:{request.action_id}",
+            "stop_condition": "target_not_healthy",
+            "rollback_ref": "scripted:rb-99",
+            "max_resources": "1",
+        }
+        entry = _unwrap(list(audit.audit_entries)[0])
+        assert entry["mode"] == "enforce"
 
 
 # ---------------------------------------------------------------------------

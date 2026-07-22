@@ -183,12 +183,14 @@ class DirectApiShadowExecutor:
         resource_lock: ResourceLock,
         config: ExecutorConfig | None = None,
         idempotency: IdempotencyStore | None = None,
+        allow_enforce: bool = False,
     ) -> None:
         self._executor = executor
         self._audit_store = audit_store
         self._resource_lock = resource_lock
         self._config = config or ExecutorConfig()
         self._idempotency = idempotency
+        self._allow_enforce = allow_enforce
         # idempotency_key -> DirectApiExecutionResult. Same FIFO-bounded
         # policy as :class:`ShadowExecutor` so a long-running control
         # loop cannot grow unbounded memory on distinct events. The
@@ -209,7 +211,7 @@ class DirectApiShadowExecutor:
         # Shadow-only path (P1) - reject enforce-mode Actions BEFORE the
         # lock. The adapter would also raise DirectApiPromotionError but
         # this saves a per-resource lock cycle on a pure refusal.
-        if action.mode is not Mode.SHADOW:
+        if action.mode is not Mode.SHADOW and not self._allow_enforce:
             return await self._finish(
                 action=action,
                 outcome=DirectApiExecutionOutcome.REJECTED_MODE,
@@ -377,7 +379,7 @@ class DirectApiShadowExecutor:
         result = DirectApiExecutionResult(
             action_id=str(action.action_id),
             outcome=outcome,
-            mode=Mode.SHADOW,
+            mode=action.mode,
             receipt_ref=receipt_ref,
             rollback_succeeded=rollback_succeeded,
             reason=reason,
@@ -422,7 +424,7 @@ class DirectApiShadowExecutor:
             "idempotency_key": action.idempotency_key,
             "actor": "fdai.core.executor.direct_api",
             "action_kind": f"executor.direct_api.{result.outcome.value}",
-            "mode": Mode.SHADOW.value,
+            "mode": action.mode.value,
             "execution_path": "direct_api",
             "citing_rule_ids": list(action.citing_rules),
             "outcome": result.outcome.value,
@@ -451,6 +453,10 @@ def _build_direct_api_request(action: Action) -> DirectApiRequest:
     param bundle (already scalar per the ActionBuilder contract); the
     executor never assembles substrate-specific payloads itself.
     """
+    rollback_reference = action.rollback_ref.reference
+    rollback_ref = action.rollback_ref.kind.value
+    if rollback_reference:
+        rollback_ref = f"{rollback_ref}:{rollback_reference}"
     return DirectApiRequest(
         action_id=action.action_id,
         idempotency_key=action.idempotency_key,
@@ -458,8 +464,14 @@ def _build_direct_api_request(action: Action) -> DirectApiRequest:
         rule_ids=tuple(action.citing_rules),
         resource_ref=action.target_resource_ref,
         arguments=dict(action.params),
-        labels=("shadow",),
-        mode=Mode.SHADOW,
+        labels=(("enforce",) if action.mode is Mode.ENFORCE else ("shadow",)),
+        mode=action.mode,
+        metadata={
+            "audit_ref": f"action:{action.action_id}",
+            "stop_condition": action.stop_condition,
+            "rollback_ref": rollback_ref,
+            "max_resources": str(action.blast_radius.count or 1),
+        },
     )
 
 

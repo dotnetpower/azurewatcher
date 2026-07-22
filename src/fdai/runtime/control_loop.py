@@ -84,6 +84,7 @@ from fdai.runtime.providers import (
 from fdai.shared.providers.event_bus import EventBus
 from fdai.shared.providers.stage_publisher import StagePublisher
 from fdai.shared.providers.testing.process_runtime import InMemoryProcessRuntimeStore
+from fdai.shared.providers.workload_identity import WorkloadIdentity
 from fdai.shared.resilience import StateStoreKillSwitch
 
 _LOGGER = logging.getLogger("fdai.startup")
@@ -182,6 +183,7 @@ def _build_control_loop(
     audit_store: Any | None = None,
     tool_receipt_observer: ToolReceiptObserver | None = None,
     symptom_index: SymptomIndex | None = None,
+    identity: WorkloadIdentity | None = None,
 ) -> ControlLoop:
     """Load rule / action / policy catalogs and wire the P1 control loop.
 
@@ -333,6 +335,8 @@ def _build_control_loop(
         audit_store=audit_store,
         resource_lock=resource_lock,
         idempotency=idempotency_store,
+        http_client=http_client,
+        identity=identity,
     )
     tool_executor = _build_tool_executor(
         audit_store=audit_store,

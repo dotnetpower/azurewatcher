@@ -99,7 +99,8 @@ async def _run() -> int:
             os.environ.get("FDAI_MONITOR_WORKSPACE_ID", "").strip()
             or os.environ.get("FDAI_PROMETHEUS_ENDPOINT", "").strip()
         )
-        if container.config.llm.mode == LlmMode.AZURE or telemetry_requested:
+        gateway_requested = bool(os.environ.get("FDAI_DEV_OPERATIONS_GATEWAY_URL", "").strip())
+        if container.config.llm.mode == LlmMode.AZURE or telemetry_requested or gateway_requested:
             http_client = _new_http_client()
             identity = _build_runtime_workload_identity(http_client)
 
@@ -244,6 +245,7 @@ async def _run() -> int:
                 audit_store=incident_audit_store,
                 tool_receipt_observer=_observe_tool_receipt,
                 symptom_index=runtime_symptom_index,
+                identity=identity,
             )
             _LOGGER.info(
                 "control_loop_ready",

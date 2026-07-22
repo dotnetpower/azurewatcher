@@ -930,6 +930,35 @@ def test_build_direct_api_executor_shares_audit_and_lock(
     assert got._resource_lock is lock
 
 
+def test_build_direct_api_executor_binds_operations_gateway(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FDAI_DIRECT_API_FAKE", raising=False)
+    monkeypatch.setenv("FDAI_DEV_OPERATIONS_GATEWAY_URL", "https://gateway.example.com")
+    monkeypatch.setenv("FDAI_DEV_OPERATIONS_GATEWAY_AUDIENCE", "api-application-id")
+    from fdai.__main__ import _build_direct_api_executor
+    from fdai.core.executor.lock import ResourceLockManager
+    from fdai.delivery.azure.gateway_direct_api import AzureGatewayDirectApiExecutor
+    from fdai.shared.providers.testing.state_store import InMemoryStateStore
+    from fdai.shared.providers.testing.workload_identity import StaticWorkloadIdentity
+
+    identity = StaticWorkloadIdentity(audience="api-application-id", token="token")
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _request: httpx.Response(500)))
+    try:
+        executor = _build_direct_api_executor(
+            audit_store=InMemoryStateStore(),
+            resource_lock=ResourceLockManager(),
+            http_client=client,
+            identity=identity,
+        )
+    finally:
+        asyncio.run(client.aclose())
+
+    assert executor is not None
+    assert isinstance(executor._executor, AzureGatewayDirectApiExecutor)
+    assert executor._allow_enforce is True
+
+
 # ---------------------------------------------------------------------------
 # _build_control_loop - detection/HIL seams wiring
 # ---------------------------------------------------------------------------

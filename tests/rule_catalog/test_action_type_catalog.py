@@ -374,6 +374,10 @@ _DOC_OPS_ACTION_TYPES: frozenset[str] = frozenset(
         "ops.rotate-cert",
         "ops.failover-primary",
         "ops.publish-change-summary",
+        "ops.start-vm",
+        "ops.deallocate-vm",
+        "ops.upsert-network-rule",
+        "ops.delete-network-rule",
     }
 )
 

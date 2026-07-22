@@ -252,6 +252,12 @@ Operator-requested runtime actions. Shipped Day 1:
   business-object flow; the paired ObjectType `ChangeSummary` and
   LinkType `summarizes` are the copy-ready scaffold in
   [downstream-fork-example-vertical.md](../fork-and-sequencing/downstream-fork-example-vertical.md).
+- `ops.start-vm` / `ops.deallocate-vm` - start or deallocate one Azure VM through the
+  development operations gateway. Both remain shadow-first and require human approval at the
+  shipped T0 ceiling.
+- `ops.upsert-network-rule` / `ops.delete-network-rule` - create, replace, or delete one bounded
+  NSG rule through the development operations gateway. Deletion requires Owner-tier approval;
+  recovery is a separately governed state-forward action.
 
 **Vertical mapping.** Each ops ActionType is tagged with the owning
 vertical so the [verticals](../../../src/fdai/core/verticals) can claim
@@ -259,7 +265,8 @@ it and a vertical rule can `remediates:` it: `ops.failover-primary` and
 `ops.restart-service` -> Resilience; `ops.scale-in` / `ops.scale-out` ->
 Cost Governance; `ops.drain-connection` / `ops.rotate-cert` -> Change
 Safety. `ops.flush-cache` and `ops.publish-change-summary` are
-cross-vertical (operator-triggered).
+cross-vertical (operator-triggered). The VM and network-rule gateway operations are Azure delivery
+bindings for upstream operator actions; they don't change vertical ownership.
 
 Default `execution_path: direct_api` (ops are latency-sensitive; PR
 overhead defeats the purpose). A fork MAY force `pr_manual` for a
