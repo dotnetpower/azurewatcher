@@ -9882,13 +9882,14 @@ main { padding-bottom: 60px !important; }
 .incident-steps li.step-done .incident-step-marker::after {
   content: "";
   position: absolute;
-  top: 0.15rem;
-  left: 0.3rem;
+  top: 50%;
+  left: 50%;
   width: 0.25rem;
   height: 0.48rem;
   border: solid var(--bg-elevated);
   border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+  transform: translate(-50%, -58%) rotate(45deg);
+  transform-origin: center;
 }
 .incident-steps li.step-current .incident-step-marker {
   border: 4px solid color-mix(in srgb, var(--agent-teal) 25%, var(--bg-elevated));
