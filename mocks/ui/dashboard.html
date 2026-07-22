@@ -8,6 +8,11 @@
   <script src="assets/calm-slate.js?v=sidebar-v5" defer></script>
   <style>
     .dashboard-v2 { --db-radius: 8px; }
+    .dashboard-v2.cs-container,
+    .db-footer.cs-container {
+      margin-left: 0;
+      margin-right: auto;
+    }
     .dashboard-v2 .cs-section { margin: 36px 0; }
     .db-posture {
       padding: 24px;
@@ -409,7 +414,7 @@
   </main>
 
   <footer class="cs-footer">
-    <div class="cs-container cs-flex-between cs-wrap">
+    <div class="cs-container cs-flex-between cs-wrap db-footer">
       <span>FDAI Dashboard mock - decision-first, evidence-aware, read-only.</span>
       <span class="cs-muted">Illustrative values - no customer data</span>
     </div>
