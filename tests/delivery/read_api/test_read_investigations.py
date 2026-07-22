@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 
 from httpx import ASGITransport, AsyncClient
@@ -9,10 +10,18 @@ from starlette.requests import Request
 from fdai.core.background_task import BackgroundTaskService, InMemoryBackgroundTaskStore
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Role
-from fdai.core.read_investigation import ReadInvestigationService
+from fdai.core.read_investigation import (
+    PlanLatencyEstimate,
+    ReadInvestigationBudget,
+    ReadInvestigationProgressKind,
+    ReadInvestigationRequest,
+    ReadInvestigationService,
+    plan_read_investigation,
+)
 from fdai.delivery.read_api.routes.background_tasks import BackgroundTaskRoutesConfig
 from fdai.delivery.read_api.routes.read_investigations import (
     ReadInvestigationRoutesConfig,
+    _stream,
     make_read_investigation_routes,
 )
 from fdai.shared.providers.read_investigation import (
@@ -21,12 +30,14 @@ from fdai.shared.providers.read_investigation import (
     ReadEvidenceAttempt,
     ReadEvidenceEnvelope,
     ReadEvidenceRecord,
+    ReadInvestigationIntent,
     ReadLatencySample,
     ReadToolId,
     ResolvedResource,
     ResourceResolution,
     ResourceResolutionAttempt,
     ResourceResolutionStatus,
+    ResourceSelector,
 )
 from fdai.shared.providers.tool import ToolCallOutcome, ToolCallReceipt
 
@@ -256,3 +267,44 @@ async def test_invalid_budget_returns_400_before_cloud_io() -> None:
     assert response.status_code == 400
     assert "max_tool_calls" in response.text
     assert provider.calls == []
+
+
+async def test_stream_close_cancels_inflight_investigation() -> None:
+    cancelled = asyncio.Event()
+
+    class _SlowService:
+        async def execute(self, plan, *, progress_observer):  # type: ignore[no-untyped-def]
+            del plan
+            await progress_observer(ReadInvestigationProgressKind.PLANNED)
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+    plan = plan_read_investigation(
+        ReadInvestigationRequest(
+            requester_ref="principal:one",
+            conversation_ref="conversation:one",
+            correlation_ref="correlation:one",
+            intent=ReadInvestigationIntent.RESOURCE_STATE,
+            selector=ResourceSelector(name="vm-01", scope_ref="scope:allowed"),
+            lookback_seconds=3_600,
+            requested_evidence=(),
+            budget=ReadInvestigationBudget(),
+            idempotency_key="request:stream-close",
+            created_at=NOW,
+        )
+    )
+    response = _stream(
+        _SlowService(),  # type: ignore[arg-type]
+        plan,
+        estimate=PlanLatencyEstimate(2_000, 8_000, False, 0, False),
+    )
+    iterator = response.body_iterator
+
+    first = await anext(iterator)
+    assert "investigation.planned" in first
+    await iterator.aclose()
+
+    assert cancelled.is_set()

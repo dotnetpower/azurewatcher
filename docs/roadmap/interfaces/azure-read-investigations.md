@@ -250,6 +250,8 @@ actual completion order while the terminal evidence remains deterministic in pla
 SSE returns stored progress, heartbeats, and one terminal event. Detached completion commits the
 immutable result first, then appends an untrusted assistant turn and enqueues it through the durable
 reply ledger. Delivery failure cannot rerun the investigation or rewrite its result.
+Closing a streamed response cancels and awaits its in-flight investigation, so a disconnected
+client cannot leave provider reads running without a consumer.
 
 Bragi communicates an estimate only when it changes the operator experience. Example:
 

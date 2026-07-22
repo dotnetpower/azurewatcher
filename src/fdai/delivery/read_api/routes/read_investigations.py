@@ -186,19 +186,24 @@ def _stream(
             await queue.put(kind.value)
 
         execution = asyncio.create_task(service.execute(plan, progress_observer=observe))
-        while not execution.done() or not queue.empty():
-            try:
-                kind = await asyncio.wait_for(queue.get(), timeout=0.25)
-            except TimeoutError:
-                continue
-            yield f"event: progress\ndata: {json.dumps({'kind': kind})}\n\n"
-        result = await execution
-        payload = {
-            "mode": ReadInvestigationExecutionMode.STREAMED.value,
-            "estimate": _estimate(estimate),
-            "result": _result(result),
-        }
-        yield f"event: terminal\ndata: {json.dumps(payload)}\n\n"
+        try:
+            while not execution.done() or not queue.empty():
+                try:
+                    kind = await asyncio.wait_for(queue.get(), timeout=0.25)
+                except TimeoutError:
+                    continue
+                yield f"event: progress\ndata: {json.dumps({'kind': kind})}\n\n"
+            result = await execution
+            payload = {
+                "mode": ReadInvestigationExecutionMode.STREAMED.value,
+                "estimate": _estimate(estimate),
+                "result": _result(result),
+            }
+            yield f"event: terminal\ndata: {json.dumps(payload)}\n\n"
+        finally:
+            if not execution.done():
+                execution.cancel()
+            await asyncio.gather(execution, return_exceptions=True)
 
     return StreamingResponse(events(), media_type="text/event-stream")
 
