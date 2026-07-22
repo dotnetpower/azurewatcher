@@ -356,7 +356,7 @@ Make RCA a first-class output of the tiers instead of an implicit side effect.
   -> HIL", never a confident cause), and the linked response plan (verdict /
   action / mode / rollback) composed from the same correlated audit stream.
   The surface is strictly read-only and adds no new source of truth - see
-  [operator-console.md](../interfaces/operator-console.md#1351-rca-view-root-cause-analysis).
+  [operator-console.md](../interfaces/operator-console-incident-roster.md#1351-rca-view-root-cause-analysis).
 
 ## Plugging Into the Control Loop
 

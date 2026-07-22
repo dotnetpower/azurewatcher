@@ -416,7 +416,7 @@ the operator's tool_call arguments and MUST declare an
 
 1. Render the tool in `list_tools()` with a machine-readable shape.
 2. Validate arguments at the coordinator boundary
-   ([operator-console.md § 5.2](../interfaces/operator-console.md#52-consoletool)) before
+   ([operator-console.md § 5.2](../interfaces/operator-console-runtime-model.md#52-consoletool)) before
    calling the action.
 3. Redact sensitive fields (mark with `x-fdai-redact: true`) at
    the audit-write boundary.

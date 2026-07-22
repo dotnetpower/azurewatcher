@@ -1,0 +1,343 @@
+---
+title: Operator Console - Incident Roster and Fix History
+---
+
+# Operator Console - Incident Roster and Fix History
+
+> Focused owner document extracted from [operator-console.md](operator-console.md) section 13.5.
+
+### 13.5 Incident roster and fix history
+
+The read-only SPA exposes a first-class **Now > Incidents** panel. It is the
+roster-first entry point for incident response: an operator can find active or
+resolved incidents before knowing a correlation id, select one, and inspect
+its remediation history. The existing Audit and Trace panels remain the
+record-level and end-to-end drill-down surfaces.
+
+The API contract is:
+
+| Route | Purpose |
+|-------|---------|
+| `GET /incidents?status=active|resolved|all&limit=<n>&cursor=<opaque>` | Return incident summaries newest activity first. |
+| `GET /audit?correlation_id=<id>&limit=<n>&cursor=<opaque>` | Return the selected incident's append-only history. |
+| `GET /audit/{correlation_id}/trace` | Reconstruct ordered correlated audit activity and any recorded pipeline stages. |
+| `POST /chat/action` | Prepare or confirm an incident creation request on the authenticated write-direction chat path. |
+
+The incident roster stays read-only. Incident creation uses the separate
+authenticated chat action route and never adds a mutation button to the panel.
+For a recognized incident-open request, the route behaves as follows:
+
+1. It requires Contributor capability, severity, and a target correlation key.
+2. It returns `incident_confirmation_required` with a human-readable summary
+  and a 10-minute expiry. No incident exists at this point.
+3. A `confirm` or `확인` message from the same principal and `session_id`
+  creates the audited incident and returns its id and initial `open` state.
+
+The pending proposal is bounded by a 200-character `session_id`. Oversized
+session or idempotency keys are rejected rather than truncated, preventing two
+distinct identifiers from collapsing to the same confirmation. Production
+stores the proposal in Postgres and consumes it atomically, so confirmation can
+land on another replica. The persisted record contains a SHA-256 of the source
+prompt, not the raw operator text.
+
+Missing values return `incident_details_required`; cancellation returns
+`incident_creation_cancelled`. An unrelated action command continues through
+the existing Bragi-to-Huginn typed proposal path. An allowlisted agent uses the
+same built-in workflow with member-event evidence and a reason, but does not
+impersonate an operator or bypass the incident registry.
+
+The same authenticated route accepts only exact lifecycle command grammar;
+it does not guess from free-form status prose:
+
+- `transition incident <uuid> to <state>` or
+  `incident <uuid> 상태 <state>으로 변경`
+- `assign incident <uuid> to <oid>` or
+  `incident <uuid> 담당자 <oid> 지정`
+
+Both require a nonblank conversation `session_id`, Contributor capability, and
+the registry's persisted expected-state check. Illegal edges, unknown ids, and
+cross-replica conflicts return `incident_lifecycle_rejected` without changing
+the canonical incident.
+
+`correlation_id` is the investigation key used to join evidence; it does not by
+itself prove that an Incident lifecycle record exists. The projection can attach a row without
+a top-level correlation only when its `event_id` equals an already-known
+correlation, or when an explicit incident lifecycle link resolves to exactly
+one correlation. Ambiguous rows stay unattached; the read model never invents
+an association from a resource name. For a pending HIL item, the projection
+may read its server-owned park record to recover rule severity and category;
+it does not rewrite the append-only audit row. Lifecycle state is authoritative
+when present. Otherwise the projection derives `open`, `in_progress`, or
+`resolved` from audit stages. A denied, abstained, or failed remediation does
+not by itself claim that the underlying incident is resolved.
+Local read-API audit fixtures carry explicit sample provenance and stay visible
+in Audit, Trace, and Agent activity. They are excluded from the operational
+Incident roster, so a normal or within-threshold monitoring sample cannot look
+like an opened Incident.
+
+Each incident summary includes `involved_agents`, derived server-side from the
+recorded `producer_principal`, canonical action owner, and stage ownership. The
+Agents surface hydrates this durable incident snapshot first, then applies
+newer `/agents/stream` stage deltas. This keeps a newly opened tab consistent
+with Incidents while preserving live stage transitions.
+
+The roster returns summaries only. It does not embed every audit row, and the
+cursor bounds each server-side page. Selection performs a separate filtered
+GET for history. Every route is Reader-gated and returns `405` for mutating
+verbs. The panel provides links to Audit and Trace but no execute, approve, or
+rollback button; those operations remain in remediation PRs and ChatOps.
+
+Incident creation, each legal state change, and requested roster summaries are
+eligible for A2 operational notification. Replayed opens and same-state
+transitions do not notify twice. Lifecycle messages contain the incident id,
+severity, and normalized state, but omit free-form reason text and resource
+correlation keys. A roster notification is bounded to 20 ids and links back to
+the complete `/incidents` view. Event-specific `audit_id` values keep channel
+idempotency from suppressing later transitions. Durable sent checkpoints and
+startup replay retry any notice missed by a crash. Before delivery, replicas
+compete for an atomic claim token with a bounded lease; only one sends, and
+only that token can mark the notice sent or release it after failure.
+Unresolved channels fall back to the HIL escalation sink.
+
+Incident alert subscription follows the channel-as-audience contract in
+[channels-and-notifications.md](channels-and-notifications.md): membership in
+the configured A2 operations channel determines who continuously receives
+open, transition, roster, and SLA-breach notices. The console does not create
+per-user direct-message subscriptions. Assignment and external ticket linkage
+remain authenticated write-direction chat/tool operations and appear as audit
+history; the read-only roster surfaces the linked `ticket_id`.
+
+The roster accepts an optional canonical `vertical` filter, and the audit
+route applies `mode`, `tier`, `action`, `outcome`, `vertical`, and bounded
+`window=<n>d` filters on the server before cursor pagination. An analytical
+deep link therefore searches the complete filtered result set rather than
+filtering only the first browser page. The cursor is bound to the incident
+status and vertical, so changing either filter invalidates a stale cursor.
+
+Overview audit KPIs aggregate the newest 500 audit rows in both the in-memory
+and Postgres read models. `GET /kpi` returns that immutable sample as
+`audit_sample` with inclusive `from_seq` and `through_seq` bounds, `row_count`,
+and `limit`. Every Overview link to Audit carries those bounds, and `GET
+/audit` applies `from_seq` and `through_seq` before dimension filters and
+cursor pagination. Operators can therefore enumerate the same append-only
+sample that produced the displayed count or ratio even after newer rows
+arrive. `hil_pending` remains a separate current queue projection and is not
+part of the audit sample. Tier keys and tier filtering use lowercase canonical
+values (`t0`, `t1`, `t2`).
+
+The SPA preserves native table semantics for the incident roster. The first
+cell contains the selection button, each selected row exposes
+`aria-selected`, and the control points to the incident detail region with
+`aria-controls`. Unknown top-level URLs are replaced with canonical
+`/overview`, so one visible screen cannot create multiple conversation caches
+under typo paths.
+
+Explicit child-view and entity identifiers fail closed. When a URL names an
+unknown workflow, ObjectType, LinkType, ActionType, agent, audit entry,
+architecture view or resource, incident correlation, promotion reason, IAM
+tab, or live event, the console preserves the requested value and renders an
+unavailable or waiting state with valid recovery links. It never substitutes
+the first row, default workflow, default view, or another entity's evidence.
+Only a URL with no explicit identifier can select the documented default.
+ActionType directory filters are canonical URL state (`q`, `category`,
+`trigger`, and `execution`) and remain intact when an operator selects an
+action, so refresh, back navigation, and shared links reproduce the same list.
+Blast-radius query drafts write `target`, `depth`, and `links` to the URL
+without running the simulation; `links=none` preserves an explicitly empty
+selection until the operator chooses a valid traversal set.
+Opaque entity identifiers also remain byte-for-byte stable across canonical
+URL replacement and nested drilldowns. In particular, Process ids are encoded
+but never lowercased or slugified, and a workflow step link preserves its
+catalog ownership group. Manual RCA and Trace lookups first write the submitted
+correlation id to the canonical URL; editing the input invalidates any earlier
+response so evidence cannot appear under a different identifier.
+
+Write-direction forms keep one idempotency key for one unchanged operator
+intent. A transport failure or lost response therefore retries the same key;
+changing the target, parameters, or justification rotates it, and a confirmed
+success retires it. Daily briefing subscription creation derives a stable
+principal-scoped subscription identity from that key and returns the existing
+record for an identical retry. Access requests, IAM role requests, and governed
+Python runs use the same rule. Batch document upload locks collection, purpose,
+storage mode, consent, and selected files until completion, and stops issuing
+new requests after the route unmounts.
+
+Canonical source mutations and derivative ontology projections have separate
+success boundaries. A committed workflow definition or binding returns the
+source-store result even when its immediate ontology projection fails. The
+PostgreSQL source transaction enqueues the corresponding projection recovery
+record, so a retry never misreports a committed create as a conflict or a
+committed delete as not found.
+
+Agent runtime state also requires observed evidence. Before an agent state frame or durable incident
+projection attributes work, Agents, Agent Activity, and Pantheon render it `unobserved`, not `idle`
+or ready. The fixed runtime-binding map doesn't prove consumer health. A headless Pantheon publishes
+health-derived `agent.runtime-state` heartbeats, and the read API marks only live, non-error agents
+`idle` or `watching`. Deployment schedule status stays unavailable until a scheduler supplies it.
+
+The Capabilities route is an inert catalog projection with `source=static-catalog` and
+`execution_eligibility=false`; entries describe side-effect classes, roles, and default modes.
+Catalog presence doesn't prove provider binding, runtime health, or execution permission. The
+Skills route projects installed skill and governed bundle metadata, ordered members, compatibility,
+eligibility, references, and bounded diagnostics from `GET /skills`, with no lifecycle or mutation control.
+Bragi uses the same Reader-gated disclosure; content reads recheck trust and budgets, while execution decisions stay with composition, RBAC, verification, and the risk gate.
+Approved source evidence is available through GET routes under `/api/v1/skill-sources`, but the
+current SPA Skills route reads `/skills` and does not yet consume those routes. A future read-only
+source view can browse, search, inspect quarantine, and check disabled update candidates. Candidate
+approval and source revocation remain separate authenticated POST routes for Approver and Owner
+automation. The Skills panel provides no lifecycle control. See
+[skill-source-management.md](skill-source-management.md).
+
+Operational read surfaces render provenance from their payload instead of
+static claims. Scheduler Runs shows its ledger `source` and `durable` flag; LLM
+Cost shows `latest_occurred_at`; Settings Models shows the generated snapshot
+filename and `as_of`. Missing fields render unavailable or fail contract
+decoding. The browser doesn't infer durability, freshness, or provider health
+from a route name, environment mode, or configured default. A source with
+from a route name, environment mode, or configured default.
+
+Exact entity lookups filter on the server before page limits. Incident
+correlation links, Audit entry links, and Approval searches therefore resolve
+beyond the first roster page instead of reporting a false absence. Approval
+search remains unavailable to count-only roles so filtered totals cannot leak
+hidden queue content. Independent sources are isolated: an optional principal
+workflow projection cannot hide the built-in workflow catalog, and an unused
+analytics source cannot replace another hub with an error screen. Report render
+and PDF failures stay local to the selected operation and do not remove the
+catalog or variable editor; late downloads are discarded after route changes.
+
+Diagnostics distinguishes process liveness from an authenticated KPI read
+path. A successful `/healthz` response never claims that operational data is
+healthy. Likewise, last-observed agent frames remain visible as history, but
+Engaged, Watching, and Idle are current counts only while the agent stream is
+open. Canvas visualizations provide an equivalent keyboard and screen-reader
+resource selector, and composite tab widgets move DOM focus together with
+roving selection.
+
+Time-bound and aggregate evidence remains conservative while a route stays
+open. Approval and Operator Memory rows cross their recorded TTL boundary
+without requiring a reload; Architecture continuously advances snapshot age
+while retaining the server's snapshot freshness verdict. A missing tier
+measurement is unavailable, not measured zero. Scope eligibility counts only
+`included` entries. A multi-datasource report has a known aggregate evidence
+time only when every source supplies one, and then uses the oldest source time.
+Mixed-currency LLM cost groups are labelled non-additive and never displayed as
+a single-currency total.
+
+The Process list follows the same rule with `source`, nullable `synthetic`, and
+nullable `durable`. The local seeded runtime reports
+`synthetic-dev/true/false`; production reports `postgres/false/true`. Process
+status, journals, and dynamic views remain server-owned, but a current render
+doesn't erase how the underlying snapshot was produced or stored.
+
+The selected incident detail keeps the summary and evidence layers separate.
+It shows the server-owned incident id, ticket id, lifecycle status and source,
+disposition, verdict, owning vertical, latest mode, timestamps, and history
+count before the remediation timeline. Missing values render unavailable; the
+browser does not infer impact, ownership, or recovery. The detail links to the
+correlation-scoped **Incident RCA Dossier** in History > Reports.
+
+Overview keeps every required analytical section visible when autonomy
+measurement is absent or malformed. It renders an explicit unavailable state
+instead of removing the section or inferring zero. When evidence is present,
+the success surface includes cost per resolved event, mixed-model
+disagreement, verifier failure, shadow divergence, the measurement window,
+sample size, confidence, and the named source. **History > Reports** renders
+the declarative reporting catalog and its server-owned widget evidence.
+Synthetic measurement can illustrate the analytical shape, but it cannot
+decide operational health, increase the attention count, or create failed-guard
+drilldowns. Overview and Control Assurance treat synthetic guards as unknown
+for operational posture while continuing to label their source, window, sample
+size, confidence, and source timestamp. A zero-event vertical renders its
+resolution rate as unavailable instead of inferring 0%. Overview loads the
+required audit KPI and independent optional cost, promotion, and autonomy
+projections concurrently; only the documented unavailable statuses degrade an
+optional projection. Analytical tab and comparison links preserve the current
+query. Failed guards and T2 leading indicators add canonical `guard` and
+`indicator` filters, and an unknown filter value renders unavailable instead of
+selecting another row.
+
+Contract rules (enforced by `console/src/routes/view-contract.test.ts`):
+
+- **Every publishing route MUST declare `purpose` and `glossary`**, composed
+  from the shared catalog `console/src/deck/glossary.ts` so a term means the
+  same thing on every screen. A route that publishes a snapshot without them
+  fails the build - an under-described screen can never land silently.
+- **Causal fields stay in `records`.** `detail`, `summary`, `reason`, `tier`,
+  and `outcome` are NOT projected away, so "why did this start" is answered by
+  quoting the recorded audit narrative (and the ordered hand-off chain) instead
+  of shrugging.
+- The narrator resolves questions with a **screen-agnostic** chain (causal ->
+  glossary / value-chip -> route enhancer -> generic record search); a new
+  screen becomes explainable by declaring its vocabulary, not by adding code.
+  The offline deterministic answerer (`console/src/deck/answerer.ts`) and the
+  server narrator (`chat.py`) both ground term and cause answers in the same
+  `purpose`/`glossary`.
+- The CLI REPL and live cockpit send the same self-describing snapshot to the
+  server narrator through `POST /chat`. The CLI contains no model client,
+  intent router, cloud credential flow, or console-tool implementation.
+
+#### 13.5.1 RCA view (root-cause analysis)
+
+The read-only SPA exposes a first-class **History > RCA** panel. Given an
+incident `correlation_id` (typically deep-linked from the Incidents roster,
+`#/rca?correlation=<id>`), it renders the tiered, grounded root-cause
+hypotheses the control loop already appends to the audit ledger, plus the
+linked response plan. It is the "why did this happen, and what was the plan"
+surface that pairs with the Incidents roster (13.5).
+
+The API contract is one GET route:
+
+| Route | Purpose |
+|-------|---------|
+| `GET /rca?correlation=<id>` | Return the per-incident RCA view for one correlation id. |
+
+The route returns `404` when the correlation has no audit rows. It never turns
+an unknown correlation into a normal empty RCA dossier, because that would
+present missing evidence as a completed analysis.
+
+The projection composes existing audit data; it introduces no new source of
+truth. The control loop writes each hypothesis as a shadow `rca.hypothesis`
+audit entry (see
+[observability-and-detection.md](../rules-and-detection/observability-and-detection.md)
+section 4). The panel reads the correlated audit rows and projects:
+
+- **Root-cause hypotheses**, newest first, each with its `RcaTier`
+  (`t0` direct / `t1` correlation / `t2` reasoning), confidence, cause text,
+  reason, shadow-vs-enforce mode, and grounded `citations`
+  (`rule` / `event` / `telemetry` / `incident` / `change` / `scenario` /
+  `knowledge`).
+- **Grounding state.** An ungrounded / abstained hypothesis
+  (`outcome == "abstained"`, `grounded == false`) is surfaced explicitly as
+  "insufficient grounding -> HIL", never as a confident cause.
+- **Response plan** composed from the same correlated audit stream: the
+  verdict (`auto` / `hil` / `deny` / `abstain`), the delivered action kind,
+  its mode, and the rollback reference.
+- **Structured T1 causal chain.** A T1 hypothesis can carry
+  `causal_chain` with root/failure event ids, ambiguity, and ordered hops.
+  Each hop preserves cause/effect event and resource refs, lead seconds,
+  relationship, and confidence. Malformed or absent chain data renders
+  unavailable instead of being partially reconstructed in the browser.
+
+The reporting catalog includes `incident-rca-dossier`. Its required
+`correlation_id` variable scopes hypothesis, citation, causal-hop, response,
+and chronology widgets to one incident. When the optional `pdf-report` extra
+is installed, Reports exposes an authenticated GET-only **Download PDF**
+control. The PDF uses an FDAI-owned A4 layout with cover, at-a-glance page,
+table of contents, section pages, running headers/footers, and a source
+SHA-256. The RCA-specific renderer uses a solid Calm Slate steel-blue cover, an executive
+summary, evidence completeness, measured impact, chronology, causal and
+alternative hypotheses, response/recovery, control gaps, corrective/preventive
+actions, limitations, and an audit appendix. Cards use uniform neutral
+hairlines rather than colored top or left rails. It renders the server-owned
+report envelope and performs no new RCA; an unrecorded section is explicitly
+unavailable. Print-native chronology tables and SVG causal diagrams avoid the
+browser Grid/Flex pagination defects, while content-driven chapter groups keep
+the reference report to nine pages.
+
+An RCA hypothesis answers "why", never "execute": execution eligibility stays
+with the risk gate + verifier. The route is Reader-gated, returns `405` for
+mutating verbs, and provides links into Audit and Trace but no execute /
+approve / rollback button. The projection is a pure function
+(`src/fdai/delivery/read_api/routes/rca_projection.py`) covered by
+`tests/delivery/read_api/test_rca.py`.

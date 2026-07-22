@@ -140,7 +140,7 @@ model call's provider-measured `usage` (prompt + completion tokens) is captured 
 operator projection exposes tokens only: by workload scope, model, invocation,
 conversation, day, and month. Configured pricing can still support an internal budget gate;
 the console doesn't present it as actual spend because regional and negotiated rates vary (see
-[operator-console.md § 4.4](operator-console.md#44-cost-and-rate-limits)).
+[operator-console.md § 4.4](operator-console-runtime-model.md#44-cost-and-rate-limits)).
 
 ## Traffic Scaling
 

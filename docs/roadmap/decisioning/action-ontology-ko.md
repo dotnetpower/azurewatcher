@@ -1,7 +1,7 @@
 ---
 title: Action 온톨로지
 translation_of: action-ontology.md
-translation_source_sha: 71388cd5d28db06d12be8070f4d013b437dedf10
+translation_source_sha: 4b1ee9d80a4dc5db9d351847bcdbdff095516be4
 translation_revised: 2026-07-21
 ---
 
@@ -354,7 +354,7 @@ Chat turn → Narrator → tool_call(action_type_id, args) →
 - 오퍼레이터는 narrator 가 tool_call 로 translate 한 자연어 turn 을
   통해 ActionType pick.
 - ActionType 의 `argument_schema` (JSON Schema) 는 coordinator 경계에서
-  args 를 validate ([operator-console.md § 5.2](../interfaces/operator-console-ko.md#52-consoletool)) -
+  args 를 validate ([operator-console.md § 5.2](../interfaces/operator-console-runtime-model-ko.md#52-consoletool)) -
   콘솔은 잘못된 형태의 액션을 executor 에 절대 dispatch 안 함.
 - 트리거 surface 는 오퍼레이터-콘솔 세션.
 
@@ -403,7 +403,7 @@ quorum, HIL gate, shadow-first promotion. 따라서 execution 은 read 보다
 
 1. `list_tools()` 에서 machine-readable shape 로 tool 렌더.
 2. 액션 호출 전 coordinator 경계에서 arguments validate
-   ([operator-console.md § 5.2](../interfaces/operator-console-ko.md#52-consoletool)).
+   ([operator-console.md § 5.2](../interfaces/operator-console-runtime-model-ko.md#52-consoletool)).
 3. 감사-write 경계에서 sensitive field (`x-fdai-redact: true` mark)
    redact.
 

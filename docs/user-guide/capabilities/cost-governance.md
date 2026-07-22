@@ -5,7 +5,7 @@ derives_from:
   - source: docs/roadmap/architecture/goals-and-metrics.md
     sha: eddf9552f2f88f4e1bec24b2521b7656ed87d103
   - source: docs/roadmap/interfaces/cost-model.md
-    sha: 074a272486578f11e831c27c4f5fb8ec8c8a9973
+    sha: 05b7f808c65c72a1e1bd1bbad3b87352f780d30a
 ---
 
 # Cost Governance
