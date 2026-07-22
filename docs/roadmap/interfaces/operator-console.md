@@ -1416,12 +1416,11 @@ PostgreSQL source transaction enqueues the corresponding projection recovery
 record, so a retry never misreports a committed create as a conflict or a
 committed delete as not found.
 
-Agent runtime state also requires observed evidence. Before an agent state
-frame or durable incident projection attributes work to an agent, Agents,
-Agent Activity, and Pantheon render that agent as `unobserved`, not `idle` or
-ready. The fixed runtime-binding map reports declared subscriber bindings only;
-it doesn't prove that a consumer process is healthy. Deployment schedule
-status stays unavailable until a scheduler projection supplies it.
+Agent runtime state also requires observed evidence. Before an agent state frame or durable incident
+projection attributes work, Agents, Agent Activity, and Pantheon render it `unobserved`, not `idle`
+or ready. The fixed runtime-binding map doesn't prove consumer health. A headless Pantheon publishes
+health-derived `agent.runtime-state` heartbeats, and the read API marks only live, non-error agents
+`idle` or `watching`. Deployment schedule status stays unavailable until a scheduler supplies it.
 
 The Capabilities route is an inert catalog projection with `source=static-catalog` and
 `execution_eligibility=false`; entries describe side-effect classes, roles, and default modes.

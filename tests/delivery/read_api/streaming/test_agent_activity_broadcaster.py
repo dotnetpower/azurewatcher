@@ -9,10 +9,12 @@ import pytest
 
 from fdai.delivery.read_api.streaming.agent_activity_broadcaster import (
     AgentActivityBroadcaster,
+    parse_runtime_state_event,
     parse_stage_event,
 )
 from fdai.delivery.read_api.streaming.agent_activity_stream import (
     AgentActivityEvent,
+    AgentState,
     AgentStateEvent,
     IncidentTicketEvent,
 )
@@ -140,6 +142,37 @@ class TestParseStageEvent:
         assert parse_stage_event(future).source is ObservationSource.UNKNOWN
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {
+            "type": "agent.runtime-state",
+            "agent": "Odin",
+            "state": "future",
+            "ts": _TS.isoformat(),
+        },
+        {
+            "type": "agent.runtime-state",
+            "agent": "Odin",
+            "state": "idle",
+            "ts": "2026-07-12T09:00:00",
+        },
+        {
+            "type": "agent.runtime-state",
+            "agent": "Odin",
+            "state": "idle",
+            "ts": _TS.isoformat(),
+            "detail": 1,
+        },
+    ],
+)
+def test_parse_runtime_state_event_rejects_malformed_payloads(
+    payload: dict[str, object],
+) -> None:
+    assert parse_runtime_state_event(payload) is None
+
+
 # ---------------------------------------------------------------------------
 # AgentActivityBroadcaster
 # ---------------------------------------------------------------------------
@@ -176,6 +209,41 @@ async def test_consumes_stage_frames_and_publishes_agent_activity() -> None:
     tickets = [e for e in pub.events if isinstance(e, IncidentTicketEvent)]
     assert tickets[-1].status.value == "resolved"
     assert "Huginn" in {e.agent for e in pub.events if isinstance(e, AgentStateEvent)}
+
+
+async def test_consumes_runtime_state_snapshots_from_stage_stream() -> None:
+    bus = InMemoryEventBus()
+    topic = "aw.pipeline.stages"
+    await bus.publish(
+        topic,
+        "Odin",
+        {
+            "type": "agent.runtime-state",
+            "agent": "Odin",
+            "state": "idle",
+            "ts": _TS.isoformat(),
+            "detail": "Runtime agent initialized",
+            "source": "runtime-observed",
+        },
+    )
+
+    pub = _RecordingPublisher()
+    broadcaster = AgentActivityBroadcaster(
+        event_bus=bus,
+        publisher=pub,
+        stage_topic=topic,
+    )
+    await _drain(broadcaster)
+
+    assert pub.events == [
+        AgentStateEvent(
+            agent="Odin",
+            state=AgentState.IDLE,
+            ts=_TS.isoformat(),
+            detail="Runtime agent initialized",
+            source=ObservationSource.RUNTIME_OBSERVED,
+        )
+    ]
 
 
 async def test_routine_stage_frames_do_not_fabricate_incident_tickets() -> None:

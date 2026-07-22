@@ -20,6 +20,12 @@ from fdai.core.chaos.coverage import ScenarioCoverageAggregator
 from fdai.core.chaos.symptom_index import build_from_promoted
 from fdai.core.control_loop import ControlLoop
 from fdai.core.learning import PostTurnProposalModel, RuleHintSubmitter
+from fdai.delivery.read_api.streaming.agent_activity_stream import (
+    runtime_agent_state_snapshot,
+)
+from fdai.delivery.read_api.streaming.agent_runtime_state_publisher import (
+    AgentRuntimeStatePublisher,
+)
 from fdai.runtime.configuration import (
     _attach_runtime_github_change_feed,
     _attach_runtime_knowledge_source,
@@ -83,6 +89,7 @@ async def _run() -> int:
     identity: WorkloadIdentity | None = None
     bus: EventBus | None = None
     pantheon_runtime: PantheonRuntime | None = None
+    runtime_state_publisher: AgentRuntimeStatePublisher | None = None
     pantheon_heartbeat: float | None = None
     divergence_ledger: ShadowDivergenceLedger | None = None
     health_server: RuntimeHealthServer | None = None
@@ -299,6 +306,10 @@ async def _run() -> int:
                 pantheon_runtime = PantheonRuntime.build(
                     provider=bus,
                     raw_event_topic=container.config.kafka.topic_events,
+                    consumer_group_prefix=os.environ.get(
+                        "FDAI_PANTHEON_CONSUMER_GROUP_PREFIX",
+                        "fdai-pantheon",
+                    ).strip(),
                     enforce=pantheon_enforce,
                     disabled_agents=disabled_agents,
                     divergence=divergence_ledger,
@@ -309,6 +320,13 @@ async def _run() -> int:
                     ),
                     post_turn_review=post_turn_review.coordinator,
                     action_types=control_loop.action_types,
+                )
+                runtime_state_publisher = AgentRuntimeStatePublisher(
+                    event_bus=bus,
+                    snapshot_factory=lambda: runtime_agent_state_snapshot(
+                        pantheon_runtime.health()
+                    ),
+                    topic=stage_topic,
                 )
                 norns = pantheon_runtime.agents.get("Norns")
                 if norns is not None:
@@ -369,7 +387,10 @@ async def _run() -> int:
                 _consume(
                     bus=bus,
                     topic=container.config.kafka.topic_events,
-                    group_id="fdai-core",
+                    group_id=os.environ.get(
+                        "FDAI_CORE_CONSUMER_GROUP_ID",
+                        "fdai-core",
+                    ).strip(),
                     control_loop=control_loop,
                     stop=stop,
                     divergence=divergence_ledger,
@@ -422,12 +443,18 @@ async def _run() -> int:
             # in turn. The pantheon is a shadow overlay, never a dependency
             # of the primary pipeline.
             pantheon_task: asyncio.Task[None] | None = None
+            runtime_state_task: asyncio.Task[None] | None = None
             if pantheon_runtime is not None:
                 pantheon_task = asyncio.create_task(
                     pantheon_runtime.run(heartbeat_interval=pantheon_heartbeat),
                     name="pantheon-runtime",
                 )
                 pantheon_task.add_done_callback(_log_pantheon_exit)
+            if runtime_state_publisher is not None:
+                runtime_state_task = asyncio.create_task(
+                    runtime_state_publisher.run(),
+                    name="pantheon-runtime-state",
+                )
 
             wait_set = {consumer_task, wait_task}
             if resource_change_task is not None:
@@ -450,6 +477,8 @@ async def _run() -> int:
                 hil_decision_task.cancel()
             if pantheon_task is not None:
                 pantheon_task.cancel()
+            if runtime_state_task is not None:
+                runtime_state_task.cancel()
             # Await the cancels so cleanup can drain the consumer's
             # ``async for`` + finally (which stops the AIOKafkaConsumer)
             # before we tear down the bus / HTTP client in the outer
@@ -464,6 +493,8 @@ async def _run() -> int:
                 cleanup_tasks.append(hil_decision_task)
             if pantheon_task is not None:
                 cleanup_tasks.append(pantheon_task)
+            if runtime_state_task is not None:
+                cleanup_tasks.append(runtime_state_task)
             await asyncio.gather(*cleanup_tasks, return_exceptions=True)
             for task in done:
                 exc = task.exception()
@@ -485,6 +516,8 @@ async def _run() -> int:
                 await pantheon_runtime.stop()
             except Exception:  # noqa: BLE001
                 _LOGGER.warning("pantheon_stop_failed", exc_info=True)
+        if runtime_state_publisher is not None:
+            await runtime_state_publisher.stop()
         if bus is not None:
             close = getattr(bus, "close", None)
             if callable(close):

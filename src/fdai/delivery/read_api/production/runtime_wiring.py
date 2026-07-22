@@ -71,13 +71,22 @@ def build_production_runtime(
             EventBusHilDecisionPublisher,
         )
         from fdai.delivery.read_api.streaming.agent_activity_broadcaster import (
+            DEFAULT_GROUP_ID as DEFAULT_AGENT_ACTIVITY_GROUP_ID,
+        )
+        from fdai.delivery.read_api.streaming.agent_activity_broadcaster import (
             DEFAULT_STAGE_TOPIC,
             AgentActivityBroadcaster,
         )
         from fdai.delivery.read_api.streaming.agent_activity_stream import (
             AgentActivityStreamConfig,
         )
-        from fdai.delivery.read_api.streaming.live_stage_broadcaster import LiveStageBroadcaster
+        from fdai.delivery.read_api.streaming.consumer_groups import instance_consumer_group
+        from fdai.delivery.read_api.streaming.live_stage_broadcaster import (
+            DEFAULT_GROUP_ID as DEFAULT_LIVE_STAGE_GROUP_ID,
+        )
+        from fdai.delivery.read_api.streaming.live_stage_broadcaster import (
+            LiveStageBroadcaster,
+        )
         from fdai.delivery.read_api.streaming.live_stream import LiveStreamConfig
 
         http_client = httpx.AsyncClient(
@@ -98,11 +107,17 @@ def build_production_runtime(
         )
         if kafka_bootstrap:
             stage_topic = env.get(_env.STAGE_TOPIC_ENV, "").strip() or DEFAULT_STAGE_TOPIC
+            agent_activity_group = instance_consumer_group(
+                DEFAULT_AGENT_ACTIVITY_GROUP_ID,
+                env,
+            )
+            live_stage_group = instance_consumer_group(DEFAULT_LIVE_STAGE_GROUP_ID, env)
             live_stream = LiveStreamConfig(
                 broadcaster_factory=lambda publisher: LiveStageBroadcaster(
                     event_bus=event_bus,
                     publisher=publisher,
                     stage_topic=stage_topic,
+                    group_id=live_stage_group,
                 )
             )
             agent_activity = AgentActivityStreamConfig(
@@ -110,6 +125,7 @@ def build_production_runtime(
                     event_bus=event_bus,
                     publisher=publisher,
                     stage_topic=stage_topic,
+                    group_id=agent_activity_group,
                 )
             )
 

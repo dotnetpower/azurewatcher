@@ -44,6 +44,8 @@ from fdai.delivery.read_api.streaming.agent_activity_projection import (
 )
 from fdai.delivery.read_api.streaming.agent_activity_stream import (
     AgentActivityPublisher,
+    AgentState,
+    AgentStateEvent,
 )
 from fdai.shared.providers.event_bus import EventBus
 from fdai.shared.providers.stage_publisher import (
@@ -104,6 +106,38 @@ def parse_stage_event(payload: Mapping[str, Any]) -> StageEvent | None:
             ts=ts,
             detail=dict(detail),
             error=error,
+        )
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
+def parse_runtime_state_event(payload: Mapping[str, Any]) -> AgentStateEvent | None:
+    """Parse one health-derived Pantheon runtime-state snapshot."""
+    try:
+        if payload.get("type") != "agent.runtime-state":
+            return None
+        agent = payload["agent"]
+        state = AgentState(payload["state"])
+        ts = payload["ts"]
+        detail = payload.get("detail")
+        if not isinstance(agent, str) or not isinstance(ts, str):
+            return None
+        if detail is not None and not isinstance(detail, str):
+            return None
+        parsed_ts = datetime.fromisoformat(ts)
+        if parsed_ts.tzinfo is None:
+            return None
+        source_raw = payload.get("source", ObservationSource.UNKNOWN.value)
+        try:
+            source = ObservationSource(source_raw)
+        except (TypeError, ValueError):
+            source = ObservationSource.UNKNOWN
+        return AgentStateEvent(
+            agent=agent,
+            state=state,
+            ts=ts,
+            detail=detail,
+            source=source,
         )
     except (KeyError, ValueError, TypeError):
         return None
@@ -188,6 +222,17 @@ class AgentActivityBroadcaster:
                 await self._sleeper(self._retry_backoff_seconds)
 
     async def _handle(self, payload: Mapping[str, Any]) -> None:
+        runtime_state = parse_runtime_state_event(payload)
+        if runtime_state is not None:
+            try:
+                await self._publisher.publish(runtime_state)
+            except Exception:  # noqa: BLE001 - fan-out is best-effort, never fatal
+                _LOGGER.warning(
+                    "agent_runtime_state_broadcaster_publish_failed",
+                    extra={"agent": runtime_state.agent},
+                    exc_info=True,
+                )
+            return
         event = parse_stage_event(payload)
         if event is None:
             # Drop an unparseable frame - fail-closed, never crash the relay.
@@ -213,5 +258,6 @@ __all__ = [
     "DEFAULT_MAX_INCIDENTS",
     "DEFAULT_STAGE_TOPIC",
     "AgentActivityBroadcaster",
+    "parse_runtime_state_event",
     "parse_stage_event",
 ]

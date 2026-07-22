@@ -96,7 +96,9 @@ the active Azure CLI subscription and stops before resource lookup or file creat
 It also derives a non-identifying consumer instance hash from the local user and host so concurrent
 developers never join the same Event Hubs Kafka consumer group. Automation can set
 `FDAI_LOCAL_CONSUMER_INSTANCE` to a lowercase alphanumeric-and-hyphen identifier of at most 20
-characters when it needs a stable explicit name.
+characters when it needs a stable explicit name. Generated core, Pantheon, and read API groups use
+that instance, while deployed read API replicas use their runtime hostname. Each console stream
+therefore receives every frame instead of sharing partitions with another developer or replica.
 
 Workflow definitions use the same enforce allowlist as deployment, while each ActionType remains
 subject to its authoritative promotion and risk gates. Enforce workflows still require Azure event
@@ -133,6 +135,11 @@ Agent Activity keeps live runtime frames separate from durable audit rows. Selec
 agent always shows its live state, current work, runtime binding, state timestamp, stream
 provenance, and incident context. If no audit row is attributed in the current window, the timeline
 states that explicitly instead of replacing the live summary or inferring an audit event.
+The headless Pantheon publishes health-derived `agent.runtime-state` frames on the same
+`aw.pipeline.stages` transport that carries control-loop progress. The read API distinguishes
+runtime-state frames from stage frames and forwards only agents whose consumers are live and whose
+health probe isn't in error. Interactive local and deployment use this same cross-process path; the
+local profile changes the PostgreSQL binding, not agent activation or stream semantics.
 The browser also retains the newest 100 observed SSE frames for the lifetime of the tab and renders
 them as a separate live journal. Runtime heartbeats prove connectivity but don't count as work;
 collecting, analyzing, deciding, executing, approving, auditing, Incident, and handoff frames do.

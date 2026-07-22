@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: d8de805ba0c90f6479c6b5373a488272c91e3b8f
+translation_source_sha: 1229dcadd29cb40ff8ecc84f59c43ec8c28c3b47
 translation_revised: 2026-07-22
 ---
 
@@ -56,6 +56,12 @@ ownership을 상속하지 않습니다. Owned route가 manifest에 하나라도 
 cancel하고 bounded reconnect를 사용합니다. Provisioning은 event 전달 실패 시 reader도 cancel합니다.
 Agent stream의 `401`은 전체 화면 login recovery를 기다리고, `403`은 새 App Role을 page reload 없이
 반영할 수 있도록 reconnect합니다.
+
+Agent stream은 local 및 deployed profile에서 같은 shared stage transport를 통해 실제 health에서
+파생한 `agent.runtime-state` heartbeat를 수신합니다. Heartbeat는 live agent의 현재 runtime 관찰을
+증명하지만 work로 분류되지 않습니다. 누락되거나 malformed인 health frame은 선언된 subscriber
+binding을 observed state로 승격하지 않습니다. 각 read API replica는 instance-scoped consumer
+group을 사용하므로 연결된 모든 console이 완전한 heartbeat set을 수신합니다.
 
 Command Deck은 complete 또는 pending SSE frame이 256 KiB를 넘으면 `data:` line 누적이나 JSON parse
 전에 거부하고 deterministic interrupted-stream fallback을 사용합니다. Correlation-filtered action

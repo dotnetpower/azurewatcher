@@ -6,7 +6,13 @@ import pytest
 
 from fdai.delivery.read_api.dev.command_transport import build_local_command_transport
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
+from fdai.delivery.read_api.streaming.agent_activity_stream import AgentActivityEvent
 from fdai.shared.providers.local import LocalEventBus
+
+
+class _AgentPublisher:
+    async def publish(self, event: AgentActivityEvent) -> None:
+        pass
 
 
 def test_transport_defaults_to_local_without_azure_configuration() -> None:
@@ -49,6 +55,7 @@ def test_configured_transport_uses_real_broadcasters_without_connecting_eagerly(
             "FDAI_KAFKA_BOOTSTRAP_SERVERS": "example.servicebus.windows.net:9093",
             "KAFKA_TOPIC_EVENTS": "fdai.events",
             "FDAI_STAGE_TOPIC": "fdai.stage-events",
+            "FDAI_READ_API_CONSUMER_INSTANCE": "local-developer-a",
         },
     )
 
@@ -56,3 +63,5 @@ def test_configured_transport_uses_real_broadcasters_without_connecting_eagerly(
     assert wiring.live_stream.broadcaster_factory is not None
     assert wiring.live_stream.emitter_factory is None
     assert wiring.agent_activity.broadcaster_factory is not None
+    broadcaster = wiring.agent_activity.broadcaster_factory(_AgentPublisher())
+    assert broadcaster._group_id == "fdai-agent-activity.local-developer-a"

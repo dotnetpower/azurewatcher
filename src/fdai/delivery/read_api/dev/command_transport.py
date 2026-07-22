@@ -13,11 +13,20 @@ from fdai.delivery.azure.event_bus import EventHubsKafkaBus, EventHubsKafkaBusCo
 from fdai.delivery.read_api.dev.incident_store import ProjectingIncidentStateStore
 from fdai.delivery.read_api.routes.console_action import ConsoleActionSubmitter
 from fdai.delivery.read_api.streaming.agent_activity_broadcaster import (
+    DEFAULT_GROUP_ID as DEFAULT_AGENT_ACTIVITY_GROUP_ID,
+)
+from fdai.delivery.read_api.streaming.agent_activity_broadcaster import (
     DEFAULT_STAGE_TOPIC,
     AgentActivityBroadcaster,
 )
 from fdai.delivery.read_api.streaming.agent_activity_stream import AgentActivityStreamConfig
-from fdai.delivery.read_api.streaming.live_stage_broadcaster import LiveStageBroadcaster
+from fdai.delivery.read_api.streaming.consumer_groups import instance_consumer_group
+from fdai.delivery.read_api.streaming.live_stage_broadcaster import (
+    DEFAULT_GROUP_ID as DEFAULT_LIVE_STAGE_GROUP_ID,
+)
+from fdai.delivery.read_api.streaming.live_stage_broadcaster import (
+    LiveStageBroadcaster,
+)
 from fdai.delivery.read_api.streaming.live_stream import LiveStreamConfig
 from fdai.delivery.workflow_action_dispatcher import EventBusWorkflowActionDispatcher
 from fdai.shared.providers.event_bus import EventBus
@@ -71,6 +80,8 @@ def build_local_command_transport(
         registry=IncidentRegistry(state_store=ProjectingIncidentStateStore(read_model=read_model))
     )
     stage_topic = env.get(_STAGE_TOPIC_ENV, "").strip() or DEFAULT_STAGE_TOPIC
+    agent_activity_group = instance_consumer_group(DEFAULT_AGENT_ACTIVITY_GROUP_ID, env)
+    live_stage_group = instance_consumer_group(DEFAULT_LIVE_STAGE_GROUP_ID, env)
 
     async def shutdown() -> None:
         if isinstance(event_bus, EventHubsKafkaBus):
@@ -85,6 +96,7 @@ def build_local_command_transport(
                 event_bus=event_bus,
                 publisher=publisher,
                 stage_topic=stage_topic,
+                group_id=live_stage_group,
             )
         )
         agent_activity = AgentActivityStreamConfig(
@@ -92,6 +104,7 @@ def build_local_command_transport(
                 event_bus=event_bus,
                 publisher=publisher,
                 stage_topic=stage_topic,
+                group_id=agent_activity_group,
             )
         )
 

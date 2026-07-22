@@ -54,6 +54,12 @@ including keepalive comments, then use bounded reconnect. Provisioning also canc
 event delivery fails. Agent-stream `401` waits for full-screen login recovery; `403` reconnects so a
 new App Role can take effect without a page reload.
 
+The agent stream receives health-derived `agent.runtime-state` heartbeats through the same shared
+stage transport in local and deployed profiles. A heartbeat establishes current runtime observation
+for a live agent but isn't classified as work. Missing or malformed health frames never promote a
+declared subscriber binding into an observed state. Each read API replica uses an instance-scoped
+consumer group so every connected console receives the complete heartbeat set.
+
 The Command Deck rejects a complete or pending SSE frame above 256 KiB before accumulating `data:`
 lines or parsing JSON, then uses the deterministic interrupted-stream fallback. Correlation-filtered
 action progress treats a terminal audit frame as completion, reports the 120-second deadline as a

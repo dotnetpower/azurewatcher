@@ -145,18 +145,19 @@ class AgentStateEvent:
     detail: str | None = None
     source: ObservationSource = ObservationSource.UNKNOWN
 
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "type": "agent.state",
+            "agent": self.agent,
+            "state": self.state.value,
+            "ts": self.ts,
+            "correlation_id": self.correlation_id,
+            "detail": self.detail,
+            "source": self.source.value,
+        }
+
     def to_sse_event(self) -> SseEvent:
-        return _sse(
-            {
-                "type": "agent.state",
-                "agent": self.agent,
-                "state": self.state.value,
-                "ts": self.ts,
-                "correlation_id": self.correlation_id,
-                "detail": self.detail,
-                "source": self.source.value,
-            }
-        )
+        return _sse(self.to_payload())
 
 
 @dataclass(frozen=True, slots=True)
