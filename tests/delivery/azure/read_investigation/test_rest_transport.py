@@ -195,6 +195,38 @@ async def test_scope_mismatch_is_rejected_before_http() -> None:
     assert calls == 0
 
 
+async def test_resource_health_fallback_honors_lookback() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/providers/Microsoft.ResourceGraph/resources"):
+            return httpx.Response(200, json={"data": []})
+        return httpx.Response(
+            200,
+            json={
+                "properties": {
+                    "availabilityState": "Unavailable",
+                    "reasonType": "PlatformInitiated",
+                    "reportedTime": (NOW - timedelta(minutes=5)).isoformat(),
+                }
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        transport = AzureRestReadTransport(
+            config=_config(),
+            identity=_Identity(),
+            http_client=client,
+            clock=lambda: NOW,
+        )
+
+        health = await transport.query_resource_health(
+            RESOURCE_ID,
+            lookback_seconds=60,
+            limits=LIMITS,
+        )
+
+    assert health == ()
+
+
 async def test_throttling_retries_within_cap_and_output_overflow_fails_closed() -> None:
     calls = 0
 

@@ -272,6 +272,11 @@ class AzureRestReadTransport:
         status = properties.get("availabilityState")
         if not isinstance(occurred_at, str) or not isinstance(status, str):
             return ()
+        observed_at = _azure_timestamp(occurred_at)
+        if observed_at is None or observed_at < self._clock() - timedelta(
+            seconds=lookback_seconds
+        ):
+            return ()
         return (
             {
                 "occurred_at": occurred_at,
@@ -439,6 +444,14 @@ def _escaped(value: str) -> str:
 
 def _string(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
+
+
+def _azure_timestamp(value: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone(UTC) if parsed.tzinfo is not None else None
 
 
 def _nested(row: Mapping[str, object], key: str) -> str | None:

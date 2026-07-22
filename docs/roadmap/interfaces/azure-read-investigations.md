@@ -146,7 +146,9 @@ The investigation separates four questions that look similar to an operator:
 3. **Guest shutdown:** A `stopped` VM without a control-plane operation requires Windows Event Log
    or Linux syslog evidence. Missing guest diagnostics produces `unavailable`, not a guessed actor.
 4. **Platform event:** Resource Health provides host, maintenance, or platform availability
-   context. It does not prove a user initiated the event.
+    context. When ARG history is empty, the current-status fallback is evidence only if its
+    observation timestamp is inside the requested lookback. It does not prove a user initiated the
+    event.
 
 An Activity Log miss does not prove that no one stopped a VM. Retention, ingestion delay, guest
 shutdown, and platform failure remain explicit caveats. Heimdall states the strongest supported
