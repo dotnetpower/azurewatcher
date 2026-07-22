@@ -1,7 +1,7 @@
 ---
 title: 코드 맵
 translation_of: code-map.md
-translation_source_sha: d9afbd6ab32f74611151a60e910830892d7ae2e3
+translation_source_sha: 93f63939ea6ef801bfbfbb88ed1a26098c749587
 translation_revised: 2026-07-22
 ---
 # 코드 맵
@@ -153,7 +153,7 @@ shared 패키지를 커버한다.
 
 | 어댑터 | 목적 | 소스 |
 |--------|------|------|
-| azure | Azure operation, inventory, typed command, metric, bounded KQL, App Insights evidence, pinned-template Container Apps Job backend | [src/fdai/delivery/azure/](../../../src/fdai/delivery/azure/) |
+| azure | Azure operation, inventory, typed command, metric, bounded KQL, App Insights evidence, development Function gateway `DirectApiExecutor`, pinned-template Container Apps Job backend | [src/fdai/delivery/azure/](../../../src/fdai/delivery/azure/) |
 | shell | Bash no-exec 검사, private Git workspace, credential-free bubblewrap command runner | [src/fdai/delivery/shell/](../../../src/fdai/delivery/shell/) |
 | execution_backend | Bubblewrap 및 VM-task sandbox authority를 보존하는 lifecycle adapter | [src/fdai/delivery/execution_backend/](../../../src/fdai/delivery/execution_backend/) |
 | programmatic_pipeline | Local isolated child runner 및 broker transport | [src/fdai/delivery/programmatic_pipeline/](../../../src/fdai/delivery/programmatic_pipeline/) |

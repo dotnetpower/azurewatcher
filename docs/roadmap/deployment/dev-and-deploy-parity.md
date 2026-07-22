@@ -90,7 +90,9 @@ Azure CLI identity to call only the gateway's registered read operations. A miss
 the wrapper, while a configured gateway failure reports unavailable without a direct-ARM fallback.
 The gateway uses separate reader and executor managed identities and does not give the local read
 API an execution identity. Upstream Terraform enables the development-only mutation operations for
-the configured executor principal. The executor must first request a server-issued dry-run receipt
+the configured executor principal and passes the gateway URL and audience only to the headless core
+Container App. That runtime binds `AzureGatewayDirectApiExecutor`; the read API keeps its read-only
+gateway transport and never receives enforce capability. The executor must first request a server-issued dry-run receipt
 for the exact registered operation, arguments, and idempotency, audit, stop-condition, rollback,
 and impact evidence. The gateway confirms the target through a bounded reader-identity ARM GET,
 stores the receipt in private Blob storage for five minutes, and consumes it once with ETag

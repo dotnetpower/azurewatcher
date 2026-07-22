@@ -476,6 +476,15 @@ governance changes.
   stable idempotency key (existing invariant in
   [coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md));
   a retried call MUST NOT double-apply.
+- **Upstream Azure gateway binding** - when the development operations gateway URL and Easy Auth
+  audience are both configured, the headless runtime binds an enforce-capable
+  `AzureGatewayDirectApiExecutor`. It supports only `ops.start-vm`, `ops.deallocate-vm`,
+  `ops.upsert-network-rule`, and `ops.delete-network-rule`. Each ActionType remains shadow-first
+  and its shipped T0 ceiling requires human approval. Shadow performs the server plan and no
+  mutation; enforce submits only after the one-time receipt is returned.
+- **Long-running operation lock** - an ARM `202` keeps the target's Blob lease in the private
+  operation record. Executor status polling renews the lease, then records terminal status with
+  ETag compare-and-swap before releasing it. Unknown status URL query fields are rejected.
 
 Best for: ops actions where latency matters (restart, scale, cache
 flush).

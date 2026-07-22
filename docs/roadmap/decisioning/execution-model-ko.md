@@ -1,7 +1,7 @@
 ---
 title: Execution 모델
 translation_of: execution-model.md
-translation_source_sha: dde57b97a69f6c1dd6c22c28a3d1a1d2e6b68d6d
+translation_source_sha: c7f814da0c6aea94fb4f1a9de8da3c33baff75f5
 translation_revised: 2026-07-22
 ---
 
@@ -466,6 +466,15 @@ Best for: configuration 변경, IaC patch, 카탈로그 업데이트, governance
   idempotency key 사용 (기존 invariant
   [coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md));
   retry 된 call 이 double-apply MUST NOT.
+- **Upstream Azure gateway binding** - development operations gateway URL과 Easy Auth audience가
+  모두 구성되면 headless runtime은 enforce-capable `AzureGatewayDirectApiExecutor`를 bind합니다.
+  이 adapter는 `ops.start-vm`, `ops.deallocate-vm`, `ops.upsert-network-rule`,
+  `ops.delete-network-rule`만 지원합니다. 각 ActionType은 shadow-first를 유지하며 shipped T0
+  ceiling은 사람 승인을 요구합니다. Shadow는 server plan만 수행하고 mutation하지 않으며 enforce는
+  일회용 receipt가 반환된 후에만 제출합니다.
+- **Long-running operation lock** - ARM `202`는 target Blob lease를 private operation record에
+  유지합니다. Executor status polling이 lease를 renew하고 terminal status를 ETag
+  compare-and-swap으로 기록한 후 release합니다. 알 수 없는 status URL query field는 차단합니다.
 
 Best for: latency 가 중요한 ops 액션 (재시작, scale, cache flush).
 

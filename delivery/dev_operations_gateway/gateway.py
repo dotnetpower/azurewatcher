@@ -12,7 +12,7 @@ import sys
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 import httpx
 
@@ -301,6 +301,7 @@ class OperationsGateway:
                 exc.add_note(f"idempotency claim cleanup also failed: {abort_error.code}")
             raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
         try:
+            lease_transferred = False
             try:
                 result = await handler(payload)
             except Exception as exc:
@@ -317,8 +318,11 @@ class OperationsGateway:
                         "accepted": True,
                         "status": "submitted",
                         "_provider_operation_url": result.status_url,
+                        "_resource_key": resource_key,
+                        "_lease_id": lease_id,
                     },
                 }
+                lease_transferred = True
             else:
                 response = {
                     "operation_id": operation_id,
@@ -330,19 +334,20 @@ class OperationsGateway:
             raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
         finally:
             active_error = sys.exception()
-            try:
-                await self._idempotency.release_resource(resource_key, lease_id)
-            except IdempotencyError as release_error:
-                if active_error is not None:
-                    active_error.add_note(
-                        f"resource lease cleanup also failed: {release_error.code}"
-                    )
-                else:
-                    raise GatewayError(
-                        release_error.status_code,
-                        release_error.code,
-                        str(release_error),
-                    ) from release_error
+            if not lease_transferred:
+                try:
+                    await self._idempotency.release_resource(resource_key, lease_id)
+                except IdempotencyError as release_error:
+                    if active_error is not None:
+                        active_error.add_note(
+                            f"resource lease cleanup also failed: {release_error.code}"
+                        )
+                    else:
+                        raise GatewayError(
+                            release_error.status_code,
+                            release_error.code,
+                            str(release_error),
+                        ) from release_error
         return _public_response(response)
 
     async def _operation_status(
@@ -359,11 +364,40 @@ class OperationsGateway:
         except IdempotencyError as exc:
             raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
         result = record.get("result")
+        if record.get("status") in {"succeeded", "failed"} and isinstance(result, Mapping):
+            provider_status = result.get("provider_status")
+            return {
+                "operation_id": "azure.operation.status",
+                "status": record["status"],
+                "result": {
+                    "provider_status": provider_status,
+                    "status": record["status"],
+                },
+            }
         status_url = result.get("_provider_operation_url") if isinstance(result, Mapping) else None
+        resource_key = result.get("_resource_key") if isinstance(result, Mapping) else None
+        lease_id = result.get("_lease_id") if isinstance(result, Mapping) else None
         if not isinstance(status_url, str):
             raise GatewayError(409, "operation_not_async", "operation has no asynchronous status")
+        if not isinstance(resource_key, str) or not isinstance(lease_id, str):
+            raise GatewayError(503, "idempotency_unavailable", "operation lease state is missing")
+        try:
+            await self._idempotency.renew_resource(resource_key, lease_id)
+        except IdempotencyError as exc:
+            raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
         provider_status = await self._poll_arm_status(status_url)
         normalized = _normalize_provider_status(provider_status)
+        if normalized in {"succeeded", "failed"}:
+            terminal_response = {
+                "operation_id": record.get("operation_id", "azure.operation.status"),
+                "status": normalized,
+                "result": {"provider_status": provider_status, "status": normalized},
+            }
+            try:
+                await self._idempotency.update_response(idempotency_key, terminal_response)
+                await self._idempotency.release_resource(resource_key, lease_id)
+            except IdempotencyError as exc:
+                raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
         return {
             "operation_id": "azure.operation.status",
             "status": normalized,
@@ -778,6 +812,7 @@ class OperationsGateway:
     def _validate_arm_status_url(self, status_url: str) -> None:
         parsed = urlparse(status_url)
         subscription_prefix = f"/subscriptions/{self._config.subscription_id}/".casefold()
+        query = parse_qsl(parsed.query, keep_blank_values=True)
         if (
             parsed.scheme != "https"
             or parsed.hostname != "management.azure.com"
@@ -785,6 +820,8 @@ class OperationsGateway:
             or parsed.password is not None
             or parsed.fragment
             or not parsed.path.casefold().startswith(subscription_prefix)
+            or len(query) > 1
+            or any(key != "api-version" or not value or len(value) > 64 for key, value in query)
         ):
             raise GatewayError(
                 502,
@@ -831,10 +868,12 @@ def _bounded(payload: Mapping[str, object], name: str, *, maximum: int = 256) ->
 
 def _public_response(response: Mapping[str, object]) -> Mapping[str, object]:
     result = response.get("result")
-    if not isinstance(result, Mapping) or "_provider_operation_url" not in result:
+    if not isinstance(result, Mapping) or not any(str(key).startswith("_") for key in result):
         return dict(response)
     public_result = dict(result)
-    public_result.pop("_provider_operation_url", None)
+    for key in tuple(public_result):
+        if str(key).startswith("_"):
+            public_result.pop(key, None)
     public_response = dict(response)
     public_response["result"] = public_result
     return public_response

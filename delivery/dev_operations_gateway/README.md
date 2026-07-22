@@ -22,7 +22,10 @@ URLs, ARM paths, commands, or query text.
   conflicting payload is blocked, and storage uncertainty fails closed. Stale pending claims can
   be recovered with ETag compare-and-swap after the bounded claim timeout.
 - Mutations acquire a 60-second Blob lease on the target resource before ARM submission. Different
-  idempotency keys therefore cannot mutate the same VM or NSG rule concurrently.
+  idempotency keys therefore cannot mutate the same VM or NSG rule concurrently. A synchronous
+  terminal response releases the lease immediately. A `202 submitted` response transfers the
+  private lease id into the operation record; status polling renews it, and terminal state is
+  persisted with ETag compare-and-swap before release.
 - ARM `202 Accepted` responses remain `submitted`, and the server-issued status URL stays private
   in the operation record. The executor can poll it only through `azure.operation.status` with the
   original idempotency key.
@@ -34,6 +37,9 @@ URLs, ARM paths, commands, or query text.
 - The gateway refuses to start unless `FDAI_DEV_GATEWAY_ENABLED=1` and `FDAI_ENV=dev`.
 - App Service Authentication validates Microsoft Entra tokens before the anonymous Function route
   runs. Function keys are not an authorization boundary.
+- The headless runtime binds `AzureGatewayDirectApiExecutor` only when both the gateway URL and
+  audience are configured. The read API never receives this executor binding. Gateway responses
+  are streamed under a 256 KiB cap before JSON parsing.
 
 ## Operations
 

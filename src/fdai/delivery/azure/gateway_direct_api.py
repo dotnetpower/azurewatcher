@@ -156,18 +156,26 @@ class AzureGatewayDirectApiExecutor:
     ) -> Mapping[str, object]:
         token = await self._identity.get_token(self._config.audience)
         try:
-            response = await self._http.post(
+            async with self._http.stream(
+                "POST",
                 f"{self._config.base_url.rstrip('/')}/api/v1/operations/{operation_id}",
                 headers={"Authorization": f"Bearer {token.token}"},
                 json=payload,
                 timeout=self._config.timeout_seconds,
-            )
+            ) as response:
+                status_code = response.status_code
+                content = bytearray()
+                async for chunk in response.aiter_bytes():
+                    content.extend(chunk)
+                    if len(content) > _MAX_RESPONSE_BYTES:
+                        raise DirectApiError(
+                            "invalid_response",
+                            "operations gateway response was too large",
+                        )
         except httpx.HTTPError as exc:
             raise DirectApiError("transport", "operations gateway request failed") from exc
-        if len(response.content) > _MAX_RESPONSE_BYTES:
-            raise DirectApiError("invalid_response", "operations gateway response was too large")
         try:
-            body = response.json()
+            body = json.loads(content)
         except (ValueError, json.JSONDecodeError) as exc:
             raise DirectApiError(
                 "invalid_response", "operations gateway response was not JSON"
@@ -176,14 +184,14 @@ class AzureGatewayDirectApiExecutor:
             raise DirectApiError(
                 "invalid_response", "operations gateway response was not an object"
             )
-        if response.status_code == 409:
+        if status_code == 409:
             raise DirectApiPreconditionError(_error_detail(body, "gateway precondition failed"))
-        if response.status_code == 403:
+        if status_code == 403:
             raise DirectApiError("authorization", "operations gateway denied the executor")
-        if response.status_code >= 400:
+        if status_code >= 400:
             raise DirectApiError(
                 "gateway",
-                f"operations gateway returned HTTP {response.status_code}",
+                f"operations gateway returned HTTP {status_code}",
             )
         return body
 

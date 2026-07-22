@@ -52,6 +52,14 @@ class IdempotencyLedger(Protocol):
 
     async def release_resource(self, resource_key: str, lease_id: str) -> None: ...
 
+    async def renew_resource(self, resource_key: str, lease_id: str) -> None: ...
+
+    async def update_response(
+        self,
+        idempotency_key: str,
+        response: Mapping[str, object],
+    ) -> None: ...
+
     async def issue_dry_run(self, request_digest: str) -> str: ...
 
     async def consume_dry_run(self, receipt: str, request_digest: str) -> None: ...
@@ -223,6 +231,64 @@ class AzureBlobIdempotencyLedger:
         )
         if response.status_code not in {200, 404, 409, 412}:
             self._raise_storage_error(response)
+
+    async def renew_resource(self, resource_key: str, lease_id: str) -> None:
+        headers = await self._headers()
+        headers.update({"x-ms-lease-action": "renew", "x-ms-lease-id": lease_id})
+        response = await self._request(
+            "PUT",
+            f"{self._lock_url(resource_key)}?comp=lease",
+            headers=headers,
+        )
+        if response.status_code != 200:
+            raise IdempotencyError(
+                409,
+                "resource_lock_lost",
+                "resource lease could not be renewed",
+            )
+
+    async def update_response(
+        self,
+        idempotency_key: str,
+        response: Mapping[str, object],
+    ) -> None:
+        blob_url = self._blob_url(idempotency_key)
+        existing, etag = await self._read(blob_url)
+        request_digest = existing.get("request_digest")
+        if existing.get("state") != "completed" or not isinstance(request_digest, str):
+            raise IdempotencyError(
+                409,
+                "idempotency_conflict",
+                "operation response cannot be updated from its current state",
+            )
+        headers = await self._headers()
+        headers.update(
+            {
+                "Content-Type": "application/json",
+                "If-Match": etag,
+                "x-ms-blob-type": "BlockBlob",
+            }
+        )
+        updated = await self._request(
+            "PUT",
+            blob_url,
+            headers=headers,
+            content=self._encode_record(
+                {
+                    "state": "completed",
+                    "request_digest": request_digest,
+                    "response": response,
+                }
+            ),
+        )
+        if updated.status_code in {409, 412}:
+            raise IdempotencyError(
+                409,
+                "idempotency_conflict",
+                "operation response changed concurrently",
+            )
+        if updated.status_code != 201:
+            self._raise_storage_error(updated)
 
     async def issue_dry_run(self, request_digest: str) -> str:
         receipt = hashlib.sha256(f"fdai-dev-gateway-plan-v1:{request_digest}".encode()).hexdigest()

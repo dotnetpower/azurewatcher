@@ -959,6 +959,23 @@ def test_build_direct_api_executor_binds_operations_gateway(
     assert executor._allow_enforce is True
 
 
+def test_build_direct_api_executor_rejects_partial_gateway_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FDAI_DIRECT_API_FAKE", raising=False)
+    monkeypatch.setenv("FDAI_DEV_OPERATIONS_GATEWAY_URL", "https://gateway.example.com")
+    monkeypatch.delenv("FDAI_DEV_OPERATIONS_GATEWAY_AUDIENCE", raising=False)
+    from fdai.__main__ import _build_direct_api_executor
+    from fdai.core.executor.lock import ResourceLockManager
+    from fdai.shared.providers.testing.state_store import InMemoryStateStore
+
+    with pytest.raises(RuntimeError, match="configured together"):
+        _build_direct_api_executor(
+            audit_store=InMemoryStateStore(),
+            resource_lock=ResourceLockManager(),
+        )
+
+
 # ---------------------------------------------------------------------------
 # _build_control_loop - detection/HIL seams wiring
 # ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import httpx
+import pytest
 
 from fdai.delivery.azure.gateway_direct_api import (
     AzureGatewayDirectApiConfig,
@@ -123,3 +124,46 @@ async def test_shadow_plans_without_mutating() -> None:
     assert receipt.outcome is DirectApiOutcome.SUCCEEDED
     assert len(requests) == 1
     assert requests[0].url.path.endswith("/azure.operation.plan")
+
+
+async def test_enforce_polls_submitted_operation_until_success() -> None:
+    statuses = iter(("running", "succeeded"))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        operation = request.url.path.rsplit("/", 1)[-1]
+        if operation == "azure.operation.plan":
+            return httpx.Response(
+                200,
+                json={
+                    "operation_id": operation,
+                    "status": "succeeded",
+                    "result": {"status": "planned", "dry_run_receipt": "receipt"},
+                },
+            )
+        if operation == "azure.compute.vm.start":
+            return httpx.Response(
+                200,
+                json={"operation_id": operation, "status": "submitted", "result": {}},
+            )
+        status = next(statuses)
+        return httpx.Response(
+            200,
+            json={"operation_id": operation, "status": status, "result": {}},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        receipt = await AzureGatewayDirectApiExecutor(
+            config=_config(), identity=_Identity(), http_client=client
+        ).execute(_request(mode=Mode.ENFORCE))
+
+    assert receipt.outcome is DirectApiOutcome.SUCCEEDED
+
+
+async def test_adapter_rejects_oversized_gateway_response() -> None:
+    transport = httpx.MockTransport(lambda _request: httpx.Response(200, content=b"x" * 262_145))
+    async with httpx.AsyncClient(transport=transport) as client:
+        executor = AzureGatewayDirectApiExecutor(
+            config=_config(), identity=_Identity(), http_client=client
+        )
+        with pytest.raises(RuntimeError, match="too large"):
+            await executor.execute(_request(mode=Mode.SHADOW))

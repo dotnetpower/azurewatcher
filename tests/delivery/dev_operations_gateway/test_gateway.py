@@ -59,6 +59,19 @@ class _Ledger:
         assert resource_key
         assert lease_id == "lease-one"
 
+    async def renew_resource(self, resource_key: str, lease_id: str) -> None:
+        assert resource_key
+        assert lease_id == "lease-one"
+
+    async def update_response(
+        self,
+        idempotency_key: str,
+        response: Mapping[str, object],
+    ) -> None:
+        existing = self.records.get(idempotency_key)
+        assert existing is not None
+        self.records[idempotency_key] = (existing[0], response)
+
     async def issue_dry_run(self, request_digest: str) -> str:
         assert request_digest
         self.issued_dry_runs += 1
@@ -752,7 +765,24 @@ async def test_executor_tracks_arm_long_running_operation_by_idempotency_key() -
         assert str(request.url) == status_url
         return httpx.Response(200, json={"status": "Succeeded"})
 
-    ledger = _Ledger()
+    class TrackingLedger(_Ledger):
+        def __init__(self) -> None:
+            super().__init__()
+            self.lease_events: list[str] = []
+
+        async def acquire_resource(self, resource_key: str) -> str:
+            self.lease_events.append(f"acquire:{resource_key}")
+            return "lease-one"
+
+        async def renew_resource(self, resource_key: str, lease_id: str) -> None:
+            assert lease_id == "lease-one"
+            self.lease_events.append(f"renew:{resource_key}")
+
+        async def release_resource(self, resource_key: str, lease_id: str) -> None:
+            assert lease_id == "lease-one"
+            self.lease_events.append(f"release:{resource_key}")
+
+    ledger = TrackingLedger()
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         gateway = OperationsGateway(
             config=_config(),
@@ -786,6 +816,86 @@ async def test_executor_tracks_arm_long_running_operation_by_idempotency_key() -
         "result": {"provider_status": "Succeeded", "status": "succeeded"},
     }
     assert status_url not in repr(submitted)
+    assert [event.split(":", 1)[0] for event in ledger.lease_events] == [
+        "acquire",
+        "renew",
+        "release",
+    ]
+
+
+async def test_mutation_rejects_unrecognized_arm_status_query() -> None:
+    status_url = (
+        "https://management.azure.com/subscriptions/sub-example/providers/"
+        "Microsoft.Compute/locations/koreacentral/operations/operation-one"
+        "?redirect=https://example.com"
+    )
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(202, headers={"Azure-AsyncOperation": status_url})
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        gateway = OperationsGateway(
+            config=_config(),
+            reader_token_provider=_Tokens(),
+            executor_token_provider=_Tokens(),
+            http_client=client,
+            idempotency_ledger=_Ledger(),
+        )
+        with pytest.raises(GatewayError) as error:
+            await gateway.invoke(
+                "azure.compute.vm.start",
+                {
+                    "resource_group": "rg-example",
+                    "vm_name": "vm-app",
+                    "safety": _safety("operation:query"),
+                },
+                GatewayPrincipal("principal-executor", frozenset()),
+            )
+
+    assert error.value.code == "azure_response_invalid"
+
+
+async def test_executor_token_failure_releases_claim_and_resource() -> None:
+    class FailingTokens:
+        async def get_token(self, audience: str) -> str:
+            assert audience
+            raise GatewayError(503, "identity_unavailable", "executor identity failed")
+
+    class TrackingLedger(_Ledger):
+        def __init__(self) -> None:
+            super().__init__()
+            self.held: set[str] = set()
+
+        async def acquire_resource(self, resource_key: str) -> str:
+            self.held.add(resource_key)
+            return "lease-one"
+
+        async def release_resource(self, resource_key: str, lease_id: str) -> None:
+            assert lease_id == "lease-one"
+            self.held.remove(resource_key)
+
+    ledger = TrackingLedger()
+    transport = httpx.MockTransport(lambda _request: httpx.Response(500))
+    async with httpx.AsyncClient(transport=transport) as client:
+        gateway = OperationsGateway(
+            config=_config(),
+            reader_token_provider=_Tokens(),
+            executor_token_provider=FailingTokens(),
+            http_client=client,
+            idempotency_ledger=ledger,
+        )
+        with pytest.raises(GatewayError, match="executor identity failed"):
+            await gateway.invoke(
+                "azure.compute.vm.start",
+                {
+                    "resource_group": "rg-example",
+                    "vm_name": "vm-app",
+                    "safety": _safety("operation:token-failure"),
+                },
+                GatewayPrincipal("principal-executor", frozenset()),
+            )
+
+    assert ledger.held == set()
+    assert "operation:token-failure" not in ledger.records
 
 
 async def test_same_resource_different_idempotency_keys_are_serialized() -> None:

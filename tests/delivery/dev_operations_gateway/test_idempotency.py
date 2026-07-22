@@ -201,6 +201,59 @@ async def test_resource_lock_uses_a_bounded_blob_lease() -> None:
     assert "private-name" not in str(requests[0].url)
 
 
+async def test_resource_lock_renew_uses_the_exact_lease() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        ledger = AzureBlobIdempotencyLedger(
+            config=_config(), token_provider=_Tokens(), http_client=client
+        )
+        await ledger.renew_resource("sub/rg/vm/private-name", "lease-one")
+
+    assert requests[0].url.query == b"comp=lease"
+    assert requests[0].headers["x-ms-lease-action"] == "renew"
+    assert requests[0].headers["x-ms-lease-id"] == "lease-one"
+
+
+async def test_terminal_response_update_uses_operation_etag() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                headers={"ETag": '"operation-etag"'},
+                json={
+                    "state": "completed",
+                    "request_digest": "request-digest",
+                    "response": {"status": "submitted"},
+                },
+            )
+        return httpx.Response(201)
+
+    terminal = {
+        "operation_id": "azure.compute.vm.start",
+        "status": "succeeded",
+        "result": {"provider_status": "Succeeded", "status": "succeeded"},
+    }
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        ledger = AzureBlobIdempotencyLedger(
+            config=_config(), token_provider=_Tokens(), http_client=client
+        )
+        await ledger.update_response("operation:one", terminal)
+
+    assert [request.method for request in requests] == ["GET", "PUT"]
+    assert requests[1].headers["If-Match"] == '"operation-etag"'
+    body = json.loads(requests[1].content)
+    assert body["request_digest"] == "request-digest"
+    assert body["response"] == terminal
+
+
 async def test_stale_pending_claim_is_replaced_with_etag_cas() -> None:
     requests: list[httpx.Request] = []
 

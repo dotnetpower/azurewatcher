@@ -152,7 +152,7 @@ for the fork-locked role bindings and change contract.
 
 | Adapter | Purpose | Source |
 |---------|---------|--------|
-| azure | Azure operations, inventory, typed commands, metrics, bounded KQL, App Insights evidence, and the pinned-template Container Apps Job backend | [src/fdai/delivery/azure/](../../../src/fdai/delivery/azure/) |
+| azure | Azure operations, inventory, typed commands, metrics, bounded KQL, App Insights evidence, the development Function gateway `DirectApiExecutor`, and the pinned-template Container Apps Job backend | [src/fdai/delivery/azure/](../../../src/fdai/delivery/azure/) |
 | shell | Bash no-exec checks, private Git workspaces, and the credential-free bubblewrap command runner | [src/fdai/delivery/shell/](../../../src/fdai/delivery/shell/) |
 | execution_backend | Lifecycle adapters that preserve bubblewrap and VM-task sandbox authority | [src/fdai/delivery/execution_backend/](../../../src/fdai/delivery/execution_backend/) |
 | programmatic_pipeline | Local isolated child runner and broker transport | [src/fdai/delivery/programmatic_pipeline/](../../../src/fdai/delivery/programmatic_pipeline/) |
