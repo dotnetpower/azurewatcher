@@ -75,8 +75,8 @@ on the `[self-hosted, fdai-deploy]` runner (plan-only by default; the `apply` in
 Protected plans store the binary Terraform plan, bounded preflight evidence, and the Function
 source archive with separate SHA-256 digests. Exact apply downloads and verifies every artifact.
 When the development operations gateway is selected, Terraform targets that Function resource,
-the core Container App that receives its URL and audience, and their dependency graphs. Unrelated
-pending Event Hub and other runtime-resource changes stay outside the plan.
+the core Container App that receives its URL and audience, the operational canary, realtime inventory
+publishers, and their dependency graphs. Unrelated runtime-resource changes stay outside the plan.
 Terraform configures `AzureWebJobsStorage` to use the reader managed identity; shared-key host
 storage and Terraform source publishing remain disabled. Function `site_config` solely owns the
 Application Insights connection to avoid duplicate app-setting drift. After exact apply converges,

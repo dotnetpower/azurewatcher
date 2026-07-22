@@ -288,6 +288,9 @@ def test_runner_workflow_declares_and_validates_dispatch_context() -> None:
     assert "TF_CLI_ARGS_plan:" in workflow
     assert "-target=azurerm_function_app_flex_consumption.dev_gateway[0]" in workflow
     assert "-target=module.compute.azurerm_container_app.core" in workflow
+    assert "-target=module.compute.azurerm_container_app_job.canary[0]" in workflow
+    assert "-target=azurerm_role_assignment.inventory_eventhubs_raw_sender" in workflow
+    assert "-target=azurerm_eventgrid_event_subscription.inventory_resource_changes[0]" in workflow
     assert "Build development operations gateway source artifact" in workflow
     assert 'source = Path("../delivery/dev_operations_gateway")' in workflow
     assert "source_artifact_digest" in workflow
