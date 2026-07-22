@@ -354,6 +354,8 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     assert "zip_deploy_file" not in terraform
     assert "AzureWebJobsStorage__accountName" in terraform
     assert "AzureWebJobsStorage__clientId" in terraform
+    assert 'resource "azurerm_storage_container" "dev_gateway_idempotency"' in terraform
+    assert "FDAI_DEV_GATEWAY_IDEMPOTENCY_CONTAINER_URL" in terraform
     gateway_resource = terraform.split(
         'resource "azurerm_function_app_flex_consumption" "dev_gateway"',
         maxsplit=1,

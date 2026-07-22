@@ -7,7 +7,7 @@ import json
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-import azure.functions as func
+import azure.functions as func  # type: ignore[import-untyped]
 import httpx
 
 if TYPE_CHECKING:
@@ -18,6 +18,19 @@ if TYPE_CHECKING:
         ManagedIdentityTokenProvider,
         OperationsGateway,
     )
+    from delivery.dev_operations_gateway.idempotency import (
+        AzureBlobIdempotencyConfig,
+        AzureBlobIdempotencyLedger,
+    )
+elif __package__:
+    from .gateway import (
+        GatewayConfig,
+        GatewayError,
+        GatewayPrincipal,
+        ManagedIdentityTokenProvider,
+        OperationsGateway,
+    )
+    from .idempotency import AzureBlobIdempotencyConfig, AzureBlobIdempotencyLedger
 else:
     from gateway import (
         GatewayConfig,
@@ -26,11 +39,12 @@ else:
         ManagedIdentityTokenProvider,
         OperationsGateway,
     )
+    from idempotency import AzureBlobIdempotencyConfig, AzureBlobIdempotencyLedger
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 
-@app.route(route="health", methods=["GET"])
+@app.route(route="health", methods=["GET"])  # type: ignore[untyped-decorator]
 async def health(_request: func.HttpRequest) -> func.HttpResponse:
     try:
         GatewayConfig.from_env()
@@ -39,23 +53,40 @@ async def health(_request: func.HttpRequest) -> func.HttpResponse:
     return _response(200, {"status": "ok", "mode": "development"})
 
 
-@app.route(route="v1/operations/{operation_id}", methods=["POST"])
+@app.route(  # type: ignore[untyped-decorator]
+    route="v1/operations/{operation_id}", methods=["POST"]
+)
 async def invoke(request: func.HttpRequest) -> func.HttpResponse:
     try:
         config = GatewayConfig.from_env()
+    except ValueError as exc:
+        return _response(
+            503,
+            {"status": "failed", "code": "configuration_invalid", "detail": str(exc)},
+        )
+    try:
         principal = _principal(request.headers)
         payload = request.get_json()
         if not isinstance(payload, Mapping):
             raise GatewayError(400, "payload_invalid", "request body MUST be a JSON object")
         async with httpx.AsyncClient() as client:
+            reader_tokens = ManagedIdentityTokenProvider(
+                client_id=config.reader_identity_client_id,
+                http_client=client,
+            )
+            executor_tokens = ManagedIdentityTokenProvider(
+                client_id=config.executor_identity_client_id,
+                http_client=client,
+            )
             gateway = OperationsGateway(
                 config=config,
-                reader_token_provider=ManagedIdentityTokenProvider(
-                    client_id=config.reader_identity_client_id,
-                    http_client=client,
-                ),
-                executor_token_provider=ManagedIdentityTokenProvider(
-                    client_id=config.executor_identity_client_id,
+                reader_token_provider=reader_tokens,
+                executor_token_provider=executor_tokens,
+                idempotency_ledger=AzureBlobIdempotencyLedger(
+                    config=AzureBlobIdempotencyConfig(
+                        container_url=config.idempotency_container_url
+                    ),
+                    token_provider=reader_tokens,
                     http_client=client,
                 ),
                 http_client=client,

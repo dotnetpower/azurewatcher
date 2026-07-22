@@ -9,8 +9,35 @@ from delivery.dev_operations_gateway.gateway import (
     GatewayConfig,
     GatewayError,
     GatewayPrincipal,
+    ManagedIdentityTokenProvider,
     OperationsGateway,
 )
+
+
+class _Ledger:
+    def __init__(self) -> None:
+        self.records: dict[str, tuple[str, Mapping[str, object] | None]] = {}
+
+    async def begin(self, idempotency_key: str, request_digest: str) -> Mapping[str, object] | None:
+        existing = self.records.get(idempotency_key)
+        if existing is None:
+            self.records[idempotency_key] = (request_digest, None)
+            return None
+        assert existing[0] == request_digest
+        assert existing[1] is not None
+        return existing[1]
+
+    async def complete(
+        self,
+        idempotency_key: str,
+        request_digest: str,
+        response: Mapping[str, object],
+    ) -> None:
+        self.records[idempotency_key] = (request_digest, response)
+
+    async def abort(self, idempotency_key: str, request_digest: str) -> None:
+        assert self.records.get(idempotency_key) == (request_digest, None)
+        self.records.pop(idempotency_key)
 
 
 class _Tokens:
@@ -27,6 +54,7 @@ def _config() -> GatewayConfig:
         executor_principal_id="principal-executor",
         reader_identity_client_id="client-reader",
         executor_identity_client_id="client-executor",
+        idempotency_container_url="https://storage.example.com/operation-idempotency",
         private_probes={},
     )
 
@@ -40,6 +68,72 @@ def _safety() -> Mapping[str, object]:
         "rollback_ref": "rollback:one",
         "max_resources": 1,
     }
+
+
+def _environment(**overrides: str) -> dict[str, str]:
+    values = {
+        "FDAI_DEV_GATEWAY_ENABLED": "1",
+        "FDAI_ENV": "dev",
+        "FDAI_DEV_GATEWAY_SUBSCRIPTION_ID": "sub-example",
+        "FDAI_DEV_GATEWAY_RESOURCE_GROUPS": "rg-example",
+        "FDAI_DEV_GATEWAY_CONTRIBUTOR_GROUP_ID": "group-contributor",
+        "FDAI_DEV_GATEWAY_EXECUTOR_PRINCIPAL_ID": "principal-executor",
+        "FDAI_DEV_GATEWAY_READER_MI_CLIENT_ID": "client-reader",
+        "FDAI_DEV_GATEWAY_EXECUTOR_MI_CLIENT_ID": "client-executor",
+        "FDAI_DEV_GATEWAY_IDEMPOTENCY_CONTAINER_URL": (
+            "https://storage.example.com/operation-idempotency"
+        ),
+        "FDAI_DEV_GATEWAY_PRIVATE_PROBES_JSON": "{}",
+    }
+    values.update(overrides)
+    return values
+
+
+def test_config_rejects_unsafe_idempotency_container_url() -> None:
+    with pytest.raises(ValueError, match="one HTTPS container"):
+        GatewayConfig.from_env(
+            _environment(
+                FDAI_DEV_GATEWAY_IDEMPOTENCY_CONTAINER_URL=(
+                    "https://storage.example.com/operation-idempotency?sig=secret"
+                )
+            )
+        )
+
+
+@pytest.mark.parametrize("response", [httpx.Response(200, content=b"not-json")])
+async def test_managed_identity_invalid_response_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    response: httpx.Response,
+) -> None:
+    monkeypatch.setenv("IDENTITY_ENDPOINT", "https://identity.example.com/token")
+    monkeypatch.setenv("IDENTITY_HEADER", "identity-header")
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _request: response)
+    ) as client:
+        provider = ManagedIdentityTokenProvider(client_id="client-reader", http_client=client)
+        with pytest.raises(GatewayError) as error:
+            await provider.get_token("https://storage.azure.com/")
+
+    assert error.value.status_code == 503
+    assert error.value.code == "identity_unavailable"
+
+
+async def test_managed_identity_transport_failure_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("IDENTITY_ENDPOINT", "https://identity.example.com/token")
+    monkeypatch.setenv("IDENTITY_HEADER", "identity-header")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("offline", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = ManagedIdentityTokenProvider(client_id="client-reader", http_client=client)
+        with pytest.raises(GatewayError) as error:
+            await provider.get_token("https://storage.azure.com/")
+
+    assert error.value.status_code == 503
+    assert error.value.code == "identity_unavailable"
 
 
 async def test_contributor_can_read_one_allowlisted_nsg() -> None:
@@ -177,6 +271,7 @@ async def test_executor_requires_complete_safety_envelope() -> None:
             reader_token_provider=_Tokens(),
             executor_token_provider=_Tokens(),
             http_client=client,
+            idempotency_ledger=_Ledger(),
         )
         principal = GatewayPrincipal("principal-executor", frozenset())
         with pytest.raises(GatewayError, match="safety envelope"):
@@ -185,6 +280,25 @@ async def test_executor_requires_complete_safety_envelope() -> None:
                 {"resource_group": "rg-example", "vm_name": "vm-app"},
                 principal,
             )
+        for field in (
+            "idempotency_key",
+            "audit_ref",
+            "dry_run_receipt",
+            "stop_condition",
+            "rollback_ref",
+        ):
+            incomplete_safety = dict(_safety())
+            incomplete_safety.pop(field)
+            with pytest.raises(GatewayError, match=f"safety.{field}"):
+                await gateway.invoke(
+                    "azure.compute.vm.start",
+                    {
+                        "resource_group": "rg-example",
+                        "vm_name": "vm-app",
+                        "safety": incomplete_safety,
+                    },
+                    principal,
+                )
         result = await gateway.invoke(
             "azure.compute.vm.start",
             {"resource_group": "rg-example", "vm_name": "vm-app", "safety": _safety()},
@@ -192,4 +306,35 @@ async def test_executor_requires_complete_safety_envelope() -> None:
         )
 
     assert result["status"] == "succeeded"
+    assert calls == 1
+
+
+async def test_executor_mutation_is_idempotent_across_duplicate_delivery() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert request.method == "POST"
+        return httpx.Response(202, json={"status": "accepted"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gateway = OperationsGateway(
+            config=_config(),
+            reader_token_provider=_Tokens(),
+            executor_token_provider=_Tokens(),
+            http_client=client,
+            idempotency_ledger=_Ledger(),
+        )
+        principal = GatewayPrincipal("principal-executor", frozenset())
+        payload = {
+            "resource_group": "rg-example",
+            "vm_name": "vm-app",
+            "safety": _safety(),
+        }
+
+        first = await gateway.invoke("azure.compute.vm.start", payload, principal)
+        duplicate = await gateway.invoke("azure.compute.vm.start", payload, principal)
+
+    assert duplicate == first
     assert calls == 1

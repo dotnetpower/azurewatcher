@@ -702,6 +702,21 @@ resource "azurerm_storage_container" "dev_gateway_deployment" {
   ]
 }
 
+resource "azurerm_storage_container" "dev_gateway_idempotency" {
+  count                 = var.enable_dev_operations_gateway ? 1 : 0
+  name                  = "operation-idempotency"
+  storage_account_id    = azurerm_storage_account.dev_gateway[0].id
+  container_access_type = "private"
+
+  depends_on = [
+    azurerm_role_assignment.dev_gateway_storage_deployer,
+    module.dev_gateway_blob_private_endpoint,
+    azurerm_private_endpoint.dev_gateway_blob_shared_dns,
+    azurerm_virtual_network_peering.spoke_to_hub,
+    azurerm_virtual_network_peering.hub_to_spoke,
+  ]
+}
+
 resource "azurerm_service_plan" "dev_gateway" {
   count               = var.enable_dev_operations_gateway ? 1 : 0
   name                = "asp-${var.workload}${local.full_suffix}-devgw"
@@ -741,18 +756,19 @@ resource "azurerm_function_app_flex_consumption" "dev_gateway" {
   }
 
   app_settings = {
-    AzureWebJobsStorage__accountName       = azurerm_storage_account.dev_gateway[0].name
-    AzureWebJobsStorage__credential        = "managedidentity"
-    AzureWebJobsStorage__clientId          = module.dev_gateway_reader_identity[0].client_id
-    FDAI_ENV                               = "dev"
-    FDAI_DEV_GATEWAY_ENABLED               = "1"
-    FDAI_DEV_GATEWAY_SUBSCRIPTION_ID       = data.azurerm_client_config.current.subscription_id
-    FDAI_DEV_GATEWAY_RESOURCE_GROUPS       = module.resource_group.name
-    FDAI_DEV_GATEWAY_CONTRIBUTOR_GROUP_ID  = var.rbac_contributors_group_id
-    FDAI_DEV_GATEWAY_EXECUTOR_PRINCIPAL_ID = module.identity.principal_id
-    FDAI_DEV_GATEWAY_READER_MI_CLIENT_ID   = module.dev_gateway_reader_identity[0].client_id
-    FDAI_DEV_GATEWAY_EXECUTOR_MI_CLIENT_ID = module.dev_gateway_executor_identity[0].client_id
-    FDAI_DEV_GATEWAY_PRIVATE_PROBES_JSON   = var.dev_operations_gateway_private_probes_json
+    AzureWebJobsStorage__accountName           = azurerm_storage_account.dev_gateway[0].name
+    AzureWebJobsStorage__credential            = "managedidentity"
+    AzureWebJobsStorage__clientId              = module.dev_gateway_reader_identity[0].client_id
+    FDAI_ENV                                   = "dev"
+    FDAI_DEV_GATEWAY_ENABLED                   = "1"
+    FDAI_DEV_GATEWAY_SUBSCRIPTION_ID           = data.azurerm_client_config.current.subscription_id
+    FDAI_DEV_GATEWAY_RESOURCE_GROUPS           = module.resource_group.name
+    FDAI_DEV_GATEWAY_CONTRIBUTOR_GROUP_ID      = var.rbac_contributors_group_id
+    FDAI_DEV_GATEWAY_EXECUTOR_PRINCIPAL_ID     = module.identity.principal_id
+    FDAI_DEV_GATEWAY_READER_MI_CLIENT_ID       = module.dev_gateway_reader_identity[0].client_id
+    FDAI_DEV_GATEWAY_EXECUTOR_MI_CLIENT_ID     = module.dev_gateway_executor_identity[0].client_id
+    FDAI_DEV_GATEWAY_IDEMPOTENCY_CONTAINER_URL = "${azurerm_storage_account.dev_gateway[0].primary_blob_endpoint}${azurerm_storage_container.dev_gateway_idempotency[0].name}"
+    FDAI_DEV_GATEWAY_PRIVATE_PROBES_JSON       = var.dev_operations_gateway_private_probes_json
   }
 
   auth_settings_v2 {
@@ -793,6 +809,7 @@ resource "azurerm_function_app_flex_consumption" "dev_gateway" {
     azurerm_role_assignment.dev_gateway_executor_network,
     azurerm_role_assignment.dev_gateway_executor_vm,
     azurerm_role_assignment.dev_gateway_storage_runtime,
+    azurerm_storage_container.dev_gateway_idempotency,
     module.dev_gateway_blob_private_endpoint,
     azurerm_private_endpoint.dev_gateway_blob_shared_dns,
   ]

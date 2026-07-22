@@ -9,6 +9,9 @@ URLs, ARM paths, commands, or query text.
 - Read operations require the configured Contributor group or the FDAI executor principal.
 - Write and execute operations require the FDAI executor principal plus idempotency, audit,
   dry-run, stop-condition, rollback, and single-resource impact evidence.
+- Mutation idempotency keys are claimed in a private, Microsoft Entra-authenticated Blob
+  container before Azure is called. A completed duplicate reuses the recorded response, a
+  conflicting payload is blocked, and storage uncertainty fails closed.
 - Resource groups and private probe endpoints come from server configuration.
 - The gateway refuses to start unless `FDAI_DEV_GATEWAY_ENABLED=1` and `FDAI_ENV=dev`.
 - App Service Authentication validates Microsoft Entra tokens before the anonymous Function route

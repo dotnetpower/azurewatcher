@@ -2,15 +2,27 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from urllib.parse import urlparse
 
 import httpx
+
+if TYPE_CHECKING:
+    from delivery.dev_operations_gateway.idempotency import (
+        AzureBlobIdempotencyConfig,
+        IdempotencyError,
+        IdempotencyLedger,
+    )
+elif __package__:
+    from .idempotency import AzureBlobIdempotencyConfig, IdempotencyError, IdempotencyLedger
+else:
+    from idempotency import AzureBlobIdempotencyConfig, IdempotencyError, IdempotencyLedger
 
 _ARM_AUDIENCE = "https://management.azure.com"
 _NETWORK_API_VERSION = "2025-05-01"
@@ -53,6 +65,7 @@ class GatewayConfig:
     executor_principal_id: str
     reader_identity_client_id: str
     executor_identity_client_id: str
+    idempotency_container_url: str
     private_probes: Mapping[str, PrivateProbe]
 
     @classmethod
@@ -80,6 +93,10 @@ class GatewayConfig:
                 url=str(item.get("url", "")),
                 audience=str(item.get("audience", "")),
             )
+        idempotency_container_url = values.get(
+            "FDAI_DEV_GATEWAY_IDEMPOTENCY_CONTAINER_URL", ""
+        ).strip()
+        AzureBlobIdempotencyConfig(container_url=idempotency_container_url)
         config = cls(
             subscription_id=values.get("FDAI_DEV_GATEWAY_SUBSCRIPTION_ID", "").strip(),
             resource_groups=groups,
@@ -91,6 +108,7 @@ class GatewayConfig:
             executor_identity_client_id=values.get(
                 "FDAI_DEV_GATEWAY_EXECUTOR_MI_CLIENT_ID", ""
             ).strip(),
+            idempotency_container_url=idempotency_container_url,
             private_probes=probes,
         )
         for name, value in (
@@ -99,6 +117,7 @@ class GatewayConfig:
             ("executor principal id", config.executor_principal_id),
             ("reader identity client id", config.reader_identity_client_id),
             ("executor identity client id", config.executor_identity_client_id),
+            ("idempotency container URL", config.idempotency_container_url),
         ):
             if not value or len(value) > 256:
                 raise ValueError(f"{name} MUST be configured")
@@ -121,19 +140,33 @@ class ManagedIdentityTokenProvider:
         identity_header = os.environ.get("IDENTITY_HEADER", "").strip()
         if not endpoint or not identity_header:
             raise GatewayError(503, "identity_unavailable", "managed identity is unavailable")
-        response = await self._http.get(
-            endpoint,
-            headers={"X-IDENTITY-HEADER": identity_header},
-            params={
-                "api-version": "2019-08-01",
-                "resource": audience,
-                "client_id": self._client_id,
-            },
-            timeout=10.0,
-        )
+        try:
+            response = await self._http.get(
+                endpoint,
+                headers={"X-IDENTITY-HEADER": identity_header},
+                params={
+                    "api-version": "2019-08-01",
+                    "resource": audience,
+                    "client_id": self._client_id,
+                },
+                timeout=10.0,
+            )
+        except httpx.HTTPError as exc:
+            raise GatewayError(
+                503,
+                "identity_unavailable",
+                "managed identity token request failed",
+            ) from exc
         if response.status_code >= 400:
             raise GatewayError(503, "identity_unavailable", "managed identity token failed")
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GatewayError(
+                503,
+                "identity_unavailable",
+                "managed identity token response was invalid",
+            ) from exc
         token = payload.get("access_token") if isinstance(payload, Mapping) else None
         if not isinstance(token, str) or not token:
             raise GatewayError(503, "identity_unavailable", "managed identity token was empty")
@@ -148,11 +181,13 @@ class OperationsGateway:
         reader_token_provider: TokenProvider,
         executor_token_provider: TokenProvider,
         http_client: httpx.AsyncClient,
+        idempotency_ledger: IdempotencyLedger | None = None,
     ) -> None:
         self._config = config
         self._reader_tokens = reader_token_provider
         self._executor_tokens = executor_token_provider
         self._http = http_client
+        self._idempotency = idempotency_ledger
 
     async def invoke(
         self,
@@ -173,15 +208,52 @@ class OperationsGateway:
         handler = handlers.get(operation_id)
         if handler is None:
             raise GatewayError(404, "operation_not_found", "operation is not registered")
-        if operation_id in {
+        mutation = operation_id in {
             "azure.network.nsg.rule.upsert",
             "azure.network.nsg.rule.delete",
             "azure.compute.vm.start",
             "azure.compute.vm.deallocate",
-        }:
-            self._authorize_mutation(principal, payload)
-        result = await handler(payload)
-        return {"operation_id": operation_id, "status": "succeeded", "result": result}
+        }
+        if not mutation:
+            result = await handler(payload)
+            return {"operation_id": operation_id, "status": "succeeded", "result": result}
+
+        idempotency_key = self._authorize_mutation(principal, payload)
+        if self._idempotency is None:
+            raise GatewayError(
+                503,
+                "idempotency_unavailable",
+                "mutation idempotency ledger is unavailable",
+            )
+        request_digest = _request_digest(operation_id, payload)
+        try:
+            replay = await self._idempotency.begin(idempotency_key, request_digest)
+        except IdempotencyError as exc:
+            raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
+        if replay is not None:
+            return replay
+        try:
+            result = await handler(payload)
+            response = {
+                "operation_id": operation_id,
+                "status": "succeeded",
+                "result": result,
+            }
+        except Exception as exc:
+            try:
+                await self._idempotency.abort(idempotency_key, request_digest)
+            except IdempotencyError as abort_error:
+                raise GatewayError(
+                    abort_error.status_code,
+                    abort_error.code,
+                    str(abort_error),
+                ) from exc
+            raise
+        try:
+            await self._idempotency.complete(idempotency_key, request_digest, response)
+        except IdempotencyError as exc:
+            raise GatewayError(exc.status_code, exc.code, str(exc)) from exc
+        return response
 
     def _authorize_read(self, principal: GatewayPrincipal) -> None:
         if (
@@ -193,7 +265,7 @@ class OperationsGateway:
 
     def _authorize_mutation(
         self, principal: GatewayPrincipal, payload: Mapping[str, object]
-    ) -> None:
+    ) -> str:
         if principal.object_id != self._config.executor_principal_id:
             raise GatewayError(403, "executor_required", "Thor executor identity is required")
         safety = payload.get("safety")
@@ -211,6 +283,7 @@ class OperationsGateway:
             value = safety.get(field)
             if not isinstance(value, str) or not value.strip() or len(value) > 512:
                 raise GatewayError(400, "safety_invalid", f"safety.{field} MUST be bounded")
+        return str(safety["idempotency_key"])
 
     def _scope(self, payload: Mapping[str, object]) -> tuple[str, str]:
         resource_group = _identifier(payload, "resource_group")
@@ -429,6 +502,18 @@ def _identifier(payload: Mapping[str, object], name: str) -> str:
     if not isinstance(value, str) or _IDENTIFIER.fullmatch(value) is None:
         raise GatewayError(400, "argument_invalid", f"{name} MUST be a bounded identifier")
     return value
+
+
+def _request_digest(operation_id: str, payload: Mapping[str, object]) -> str:
+    try:
+        encoded = json.dumps(
+            {"operation_id": operation_id, "payload": payload},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise GatewayError(400, "payload_invalid", "request body MUST contain JSON values") from exc
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _bounded(payload: Mapping[str, object], name: str) -> str:
