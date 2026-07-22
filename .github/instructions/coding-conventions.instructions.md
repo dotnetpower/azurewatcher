@@ -164,6 +164,14 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
 
 ## Testing
 
+- During the edit loop, run the smallest executable test that can falsify the current change. If
+  no more precise test target is known, use `make test-changed` for working-tree changes or
+  `make test-changed DIFF=<base>...HEAD` for a branch. The selector includes untracked files and
+  uses conservative full-suite fallbacks for global Python test configuration.
+- Diff-scoped testing is a development feedback optimization, not proof of complete regression or
+  coverage. It MUST NOT replace the relevant safety property tests, `bash scripts/verify.sh --full
+  <path>` for the completed slice, or the authoritative full coverage/regression gates before
+  merge and release.
 - Cover the `deterministic-engine` and `risk-gate` with unit tests; these are the safety core
   and MUST hold a high coverage bar (target ≥ 90% line/branch, enforced as a CI gate).
 - Use fixtures for rule-catalog entries and event payloads; keep them English and secret-free.

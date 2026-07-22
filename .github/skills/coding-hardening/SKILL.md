@@ -9,7 +9,7 @@ description: |
   built on top of this skill). Load when doing "critique-and-harden" or
   "coverage hardening" work, when triaging a suspected bug, or when
   extending tests around the >= 90% safety-core coverage floor.
-version: 1.0.0
+version: 1.1.0
 scope: repository
 ---
 
@@ -84,9 +84,15 @@ for the full 45-subsystem index.
 
 ### 3. Verify
 
-- Fast gates: `bash scripts/verify.sh --fast`
-- Targeted pytest for the touched module. For coverage-driven work,
-  use the single-module coverage recipe below.
+- Run the most precise known pytest target immediately after each edit.
+- When a batch spans multiple files or the owning test is unclear, run
+  `make test-changed`. For a committed branch range, run
+  `make test-changed DIFF=<base>...HEAD`.
+- Run fast gates: `bash scripts/verify.sh --fast`.
+- Finish with `bash scripts/verify.sh --full <test-path>` for the touched
+  slice. Diff-scoped tests do not replace full coverage/regression gates
+  before merge or release.
+- For coverage-driven work, use the single-module coverage recipe below.
 - Safety-core property tests MUST still pass unchanged:
   - "high-risk never auto-executes"
   - "shadow mode never mutates"
