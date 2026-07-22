@@ -277,7 +277,9 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Azure login (runner managed identity)
-        run: az login --identity --allow-no-subscriptions
+        run: |
+          az account clear
+          az login --identity --allow-no-subscriptions
 
       - name: Ensure protected storage containers
         # Created data-plane from the runner (inside the VNet, over the blob

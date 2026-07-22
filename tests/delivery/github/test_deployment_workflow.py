@@ -319,6 +319,9 @@ def test_runner_workflow_declares_and_validates_dispatch_context() -> None:
     assert "--num-results 1001" in workflow
     assert '--container-name deployment-plans --name "$blob_name"' in workflow
     assert "Validate exact apply request" in workflow
+    assert workflow.index("az account clear") < workflow.index(
+        "az login --identity --allow-no-subscriptions"
+    )
     assert "Restore and verify exact protected plan" in workflow
     assert "verify-deployment-plan.py" in workflow
     assert "--azure-preflight-evidence plan-azure-preflight-evidence.json" in workflow

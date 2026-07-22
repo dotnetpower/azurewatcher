@@ -75,7 +75,8 @@ no cloud credentials are stored on the box.
 
 - The runner MI uses app-RG Contributor for resource mutation. Its subscription-scope role is
    limited to Event Grid subscription management for realtime inventory; it is not subscription
-   Contributor.
+   Contributor. The deploy workflow clears the Azure CLI account cache before each managed-identity
+   login so newly granted roles are reflected in Terraform provider tokens.
 - No public IP; access is Bastion / run-command / serial console.
 - The state account is private + versioned; a bad apply is recoverable.
 - `bootstrap.tfvars` and `*.tfstate` are gitignored - never commit them.

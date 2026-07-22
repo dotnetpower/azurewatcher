@@ -65,7 +65,8 @@ the durable hub that makes the deploy possible and survives app rebuilds:
 - a **self-hosted deploy runner VM** (no public IP) whose system-assigned managed identity
   holds `Contributor` + `User Access Administrator` on the app RG, `Network Contributor` on
   the ops RG, `Storage Blob Data Contributor` on the state account, and only `EventGrid
-  EventSubscription Contributor` at subscription scope for realtime inventory delivery.
+  EventSubscription Contributor` at subscription scope for realtime inventory delivery. Each
+  workflow run clears the Azure CLI account cache before managed-identity login.
 The app config peers its spoke VNet to the ops hub (both directions) and links its private
 DNS zones to the ops VNet via the `extra_vnet_links` seam, so the runner resolves the app's
 Key Vault privately. The runner is the terraform apply principal, so the existing
@@ -83,7 +84,6 @@ Application Insights connection to avoid duplicate app-setting drift. After exac
 the workflow re-verifies and remote-builds the protected source archive, then confirms the current
 successful deployment record and registered Function triggers before recording the apply receipt.
 Full runbook: [`infra/bootstrap/README.md`](../../../infra/bootstrap/README.md).
-
 Scheduled drivers remain Terraform-owned through the `SCHEDULER_TICK_CRON_EXPRESSION` and
 `ANALYZER_TICK_CRON_EXPRESSION` repository variables. Optional analyzer inputs use
 `ANALYZER_TARGETS_JSON`, `ANALYZER_WINDOW_SECONDS`, and `ANALYZER_BUDGET_SECONDS`. An empty
