@@ -287,6 +287,7 @@ def test_runner_workflow_declares_and_validates_dispatch_context() -> None:
     assert "sha256sum dev.plan" in workflow
     assert "TF_CLI_ARGS_plan:" in workflow
     assert "-target=azurerm_function_app_flex_consumption.dev_gateway[0]" in workflow
+    assert "-target=module.compute.azurerm_container_app.core" in workflow
     assert "Build development operations gateway source artifact" in workflow
     assert 'source = Path("../delivery/dev_operations_gateway")' in workflow
     assert "source_artifact_digest" in workflow
