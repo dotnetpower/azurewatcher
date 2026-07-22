@@ -473,7 +473,7 @@ resource "azurerm_eventgrid_system_topic" "inventory_resource_changes" {
   )
   location           = "global"
   source_resource_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  topic_type         = "Microsoft.Resources.Subscriptions"
+  topic_type         = "microsoft.resources.subscriptions"
   tags               = merge(local.tags, { "fdai:component" = "realtime-inventory" })
 
   identity {
