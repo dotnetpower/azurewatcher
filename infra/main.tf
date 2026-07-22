@@ -1079,6 +1079,14 @@ module "compute" {
   postgres_database       = module.state_store.database_name
   runtime_env             = var.env == "" ? "dev" : var.env
   autonomy_mode_default   = "shadow"
+  dev_operations_gateway_url = (
+    var.enable_dev_operations_gateway
+    ? "https://${azurerm_function_app_flex_consumption.dev_gateway[0].default_hostname}"
+    : ""
+  )
+  dev_operations_gateway_audience = (
+    var.enable_dev_operations_gateway ? var.read_api_audience : ""
+  )
 
   # Auto-bind the Azure Monitor Logs metric adapter at composition time.
   # Threading the Log Analytics workspace **customer GUID** (NOT the ARM
