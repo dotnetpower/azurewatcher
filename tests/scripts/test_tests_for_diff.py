@@ -35,6 +35,7 @@ def git_repo(tmp_path: Path) -> Path:
         "delivery/dev_operations_gateway",
         "src/fdai/core/risk_gate",
         "tests/composition",
+        "tests/config",
         "tests/core/risk_gate",
         "tests/delivery/dev_operations_gateway",
         "tests/rule_catalog",
@@ -166,6 +167,17 @@ def test_catalog_change_falls_back_to_full_suite(git_repo: Path, path: str) -> N
     catalog = git_repo / path
     catalog.parent.mkdir(parents=True, exist_ok=True)
     catalog.write_text("VALUE = 1\n", encoding="utf-8")
+
+    result = _run(git_repo, "bash", str(_SELECTOR))
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["tests"]
+
+
+def test_root_config_change_falls_back_to_full_suite(git_repo: Path) -> None:
+    config = git_repo / "config" / "rbac-groups.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text("groups: []\n", encoding="utf-8")
 
     result = _run(git_repo, "bash", str(_SELECTOR))
 
