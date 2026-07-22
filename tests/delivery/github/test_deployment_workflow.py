@@ -375,6 +375,10 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     assert re.search(r'location\s*=\s*"global"', terraform)
     assert "source_resource_id" in terraform
     assert "source_arm_resource_id" not in terraform
+    assert 'data "azurerm_resources" "eventgrid_system_topics"' in terraform
+    assert "tracked_subscription_system_topics" in terraform
+    assert "multiple tracked Event Grid system topics" in terraform
+    assert "to = azurerm_eventgrid_system_topic.inventory_resource_changes[0]" in terraform
     assert "identity_ids = [module.inventory_identity.resource_id]" in terraform
     assert (
         "scope                 = azurerm_eventgrid_system_topic.inventory_resource_changes[0].id"

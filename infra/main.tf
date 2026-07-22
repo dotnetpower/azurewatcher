@@ -437,18 +437,55 @@ resource "azurerm_role_assignment" "inventory_eventhubs_raw_sender" {
   principal_id         = module.inventory_identity.principal_id
 }
 
+data "azurerm_resources" "eventgrid_system_topics" {
+  type = "Microsoft.EventGrid/systemTopics"
+}
+
+locals {
+  tracked_subscription_system_topics = [
+    for topic in data.azurerm_resources.eventgrid_system_topics.resources : topic
+    if topic.location == "global" && startswith(
+      topic.name,
+      data.azurerm_client_config.current.subscription_id,
+    )
+  ]
+}
+
+import {
+  for_each = var.enable_realtime_inventory_discovery && length(local.tracked_subscription_system_topics) == 1 ? {
+    existing = one(local.tracked_subscription_system_topics)
+  } : {}
+  to = azurerm_eventgrid_system_topic.inventory_resource_changes[0]
+  id = each.value.id
+}
+
 resource "azurerm_eventgrid_system_topic" "inventory_resource_changes" {
-  count               = var.enable_realtime_inventory_discovery ? 1 : 0
-  name                = "evgst-${var.workload}${local.full_suffix}-inventory"
-  resource_group_name = module.resource_group.name
-  location            = "global"
-  source_resource_id  = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  topic_type          = "Microsoft.Resources.Subscriptions"
-  tags                = merge(local.tags, { "fdai:component" = "realtime-inventory" })
+  count = var.enable_realtime_inventory_discovery ? 1 : 0
+  name = (
+    length(local.tracked_subscription_system_topics) == 1
+    ? one(local.tracked_subscription_system_topics).name
+    : "evgst-${var.workload}${local.full_suffix}-inventory"
+  )
+  resource_group_name = (
+    length(local.tracked_subscription_system_topics) == 1
+    ? one(local.tracked_subscription_system_topics).resource_group_name
+    : module.resource_group.name
+  )
+  location           = "global"
+  source_resource_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+  topic_type         = "Microsoft.Resources.Subscriptions"
+  tags               = merge(local.tags, { "fdai:component" = "realtime-inventory" })
 
   identity {
     type         = "UserAssigned"
     identity_ids = [module.inventory_identity.resource_id]
+  }
+
+  lifecycle {
+    precondition {
+      condition     = length(local.tracked_subscription_system_topics) <= 1
+      error_message = "multiple tracked Event Grid system topics match the Azure subscription source."
+    }
   }
 }
 
