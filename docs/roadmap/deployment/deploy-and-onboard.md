@@ -76,11 +76,12 @@ Protected plans store the binary Terraform plan, bounded preflight evidence, and
 source archive with separate SHA-256 digests. Exact apply downloads and verifies every artifact.
 When the development operations gateway is selected, Terraform targets that Function resource and
 its dependency graph so unrelated pending Event Hub or runtime changes stay outside the plan.
-Terraform configures `AzureWebJobsStorage` to use the reader managed identity; shared-key host
-storage and Terraform source publishing remain disabled. Function `site_config` solely owns the
-Application Insights connection to avoid duplicate app-setting drift. After exact apply converges,
-the workflow re-verifies and remote-builds the protected source archive, then confirms the current
-successful deployment record and registered Function triggers before recording the apply receipt.
+Terraform configures identity-based `AzureWebJobsStorage` and grants the reader `Storage Blob Data
+Owner`. After exact apply, the workflow removes the platform-created key-based setting so the
+identity-prefixed settings remain authoritative; shared-key host storage and Terraform source
+publishing stay disabled. Function `site_config` solely owns the Application Insights connection.
+The workflow then re-verifies and remote-builds the protected archive and confirms its deployment
+record and Function triggers before recording the apply receipt.
 Full runbook: [`infra/bootstrap/README.md`](../../../infra/bootstrap/README.md).
 
 Scheduled drivers remain Terraform-owned through the `SCHEDULER_TICK_CRON_EXPRESSION` and

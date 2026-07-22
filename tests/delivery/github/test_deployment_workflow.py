@@ -354,6 +354,11 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     assert "zip_deploy_file" not in terraform
     assert "AzureWebJobsStorage__accountName" in terraform
     assert "AzureWebJobsStorage__clientId" in terraform
+    assert re.search(
+        r'resource "azurerm_role_assignment" "dev_gateway_storage_runtime"[\s\S]*?'
+        r'role_definition_name\s*=\s*"Storage Blob Data Owner"',
+        terraform,
+    )
     gateway_resource = terraform.split(
         'resource "azurerm_function_app_flex_consumption" "dev_gateway"',
         maxsplit=1,
@@ -374,7 +379,13 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     )
     deploy_step = workflow.index("Deploy exact development operations gateway source")
     config_zip = workflow.index("az functionapp deployment source config-zip")
+    delete_legacy_storage = workflow.index(
+        "az functionapp config appsettings delete",
+        deploy_step,
+    )
     assert workflow.index("verify-deployment-plan.py", deploy_step) < config_zip
+    assert delete_legacy_storage < config_zip
+    assert "--setting-names AzureWebJobsStorage" in workflow[delete_legacy_storage:config_zip]
     assert (
         "inputs.apply && inputs.deploy_dev_operations_gateway" in workflow[deploy_step:config_zip]
     )

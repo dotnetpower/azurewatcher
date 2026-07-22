@@ -790,6 +790,10 @@ jobs:
             echo "gateway deployment outputs are empty after apply." >&2
             exit 1
           fi
+          az functionapp config appsettings delete \
+            --resource-group "$rg" --name "$app" \
+            --setting-names AzureWebJobsStorage \
+            --only-show-errors --output none
           resource_id="$(az functionapp show --resource-group "$rg" --name "$app" --query id -o tsv)"
           started_epoch="$(date -u +%s)"
           set +e

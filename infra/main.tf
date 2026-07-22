@@ -647,7 +647,7 @@ resource "azurerm_role_assignment" "dev_gateway_storage_deployer" {
 resource "azurerm_role_assignment" "dev_gateway_storage_runtime" {
   count                = var.enable_dev_operations_gateway ? 1 : 0
   scope                = azurerm_storage_account.dev_gateway[0].id
-  role_definition_name = "Storage Blob Data Contributor"
+  role_definition_name = "Storage Blob Data Owner"
   principal_id         = module.dev_gateway_reader_identity[0].principal_id
 }
 
