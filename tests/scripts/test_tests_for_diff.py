@@ -39,6 +39,7 @@ def git_repo(tmp_path: Path) -> Path:
         "tests/rule_catalog",
         "tests/scripts",
         "tests/shared/contracts",
+        "tests/shared/providers",
         "tests/tools",
     ):
         directory = tmp_path / path
@@ -62,6 +63,17 @@ def test_selects_tests_for_untracked_python_source(git_repo: Path) -> None:
 
 def test_shared_contract_change_falls_back_to_full_suite(git_repo: Path) -> None:
     source = git_repo / "src" / "fdai" / "shared" / "contracts" / "models.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+
+    result = _run(git_repo, "bash", str(_SELECTOR))
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["tests"]
+
+
+def test_shared_provider_change_falls_back_to_full_suite(git_repo: Path) -> None:
+    source = git_repo / "src" / "fdai" / "shared" / "providers" / "state_store.py"
     source.parent.mkdir(parents=True)
     source.write_text("VALUE = 1\n", encoding="utf-8")
 
