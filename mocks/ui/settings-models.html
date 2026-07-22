@@ -6,6 +6,35 @@
   <title>Models - FDAI Console</title>
   <link rel="stylesheet" href="assets/calm-slate.css?v=settings-v2" />
   <script src="assets/calm-slate.js?v=settings-v2" defer></script>
+  <style>
+    .cs-model-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 14px 0 4px; }
+    .cs-model-summary { margin-right: auto; color: var(--cs-text-soft); font-size: 13px; }
+    .cs-model-summary strong { color: var(--cs-text); }
+    .cs-model-legend { display: inline-flex; align-items: center; gap: 12px; color: var(--cs-text-soft); font-size: 12px; }
+    .cs-model-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .cs-model-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--cs-sage); }
+    .cs-model-dot.is-unavailable { background: #B9B6B1; }
+    .cs-model-providers { border-top: 1px solid var(--cs-hairline); }
+    .cs-model-provider { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 18px; padding: 18px 0; border-bottom: 1px solid var(--cs-hairline); }
+    .cs-model-provider-head { display: flex; align-items: baseline; gap: 8px; }
+    .cs-model-provider-head h3 { margin: 0; font-size: 14px; }
+    .cs-model-provider-head span { color: var(--cs-text-soft); font-size: 11px; }
+    .cs-model-options { display: flex; flex-wrap: wrap; gap: 8px; }
+    .cs-model-option { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--cs-hairline); border-radius: 6px; background: var(--cs-card); color: var(--cs-text-soft); font-size: 12.5px; cursor: pointer; transition: border-color .12s ease, background .12s ease, color .12s ease; }
+    .cs-model-option:hover { border-color: #C9C6C1; color: var(--cs-text); }
+    .cs-model-option:has(input:checked) { border-color: rgba(68,104,142,.42); background: rgba(68,104,142,.12); color: var(--cs-navy); font-weight: 600; }
+    .cs-model-option:has(input:focus-visible) { outline: 2px solid rgba(68,104,142,.38); outline-offset: 2px; }
+    .cs-model-option:has(input:disabled) { background: var(--cs-shade); color: #92908C; cursor: not-allowed; opacity: .78; }
+    .cs-model-option input { width: 14px; height: 14px; margin: 0; accent-color: var(--cs-steel); }
+    .cs-model-option .cs-model-dot { width: 7px; height: 7px; }
+    .cs-model-actions { display: flex; gap: 7px; }
+    @media (max-width: 700px) {
+      .cs-model-toolbar { align-items: flex-start; flex-direction: column; }
+      .cs-model-provider { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+      .cs-model-options { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
+      .cs-model-option { width: 100%; }
+    }
+  </style>
 </head>
 <body>
   <main class="cs-container cs-page cs-settings-page">
@@ -36,6 +65,68 @@
       </div>
     </section>
 
+    <section class="cs-settings-section" aria-labelledby="models-availability">
+      <header class="cs-settings-section-head">
+        <h2 id="models-availability">Available models</h2>
+        <p>Enable only the models this deployment may route to.</p>
+      </header>
+      <div class="cs-model-toolbar">
+        <div class="cs-model-summary" aria-live="polite">
+          <strong id="model-enabled-count">8 enabled</strong>
+          <span>of <span id="model-available-count">12</span> available - 3 unavailable</span>
+        </div>
+        <div class="cs-model-legend" aria-label="Model status legend">
+          <span><i class="cs-model-dot" aria-hidden="true"></i>Available</span>
+          <span><i class="cs-model-dot is-unavailable" aria-hidden="true"></i>Unavailable</span>
+        </div>
+        <div class="cs-model-actions">
+          <button class="cs-btn is-sm" type="button" data-model-action="enable">Enable available</button>
+          <button class="cs-btn is-sm" type="button" data-model-action="disable">Disable all</button>
+        </div>
+      </div>
+
+      <div class="cs-model-providers">
+        <section class="cs-model-provider" aria-labelledby="provider-openai">
+          <header class="cs-model-provider-head"><h3 id="provider-openai">OpenAI</h3><span>6 models</span></header>
+          <div class="cs-model-options">
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-5.2" /><i class="cs-model-dot" aria-hidden="true"></i>GPT-5.2</label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-5.1" /><i class="cs-model-dot" aria-hidden="true"></i>GPT-5.1</label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gpt-4.1-mini" /><i class="cs-model-dot" aria-hidden="true"></i>GPT-4.1 mini</label>
+            <label class="cs-model-option"><input type="checkbox" data-model-toggle="gpt-5.2-codex" /><i class="cs-model-dot" aria-hidden="true"></i>GPT-5.2 Codex</label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="o3-mini" /><i class="cs-model-dot" aria-hidden="true"></i>o3-mini</label>
+            <label class="cs-model-option"><input type="checkbox" disabled data-model-toggle="gpt-5.3-preview" /><i class="cs-model-dot is-unavailable" aria-hidden="true"></i>GPT-5.3 preview</label>
+          </div>
+        </section>
+
+        <section class="cs-model-provider" aria-labelledby="provider-claude">
+          <header class="cs-model-provider-head"><h3 id="provider-claude">Claude</h3><span>4 models</span></header>
+          <div class="cs-model-options">
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="claude-opus-4.5" /><i class="cs-model-dot" aria-hidden="true"></i>Claude Opus 4.5</label>
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="claude-sonnet-4" /><i class="cs-model-dot" aria-hidden="true"></i>Claude Sonnet 4</label>
+            <label class="cs-model-option"><input type="checkbox" data-model-toggle="claude-haiku-4.5" /><i class="cs-model-dot" aria-hidden="true"></i>Claude Haiku 4.5</label>
+            <label class="cs-model-option"><input type="checkbox" disabled data-model-toggle="claude-opus-4.6" /><i class="cs-model-dot is-unavailable" aria-hidden="true"></i>Claude Opus 4.6</label>
+          </div>
+        </section>
+
+        <section class="cs-model-provider" aria-labelledby="provider-gemini">
+          <header class="cs-model-provider-head"><h3 id="provider-gemini">Gemini</h3><span>3 models</span></header>
+          <div class="cs-model-options">
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="gemini-2.5-pro" /><i class="cs-model-dot" aria-hidden="true"></i>Gemini 2.5 Pro</label>
+            <label class="cs-model-option"><input type="checkbox" data-model-toggle="gemini-2.5-flash" /><i class="cs-model-dot" aria-hidden="true"></i>Gemini 2.5 Flash</label>
+            <label class="cs-model-option"><input type="checkbox" disabled data-model-toggle="gemini-3.1-preview" /><i class="cs-model-dot is-unavailable" aria-hidden="true"></i>Gemini 3.1 preview</label>
+          </div>
+        </section>
+
+        <section class="cs-model-provider" aria-labelledby="provider-other">
+          <header class="cs-model-provider-head"><h3 id="provider-other">Others</h3><span>2 models</span></header>
+          <div class="cs-model-options">
+            <label class="cs-model-option"><input type="checkbox" checked data-model-toggle="mistral-large" /><i class="cs-model-dot" aria-hidden="true"></i>Mistral Large</label>
+            <label class="cs-model-option"><input type="checkbox" data-model-toggle="cohere-command-r" /><i class="cs-model-dot" aria-hidden="true"></i>Command R</label>
+          </div>
+        </section>
+      </div>
+    </section>
+
     <section class="cs-settings-section" aria-labelledby="models-t2-policy">
       <header class="cs-settings-section-head">
         <h2 id="models-t2-policy">T2 model policy</h2>
@@ -44,21 +135,21 @@
       <div class="cs-settings-list">
         <div class="cs-setting-row">
           <div><strong>Primary reasoner</strong><small>Produces the initial grounded proposal.</small></div>
-          <select class="cs-settings-input" aria-label="Primary reasoner">
-            <option>gpt-5.2</option>
-            <option>gpt-5.1</option>
+          <select class="cs-settings-input" id="primary-reasoner" aria-label="Primary reasoner">
+            <option value="gpt-5.2" data-model-option>gpt-5.2</option>
+            <option value="gpt-5.1" data-model-option>gpt-5.1</option>
           </select>
         </div>
         <div class="cs-setting-row">
           <div><strong>Secondary reasoner</strong><small>Must use a distinct publisher or model family.</small></div>
-          <select class="cs-settings-input" aria-label="Secondary reasoner">
-            <option>claude-opus-4.5</option>
-            <option>gpt-5.1</option>
+          <select class="cs-settings-input" id="secondary-reasoner" aria-label="Secondary reasoner">
+            <option value="claude-opus-4.5" data-model-option>claude-opus-4.5</option>
+            <option value="gpt-5.1" data-model-option>gpt-5.1</option>
           </select>
         </div>
         <div class="cs-setting-row">
           <div><strong>Quorum readiness</strong><small>Selection changes generate a governance PR artifact; they are never applied from the console.</small></div>
-          <span class="cs-status ok">Pair valid</span>
+          <span class="cs-status ok" id="model-pair-status" aria-live="polite">Pair valid</span>
         </div>
       </div>
     </section>
@@ -72,9 +163,9 @@
         <div class="cs-setting-row">
           <div><strong>Narrator model</strong><small>Used for final presentation when the selected deployment is healthy.</small></div>
           <select class="cs-settings-input" aria-label="Narrator model">
-            <option>Auto - fastest healthy</option>
-            <option>gpt-5.1-chat</option>
-            <option>gpt-4.1-mini</option>
+            <option value="auto">Auto - fastest healthy</option>
+            <option value="gpt-4.1-mini" data-model-option>gpt-4.1-mini</option>
+            <option value="claude-haiku-4.5" data-model-option>claude-haiku-4.5</option>
           </select>
         </div>
         <div class="cs-setting-row">
@@ -93,5 +184,46 @@
       <div class="cs-settings-actions"><button class="cs-btn is-primary" type="button">Save preferences</button></div>
     </section>
   </main>
+  <script>
+    (function () {
+      "use strict";
+
+      var toggles = Array.prototype.slice.call(document.querySelectorAll("[data-model-toggle]"));
+      var enabledCount = document.getElementById("model-enabled-count");
+      var availableCount = document.getElementById("model-available-count");
+      var pairStatus = document.getElementById("model-pair-status");
+      var primary = document.getElementById("primary-reasoner");
+      var secondary = document.getElementById("secondary-reasoner");
+
+      function updateModelState() {
+        var available = toggles.filter(function (toggle) { return !toggle.disabled; });
+        var enabled = available.filter(function (toggle) { return toggle.checked; });
+        enabledCount.textContent = enabled.length + " enabled";
+        availableCount.textContent = String(available.length);
+
+        document.querySelectorAll("[data-model-option]").forEach(function (option) {
+          var toggle = document.querySelector('[data-model-toggle="' + option.value + '"]');
+          option.disabled = !toggle || toggle.disabled || !toggle.checked;
+        });
+
+        var pairValid = primary.value !== secondary.value &&
+          !primary.selectedOptions[0].disabled && !secondary.selectedOptions[0].disabled;
+        pairStatus.textContent = pairValid ? "Pair valid" : "Pair unavailable";
+        pairStatus.classList.toggle("ok", pairValid);
+        pairStatus.classList.toggle("wait", !pairValid);
+      }
+
+      toggles.forEach(function (toggle) { toggle.addEventListener("change", updateModelState); });
+      [primary, secondary].forEach(function (select) { select.addEventListener("change", updateModelState); });
+      document.querySelectorAll("[data-model-action]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var enabled = button.getAttribute("data-model-action") === "enable";
+          toggles.forEach(function (toggle) { if (!toggle.disabled) toggle.checked = enabled; });
+          updateModelState();
+        });
+      });
+      updateModelState();
+    })();
+  </script>
 </body>
 </html>
