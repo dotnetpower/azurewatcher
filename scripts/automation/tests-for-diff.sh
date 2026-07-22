@@ -4,8 +4,8 @@
 #
 # Given a diff (working tree by default, or a commit range), this script
 # prints the pytest paths that are relevant to the changed files. It maps
-# src/fdai/<sub>/... -> tests/<sub>/... when tests/<sub>/ exists, and
-# includes any test files that were themselves modified.
+# source and repository-data paths to their owning test directories, includes
+# modified tests directly, and falls back to the full suite for global inputs.
 #
 # Usage:
 #   scripts/automation/tests-for-diff.sh                    # working tree vs HEAD
@@ -14,9 +14,11 @@
 #   scripts/automation/tests-for-diff.sh --run HEAD~1..HEAD # combined
 #
 # Notes:
-#   - Deleted files are skipped (nothing to test).
-#   - Non-python changes are ignored (docs / infra / configs are covered
-#     by the fast text gates in scripts/verify.sh).
+#   - Working-tree selection includes tracked, staged, and untracked files.
+#   - Repository data with Python consumers maps to its owning test area.
+#   - Global test and dependency configuration selects the full suite.
+#   - Docs, console, CLI, and infrastructure changes without Python consumers
+#     are covered by their dedicated gates instead of pytest.
 #   - Output is deduplicated and lexicographically sorted.
 #   - Exit 0 with an empty stdout when there is nothing python-shaped to
 #     test.
@@ -46,12 +48,11 @@ for arg in "$@"; do
 done
 
 if [[ -z "$diff_arg" ]]; then
-    changed=$(git diff --name-only --diff-filter=d HEAD)
-    # Include staged-but-uncommitted files.
-    staged=$(git diff --cached --name-only --diff-filter=d)
-    changed=$(printf '%s\n%s\n' "$changed" "$staged" | sort -u)
+    tracked=$(git diff --name-only --diff-filter=ACMRTD HEAD)
+    untracked=$(git ls-files --others --exclude-standard)
+    changed=$(printf '%s\n%s\n' "$tracked" "$untracked" | sort -u)
 else
-    changed=$(git diff --name-only --diff-filter=d "$diff_arg")
+    changed=$(git diff --name-only --diff-filter=ACMRTD "$diff_arg")
 fi
 
 declare -A seen=()
@@ -69,11 +70,61 @@ add_test() {
 
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
-    [[ "$file" == *.py ]] || continue
+
+    # These inputs can affect collection or every Python test. Selecting the
+    # full suite is cheaper than silently missing a cross-cutting regression.
+    case "$file" in
+        pyproject.toml|uv.lock|tests/conftest.py)
+            add_test "tests"
+            continue
+            ;;
+    esac
 
     # Test file changed directly - include it as-is.
-    if [[ "$file" == tests/* ]]; then
+    if [[ "$file" == tests/*.py ]]; then
         add_test "$file"
+        continue
+    fi
+
+    # Data and automation paths have Python consumers even though the changed
+    # files themselves are not Python modules.
+    case "$file" in
+        alembic.ini|alembic/*)
+            add_test "tests/persistence"
+            continue
+            ;;
+        config/*)
+            add_test "tests/config"
+            add_test "tests/composition"
+            continue
+            ;;
+        policies/*)
+            add_test "tests/core/risk_gate"
+            continue
+            ;;
+        rule-catalog/*)
+            add_test "tests/rule_catalog"
+            continue
+            ;;
+        scripts/*.py|scripts/*.sh)
+            add_test "tests/scripts"
+            continue
+            ;;
+    esac
+
+    [[ "$file" == *.py ]] || continue
+
+    # Developer-facing gateway packages live at the repository root instead
+    # of under src/fdai, but retain the same mirrored delivery test layout.
+    if [[ "$file" == delivery/* ]]; then
+        rel="${file#delivery/}"
+        sub="${rel%%/*}"
+        if [[ "$sub" == "$rel" ]]; then
+            candidate="tests/delivery"
+        else
+            candidate="tests/delivery/${sub}"
+        fi
+        add_test "$candidate"
         continue
     fi
 
@@ -120,13 +171,30 @@ fi
 # Sort and dedupe.
 mapfile -t tests < <(printf '%s\n' "${tests[@]}" | sort -u)
 
+# Avoid duplicate pytest collection when both a directory and one of its
+# children were selected by different changed files.
+selected=()
+for path in "${tests[@]}"; do
+    covered=0
+    for parent in "${selected[@]}"; do
+        if [[ "$path" == "$parent"/* ]]; then
+            covered=1
+            break
+        fi
+    done
+    if [[ $covered -eq 0 ]]; then
+        selected+=("$path")
+    fi
+done
+tests=("${selected[@]}")
+
 printf '%s\n' "${tests[@]}"
 
 if [[ $run_pytest -eq 1 ]]; then
-    if ! command -v pytest >/dev/null 2>&1; then
-        echo "tests-for-diff.sh: pytest not on PATH; activate .venv first" >&2
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "tests-for-diff.sh: uv not on PATH; install uv before running tests" >&2
         exit 2
     fi
     echo "--- running pytest on the paths above ---" >&2
-    exec pytest -q --no-cov "${tests[@]}"
+    exec uv run pytest -q --no-cov "${tests[@]}"
 fi

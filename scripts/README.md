@@ -32,6 +32,26 @@ entry point; place other scripts in the domain directories below.
 - Keep shell scripts executable and cover behavior-bearing Python scripts with
   focused tests under `tests/scripts/`.
 
+## Run changed tests
+
+Use the diff-scoped runner during the edit loop. It includes tracked, staged,
+and untracked working-tree changes, then maps source and repository data to the
+pytest paths that own them:
+
+```bash
+make test-changed
+```
+
+To test all changes on a branch, pass a Git diff range:
+
+```bash
+make test-changed DIFF=origin/main...HEAD
+```
+
+Changes to global Python test configuration select the full suite. The focused
+runner doesn't collect coverage and doesn't replace `make test` or
+`bash scripts/verify.sh --full` before merging.
+
 ## Verification
 
 Run the fast repository checks after changing script wiring:

@@ -6,7 +6,7 @@
 # Real deployment lives under `infra/` (Terraform); see the roadmap.
 
 .PHONY: dev-up dev-down dev-logs dev-nuke help \
-	lint format test operator gates check pre-commit-install hooks-install \
+	lint format test test-changed operator gates check pre-commit-install hooks-install \
         azd-up genesis-up
 
 help: ## show this help
@@ -46,6 +46,9 @@ format: ## apply ruff format + ruff --fix (mutates files)
 
 test: ## pytest with safety-core branch coverage (--cov-fail-under=90 matches CI)
 	bash scripts/quality/ci/run-python-tests.sh
+
+test-changed: ## pytest paths affected by changes (optional: DIFF=origin/main...HEAD)
+	@bash scripts/automation/tests-for-diff.sh --run $(DIFF)
 
 operator: ## console + CLI tests, typecheck, build, and entry-bundle budget
 	bash scripts/quality/ci/run-operator-surfaces.sh
