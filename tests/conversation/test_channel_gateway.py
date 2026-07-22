@@ -15,6 +15,7 @@ from fdai.core.conversation.busy_input_coordinator import BusyInputCoordinator
 from fdai.core.conversation.busy_input_store import InMemoryBusyInputStore
 from fdai.core.conversation.channel_gateway import (
     AttachmentIngestionResult,
+    ChannelAttachmentIngestor,
     ChannelBusyInputModeResolver,
     ChannelDeliveryContext,
     ConversationChannelGateway,
@@ -52,6 +53,7 @@ class _ReadTool:
 class _AttachmentIngestor:
     def __init__(self, result: AttachmentIngestionResult) -> None:
         self.result = result
+        self.calls = 0
 
     async def ingest(
         self,
@@ -59,7 +61,18 @@ class _AttachmentIngestor:
         turn: InboundTurn,
         principal: Principal,
     ) -> AttachmentIngestionResult:
+        self.calls += 1
         return self.result
+
+
+class _ExplodingAttachmentIngestor:
+    async def ingest(
+        self,
+        *,
+        turn: InboundTurn,
+        principal: Principal,
+    ) -> AttachmentIngestionResult:
+        raise ValueError("unexpected provider failure")
 
 
 class _Resolver:
@@ -181,17 +194,20 @@ def _gateway(
     principal: Principal | None = None,
     *,
     deny_sender: bool = False,
-    attachment_ingestor: _AttachmentIngestor | None = None,
+    attachment_ingestor: ChannelAttachmentIngestor | None = None,
     transition_sink: InMemoryRoutingTransitionSink | None = None,
     busy_input_coordinator: BusyInputCoordinator | None = None,
     busy_input_mode_resolver: ChannelBusyInputModeResolver | None = None,
     outbound_delivery: _DurableDelivery | None = None,
+    session_load_fails: bool = False,
 ) -> ConversationChannelGateway:
     sessions: dict[str, ConversationSession] = {}
 
     async def load_session(
         session_id: str, resolved: Principal, channel_id: str
     ) -> ConversationSession:
+        if session_load_fails:
+            raise ConnectionError("session store unavailable")
         return sessions.setdefault(
             session_id,
             ConversationSession(
@@ -387,6 +403,66 @@ async def test_rejected_attachment_never_invokes_tool() -> None:
         transition.name == "attachment.ingestion" and transition.outcome == "rejected"
         for transition in transitions.transitions
     )
+
+
+async def test_run_continues_after_one_turn_processing_error() -> None:
+    failed_turn = replace(
+        _turn("message-failed"),
+        attachments=(
+            ChannelAttachment(
+                source_ref="file-failed",
+                name="failed.txt",
+                size_bytes=4,
+                media_type_hint="text/plain",
+            ),
+        ),
+    )
+    successful_turn = _turn("message-success")
+    transitions = InMemoryRoutingTransitionSink()
+    adapter = _Adapter((failed_turn, successful_turn))
+
+    await _gateway(
+        attachment_ingestor=_ExplodingAttachmentIngestor(),
+        transition_sink=transitions,
+    ).run(adapter)
+
+    assert [response.in_reply_to for response in adapter.sent] == ["message-success"]
+    assert any(
+        transition.name == "message.processing"
+        and transition.attributes.get("reason_code") == "processing_error"
+        for transition in transitions.transitions
+    )
+
+
+async def test_post_ingestion_failure_is_not_reingested_on_redelivery() -> None:
+    turn = replace(
+        _turn("message-attachment"),
+        attachments=(
+            ChannelAttachment(
+                source_ref="file-1",
+                name="evidence.txt",
+                size_bytes=4,
+                media_type_hint="text/plain",
+            ),
+        ),
+    )
+    ingestor = _AttachmentIngestor(
+        AttachmentIngestionResult(
+            status="ready",
+            evidence_refs=("doc:document-1:version-1",),
+        )
+    )
+    adapter = _Adapter((turn, turn))
+
+    await _gateway(
+        attachment_ingestor=ingestor,
+        session_load_fails=True,
+    ).run(adapter)
+
+    assert ingestor.calls == 1
+    assert len(adapter.sent) == 1
+    assert adapter.sent[0].status == "error"
+    assert "failed after attachment ingestion" in adapter.sent[0].text
 
 
 async def test_attachment_only_knowledge_returns_citation_without_tool_call() -> None:

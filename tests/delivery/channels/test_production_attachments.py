@@ -61,6 +61,28 @@ def test_attachment_config_rejects_nonfinite_timeout(timeout: str) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("key", "value"),
+    (
+        ("FDAI_CHANNEL_ATTACHMENT_TIMEOUT_SECONDS", "301"),
+        ("FDAI_CHANNEL_ATTACHMENT_PROCESSING_TIMEOUT_SECONDS", "601"),
+        ("FDAI_CHANNEL_ATTACHMENT_PROCESSING_POLL_SECONDS", "0.01"),
+        ("FDAI_CHANNEL_ATTACHMENT_PROCESSING_POLL_SECONDS", "11"),
+    ),
+)
+def test_attachment_config_rejects_unbounded_timing(key: str, value: str) -> None:
+    with pytest.raises(ProductionAttachmentConfigError, match="required"):
+        ProductionAttachmentConfig.from_env(
+            {
+                "FDAI_CHANNEL_ATTACHMENTS_ENABLED": "1",
+                "FDAI_CHANNEL_ATTACHMENT_COLLECTION": "channel-evidence",
+                "FDAI_CHANNEL_ATTACHMENT_ACCESS_REF": "acl-channel-evidence",
+                "FDAI_CHANNEL_ATTACHMENT_RETENTION_POLICY": "retention-v1",
+                key: value,
+            }
+        )
+
+
 async def test_terminal_resolver_returns_only_agent_processed_terminal_version() -> None:
     upload_id = UUID(int=1)
     document_id = UUID(int=2)

@@ -176,8 +176,10 @@ that resource only. An empty endpoint keeps metadata-only behavior and provision
 retention policy, vendor host allowlists, and timeout. It is enabled only by
 `FDAI_CHANNEL_ATTACHMENTS_ENABLED=1`; partial configuration fails startup.
 
-Timeouts must be positive finite numbers; `NaN` and infinity fail startup. Vendor attachment names
-must be leaf names without path separators, dot-only names, or control and formatting characters.
+Fetch timeouts must be positive finite numbers no greater than 300 seconds. Terminal processing
+waits must be no greater than 600 seconds and use a polling interval from 0.1 through 10 seconds;
+`NaN`, infinity, and values outside those bounds fail startup. Vendor attachment names must be leaf
+names without path separators, dot-only names, or control and formatting characters.
 
 `build_production_attachment_ingestor()` builds only fetchers for enabled channels. Teams requires
 identity, resolver, host allowlist, and token audience allowlist. `ProductionChannelRuntime` binds
@@ -210,6 +212,8 @@ silently deleted.
 | Byte cap exceeded | Abort stream and reject. |
 | Malware or protected-content hold | Return no citation and do not call the narrator. |
 | Agent pipeline misses the terminal wait bound | Reject the turn; never run a worker inline. |
+| Unexpected failure before attachment completion | Release the message claim, emit a sanitized processing transition, and continue the next queued turn. |
+| Session/tool failure after attachment completion | Keep the message claim, return one generic error, and never ingest the same vendor message twice. |
 | OCR configured but unavailable or malformed | Fail extraction; no searchable evidence. |
 | Web reference malformed | Return 400. |
 | Web resolver absent | Return 501. |
@@ -218,6 +222,8 @@ silently deleted.
 
 The channel gateway emits `attachment.ingestion` transitions for unavailable, rejected, and ready
 outcomes without including filenames, source references, document contents, or provider errors.
+An unexpected turn failure is isolated to that turn; it does not terminate the Slack or Teams
+receive loop.
 
 ## Verification
 

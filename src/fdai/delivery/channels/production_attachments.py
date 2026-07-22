@@ -116,10 +116,12 @@ class ProductionAttachmentConfig:
             or not self.retention_policy_version
             or not isfinite(self.timeout_seconds)
             or self.timeout_seconds <= 0
+            or self.timeout_seconds > 300
             or not isfinite(self.processing_timeout_seconds)
             or self.processing_timeout_seconds <= 0
+            or self.processing_timeout_seconds > 600
             or not isfinite(self.processing_poll_interval_seconds)
-            or self.processing_poll_interval_seconds <= 0
+            or not 0.1 <= self.processing_poll_interval_seconds <= 10
         ):
             raise ProductionAttachmentConfigError(
                 "channel attachment collection, access, retention, and timeout are required"

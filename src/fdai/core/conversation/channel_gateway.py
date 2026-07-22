@@ -171,7 +171,19 @@ class ConversationChannelGateway:
     async def run(self, adapter: ConversationChannelAdapter) -> None:
         """Consume one adapter until its receive stream ends."""
         async for turn in adapter.receive():
-            handled = await self._handle(adapter=adapter, turn=turn)
+            try:
+                handled = await self._handle(adapter=adapter, turn=turn)
+            except Exception as exc:  # noqa: BLE001 - isolate one malformed/provider turn
+                self._emit(
+                    turn,
+                    "message.processing",
+                    "rejected",
+                    {
+                        "reason_code": "processing_error",
+                        "exception_type": type(exc).__name__,
+                    },
+                )
+                continue
             if handled is None:
                 continue
             if self._outbound_delivery is None:
@@ -230,6 +242,7 @@ class ConversationChannelGateway:
             return None
         session_id = _session_id(turn, principal)
         busy_turn_started = False
+        attachment_ingestion_completed = False
         try:
             if self._busy_input_coordinator is not None:
                 state = await self._busy_input_coordinator.status(
@@ -296,6 +309,7 @@ class ConversationChannelGateway:
                     )
                 attachment_evidence = ingestion.evidence_refs
                 attachment_message = ingestion.message
+                attachment_ingestion_completed = True
                 self._emit(
                     turn,
                     "attachment.ingestion",
@@ -331,6 +345,21 @@ class ConversationChannelGateway:
                 session_id=session_id,
             )
         except Exception:
+            if attachment_ingestion_completed:
+                self._emit(
+                    turn,
+                    "message.processing",
+                    "rejected",
+                    {"reason_code": "post_ingestion_error"},
+                )
+                return _HandledChannelResponse(
+                    response=_attachment_error(
+                        turn,
+                        "channel turn failed after attachment ingestion",
+                    ),
+                    principal=principal,
+                    session_id=session_id,
+                )
             await self._ledger.release(idempotency_key)
             raise
         finally:

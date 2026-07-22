@@ -125,6 +125,11 @@ response persistence; only citations enter the immutable response. See
 [conversation-attachments.md](conversation-attachments.md). Duplicate webhooks or completions do
 not rerun ingestion, the coordinator, or delivery.
 
+If a downstream session or tool fails after governed attachment ingestion, the gateway keeps the
+inbound claim and returns a generic error response. This prevents redelivery from creating another
+document version for the same vendor message. Failures before attachment completion release the
+claim and are isolated to one turn so the channel consumer continues.
+
 `ScheduledContinuationDeliveryCoordinator` submits external Slack and Teams results with the
 stable anchor id as the origin. It uses the already persisted result summary, digest, evidence,
 conversation reference, and thread mode. Web continuations remain idempotent conversation turns.

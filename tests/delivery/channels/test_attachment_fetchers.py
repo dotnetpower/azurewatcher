@@ -45,6 +45,16 @@ class _Identity:
         return IdentityToken(token="identity-token", audience=audience, expires_at=None)
 
 
+class _FailingIdentity:
+    async def get_token(self, audience: str) -> IdentityToken:
+        raise ValueError("identity provider failed")
+
+
+class _FailingSecrets:
+    async def get(self, key: str) -> str:
+        raise RuntimeError("secret provider failed")
+
+
 class _TeamsResolver:
     async def resolve(self, attachment: ChannelAttachment) -> AttachmentDownloadLocation:
         assert attachment.source_ref == "opaque-file-id"
@@ -105,6 +115,17 @@ async def test_slack_fetcher_rejects_untrusted_download_host_before_get() -> Non
     with pytest.raises(ChannelAttachmentFetchError, match="allowlist"):
         await fetcher.fetch(_ATTACHMENT, max_bytes=10)
     assert calls == 1
+
+
+async def test_slack_fetcher_normalizes_secret_provider_failure() -> None:
+    fetcher = SlackPrivateFileFetcher(
+        config=SlackAttachmentFetcherConfig(),
+        secrets=_FailingSecrets(),
+        http_client=httpx.AsyncClient(),
+    )
+
+    with pytest.raises(ChannelAttachmentFetchError, match="metadata is unavailable"):
+        await fetcher.fetch(_ATTACHMENT, max_bytes=10)
 
 
 async def test_slack_fetcher_enforces_streamed_byte_limit() -> None:
@@ -290,6 +311,21 @@ async def test_teams_fetcher_rejects_resolver_audience_outside_policy() -> None:
     with pytest.raises(ChannelAttachmentFetchError, match="audience"):
         await fetcher.fetch(_ATTACHMENT, max_bytes=10)
     assert identity.audiences == []
+
+
+async def test_teams_fetcher_normalizes_identity_provider_failure() -> None:
+    fetcher = TeamsServerAttachmentFetcher(
+        config=TeamsAttachmentFetcherConfig(
+            allowed_download_hosts=("attachments.example.com",),
+            allowed_audiences=("api://attachments.example.com",),
+        ),
+        resolver=_TeamsResolver(),
+        identity=_FailingIdentity(),
+        http_client=httpx.AsyncClient(),
+    )
+
+    with pytest.raises(ChannelAttachmentFetchError, match="provider is unavailable"):
+        await fetcher.fetch(_ATTACHMENT, max_bytes=10)
 
 
 @pytest.mark.parametrize("timeout", (float("nan"), float("inf")))

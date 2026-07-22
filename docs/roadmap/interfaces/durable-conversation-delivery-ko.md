@@ -1,6 +1,6 @@
 ---
 translation_of: durable-conversation-delivery.md
-translation_source_sha: 05d14df03212b4c7ba379d1dbcd11c935a66f4a9
+translation_source_sha: 2575636fc305a3503e4e553b64210e0b6edaa966
 translation_revised: 2026-07-23
 ---
 # 영구 대화 전송
@@ -125,6 +125,11 @@ attachment evidence 및 thread semantics를 유지합니다. Attachment byte는 
 governed ingestion을 완료하며 immutable response에는 citation만 들어갑니다.
 [conversation-attachments-ko.md](conversation-attachments-ko.md)를 참조하세요. Duplicate webhook
 또는 completion은 ingestion, coordinator, delivery를 다시 실행하지 않습니다.
+
+Governed attachment ingestion 후 downstream session 또는 tool이 실패하면 gateway는 inbound claim을
+유지하고 generic error response를 반환합니다. 따라서 redelivery가 동일 vendor message에 대해 다른
+document version을 만들지 않습니다. Attachment completion 전 failure는 claim을 release하고 한
+turn으로 격리하므로 channel consumer가 계속 동작합니다.
 
 `ScheduledContinuationDeliveryCoordinator`는 stable anchor id를 origin으로 사용해 외부 Slack 및
 Teams result를 제출합니다. 이미 저장된 result summary, digest, evidence, conversation reference,

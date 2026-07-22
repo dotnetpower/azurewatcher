@@ -82,7 +82,7 @@ class SlackPrivateFileFetcher:
             )
         except ChannelAttachmentFetchError:
             raise
-        except (httpx.HTTPError, ValueError) as exc:
+        except Exception as exc:  # noqa: BLE001 - secret/provider details stay internal
             raise ChannelAttachmentFetchError("Slack attachment metadata is unavailable") from exc
         file_record = payload.get("file") if isinstance(payload, dict) else None
         if not isinstance(payload, dict) or payload.get("ok") is not True:
@@ -114,6 +114,7 @@ class TeamsAttachmentFetcherConfig:
             or not self.allowed_audiences
             or not isfinite(self.timeout_seconds)
             or self.timeout_seconds <= 0
+            or self.timeout_seconds > 300
         ):
             raise ValueError(
                 "Teams attachment fetcher requires hosts, audiences, and a finite timeout"
@@ -152,7 +153,7 @@ class TeamsServerAttachmentFetcher:
             )
         except ChannelAttachmentFetchError:
             raise
-        except (httpx.HTTPError, RuntimeError) as exc:
+        except Exception as exc:  # noqa: BLE001 - resolver/identity details stay internal
             raise ChannelAttachmentFetchError("Teams attachment provider is unavailable") from exc
 
 
@@ -171,8 +172,8 @@ def _validate_fetch_config(
         raise ValueError("attachment API base MUST be an HTTPS URL without credentials or query")
     if not allowed_hosts or any(not _is_host_name(host) for host in allowed_hosts):
         raise ValueError("attachment download hosts MUST be non-empty host names")
-    if not isfinite(timeout_seconds) or timeout_seconds <= 0:
-        raise ValueError("attachment fetch timeout MUST be positive")
+    if not isfinite(timeout_seconds) or not 0 < timeout_seconds <= 300:
+        raise ValueError("attachment fetch timeout MUST be in (0, 300]")
 
 
 def _validate_download_url(url: str, allowed_hosts: tuple[str, ...]) -> None:
