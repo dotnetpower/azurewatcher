@@ -48,10 +48,10 @@ To test all changes on a branch, pass a Git diff range:
 make test-changed DIFF=origin/main...HEAD
 ```
 
-Changes to global Python test configuration and Python files outside a known
-source layout select the full suite. The focused runner doesn't collect
-coverage and doesn't replace `make test` or `bash scripts/verify.sh --full`
-before merging.
+Changes to global Python test configuration, shared contracts with
+cross-repository consumers, and Python files outside a known source layout
+select the full suite. The focused runner doesn't collect coverage and doesn't
+replace `make test` or `bash scripts/verify.sh --full` before merging.
 
 ## Verification
 
