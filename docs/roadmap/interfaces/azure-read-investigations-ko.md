@@ -1,7 +1,7 @@
 ---
 title: Azure 읽기 조사
 translation_of: azure-read-investigations.md
-translation_source_sha: 8e7ede1d27d589e70905157d2257412a9d96a48a
+translation_source_sha: 149e564c8c02d60701f3bfc28672e5c1f439c49a
 translation_revised: 2026-07-22
 ---
 
@@ -100,6 +100,9 @@ Planner는 history를 조회하기 전에 resource name을 resolve합니다. Mat
 REST 또는 SDK adapter가 production default입니다. Azure CLI는 기존 typed command broker 뒤의
 allowlisted fallback입니다. Model은 argv, KQL, ARG query, subscription id 또는 ARM URL을 생성하지
 않습니다. Registered tool 및 bounded enum argument만 선택합니다.
+Broker는 registered plan의 timeout 및 output cap을 적용합니다. Complete JSON은 typed adapter에
+ephemeral output으로만 반환되고 command receipt는 bounded 4 KB diagnostic tail만 유지하므로 raw CLI
+output은 persist되거나 narrator context에 전달되지 않습니다.
 
 ## Evidence 계약
 

@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 from fdai.core.tools.command_catalog import CommandCatalog
 from fdai.delivery.azure.read_investigation.transport import AzureRow
-from fdai.shared.providers.command_runner import CommandRunner, CommandStatus
+from fdai.shared.providers.command_runner import CommandOutputRunner, CommandStatus
 from fdai.shared.providers.read_investigation import ReadToolLimits, ResourceSelector
 
 
@@ -44,7 +44,7 @@ class AzureCliReadTransport:
         *,
         config: AzureReadCliConfig,
         catalog: CommandCatalog,
-        runner: CommandRunner,
+        runner: CommandOutputRunner,
     ) -> None:
         self._config = config
         self._catalog = catalog
@@ -207,11 +207,12 @@ class AzureCliReadTransport:
             idempotency_key=f"read-cli:{digest}",
             dry_run=False,
         )
-        receipt = await self._runner.execute(plan)
+        output = await self._runner.execute_with_output(plan)
+        receipt = output.receipt
         if receipt.status is not CommandStatus.SUCCEEDED:
             raise AzureReadCliError(f"typed CLI command ended with {receipt.status.value}")
         try:
-            payload = json.loads(receipt.stdout_tail)
+            payload = json.loads(output.stdout)
         except json.JSONDecodeError as exc:
             raise AzureReadCliError("typed CLI command returned invalid JSON") from exc
         if isinstance(payload, Mapping):

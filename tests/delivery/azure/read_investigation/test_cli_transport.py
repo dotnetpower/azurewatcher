@@ -12,6 +12,7 @@ from fdai.delivery.azure.read_investigation import (
     AzureReadCliError,
 )
 from fdai.shared.providers.command_runner import (
+    CommandOutput,
     CommandPlan,
     CommandReceipt,
     CommandStatus,
@@ -26,10 +27,14 @@ LIMITS = ReadToolLimits(timeout_seconds=120, max_results=8, max_output_bytes=64_
 
 
 class _Runner:
-    def __init__(self) -> None:
+    def __init__(self, *, large_activity: bool = False) -> None:
         self.plans: list[CommandPlan] = []
+        self.large_activity = large_activity
 
     async def execute(self, plan: CommandPlan) -> CommandReceipt:
+        return (await self.execute_with_output(plan)).receipt
+
+    async def execute_with_output(self, plan: CommandPlan) -> CommandOutput:
         self.plans.append(plan)
         if plan.command_id == "azure.read.resource.resolve":
             payload: object = [
@@ -48,15 +53,19 @@ class _Runner:
                     "eventTimestamp": datetime(2026, 7, 22, tzinfo=UTC).isoformat(),
                     "status": {"value": "Succeeded"},
                     "operationName": {"value": "deallocate"},
-                    "caller": "caller@example.com",
+                    "caller": "x" * 6_000 if self.large_activity else "caller@example.com",
                     "correlationId": "provider-correlation",
                 }
             ]
-        return CommandReceipt(
-            status=CommandStatus.SUCCEEDED,
-            receipt_ref=f"receipt:{plan.command_id}",
-            exit_code=0,
-            stdout_tail=json.dumps(payload),
+        serialized = json.dumps(payload)
+        return CommandOutput(
+            receipt=CommandReceipt(
+                status=CommandStatus.SUCCEEDED,
+                receipt_ref=f"receipt:{plan.command_id}",
+                exit_code=0,
+                stdout_tail=serialized[-4_096:],
+            ),
+            stdout=serialized,
         )
 
 
@@ -136,3 +145,16 @@ async def test_cli_transport_rejects_scope_widening_and_unsupported_sources() ->
             limits=LIMITS,
         )
     assert runner.plans == []
+
+
+async def test_cli_transport_parses_json_larger_than_receipt_tail() -> None:
+    runner = _Runner(large_activity=True)
+
+    activity = await _transport(runner).query_resource_activity(
+        RESOURCE_ID,
+        lookback_seconds=3_600,
+        limits=LIMITS,
+    )
+
+    assert activity[0]["operation"] == "deallocate"
+    assert len(str(activity[0]["caller"])) == 6_000

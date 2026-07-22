@@ -90,6 +90,14 @@ class CommandReceipt:
     already_existed: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class CommandOutput:
+    """Ephemeral full output for a typed consumer; never persist or log it."""
+
+    receipt: CommandReceipt
+    stdout: str = ""
+
+
 @runtime_checkable
 class CommandRunner(Protocol):
     """Execute only a plan already resolved by the trusted catalog."""
@@ -97,10 +105,19 @@ class CommandRunner(Protocol):
     async def execute(self, plan: CommandPlan) -> CommandReceipt: ...
 
 
+@runtime_checkable
+class CommandOutputRunner(CommandRunner, Protocol):
+    """Run a typed command and return its bounded full output separately."""
+
+    async def execute_with_output(self, plan: CommandPlan) -> CommandOutput: ...
+
+
 __all__ = [
     "CommandExecutionClass",
     "CommandNetworkProfile",
+    "CommandOutput",
     "CommandOutputFormat",
+    "CommandOutputRunner",
     "CommandPlan",
     "CommandReceipt",
     "CommandRunner",

@@ -17,6 +17,7 @@ from typing import Final
 from fdai.shared.providers.command_runner import (
     CommandExecutionClass,
     CommandNetworkProfile,
+    CommandOutput,
     CommandOutputFormat,
     CommandPlan,
     CommandReceipt,
@@ -92,22 +93,30 @@ class AzureCliCommandRunner(CommandRunner):
     ) -> None:
         self._config: Final = config
         self._invoke: Final = invoker or _invoke_process
-        self._receipts: dict[str, CommandReceipt] = {}
+        self._outputs: dict[str, CommandOutput] = {}
 
     async def execute(self, plan: CommandPlan) -> CommandReceipt:
+        return (await self.execute_with_output(plan)).receipt
+
+    async def execute_with_output(self, plan: CommandPlan) -> CommandOutput:
         _validate_plan(plan, self._config)
         if plan.dry_run:
-            return CommandReceipt(
-                status=CommandStatus.PLANNED,
-                receipt_ref=_receipt_ref("azure-command-plan", plan),
+            return CommandOutput(
+                receipt=CommandReceipt(
+                    status=CommandStatus.PLANNED,
+                    receipt_ref=_receipt_ref("azure-command-plan", plan),
+                )
             )
-        prior = self._receipts.get(plan.idempotency_key)
+        prior = self._outputs.get(plan.idempotency_key)
         if prior is not None:
-            return CommandReceipt(
-                status=CommandStatus.ALREADY_APPLIED,
-                receipt_ref=prior.receipt_ref,
-                exit_code=prior.exit_code,
-                already_existed=True,
+            return CommandOutput(
+                receipt=CommandReceipt(
+                    status=CommandStatus.ALREADY_APPLIED,
+                    receipt_ref=prior.receipt.receipt_ref,
+                    exit_code=prior.receipt.exit_code,
+                    already_existed=True,
+                ),
+                stdout=prior.stdout,
             )
         started = time.monotonic()
         with tempfile.TemporaryDirectory(prefix="fdai-azure-cli-") as config_dir:
@@ -127,7 +136,9 @@ class AzureCliCommandRunner(CommandRunner):
                 env,
             )
             if login.return_code != 0:
-                return _failed_receipt(plan, login, started, "managed identity login failed")
+                return CommandOutput(
+                    receipt=_failed_receipt(plan, login, started, "managed identity login failed")
+                )
             account = await self._call(
                 (
                     self._config.executable,
@@ -144,19 +155,30 @@ class AzureCliCommandRunner(CommandRunner):
                 env,
             )
             if account.return_code != 0:
-                return _failed_receipt(plan, account, started, "subscription check failed")
+                return CommandOutput(
+                    receipt=_failed_receipt(plan, account, started, "subscription check failed")
+                )
             actual_subscription = account.stdout.decode("utf-8", errors="replace").strip()
             if actual_subscription != self._config.subscription_id:
-                return CommandReceipt(
-                    status=CommandStatus.STOPPED,
-                    receipt_ref=_receipt_ref("azure-command-stopped", plan),
-                    exit_code=account.return_code,
-                    stderr_tail="active Azure subscription does not match the trusted scope",
-                    duration_ms=_duration_ms(started),
+                return CommandOutput(
+                    receipt=CommandReceipt(
+                        status=CommandStatus.STOPPED,
+                        receipt_ref=_receipt_ref("azure-command-stopped", plan),
+                        exit_code=account.return_code,
+                        stderr_tail="active Azure subscription does not match the trusted scope",
+                        duration_ms=_duration_ms(started),
+                    )
                 )
-            result = await self._call((self._config.executable, *plan.argv), env)
+            result = await self._call(
+                (self._config.executable, *plan.argv),
+                env,
+                timeout_seconds=min(self._config.timeout_seconds, plan.timeout_seconds),
+                max_output_bytes=min(self._config.max_output_bytes, plan.max_output_bytes),
+            )
         if result.return_code != 0:
-            return _failed_receipt(plan, result, started, "Azure CLI command failed")
+            return CommandOutput(
+                receipt=_failed_receipt(plan, result, started, "Azure CLI command failed")
+            )
         receipt = CommandReceipt(
             status=CommandStatus.SUCCEEDED,
             receipt_ref=_receipt_ref("azure-command", plan),
@@ -165,20 +187,27 @@ class AzureCliCommandRunner(CommandRunner):
             stderr_tail=_safe_detail(result.stderr),
             duration_ms=_duration_ms(started),
         )
-        self._receipts[plan.idempotency_key] = receipt
-        return receipt
+        output = CommandOutput(
+            receipt=receipt,
+            stdout=result.stdout.decode("utf-8", errors="replace"),
+        )
+        self._outputs[plan.idempotency_key] = output
+        return output
 
     async def _call(
         self,
         argv: tuple[str, ...],
         env: Mapping[str, str],
+        *,
+        timeout_seconds: float | None = None,
+        max_output_bytes: int | None = None,
     ) -> AzureCliProcessResult:
         try:
             return await self._invoke(
                 argv,
                 env,
-                self._config.timeout_seconds,
-                self._config.max_output_bytes,
+                timeout_seconds or self._config.timeout_seconds,
+                max_output_bytes or self._config.max_output_bytes,
             )
         except TimeoutError:
             return AzureCliProcessResult(

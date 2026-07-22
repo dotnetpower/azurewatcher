@@ -81,6 +81,30 @@ async def test_live_read_logs_in_with_identity_and_checks_subscription() -> None
     assert not Path(calls[0][1]["AZURE_CONFIG_DIR"]).exists()
 
 
+async def test_full_output_is_separate_from_bounded_receipt_tail() -> None:
+    payload = b'[{"value":"' + (b"x" * 8_000) + b'"}]'
+
+    async def invoke(
+        argv: tuple[str, ...],
+        env: Mapping[str, str],  # noqa: ARG001
+        timeout: float,  # noqa: ARG001
+        cap: int,
+    ) -> AzureCliProcessResult:
+        if argv[1:3] == ("account", "show"):
+            return AzureCliProcessResult(0, b"subscription-example\n", b"")
+        if argv[1:3] == ("resource", "list"):
+            assert cap == _plan(dry_run=False).max_output_bytes
+            return AzureCliProcessResult(0, payload, b"")
+        return AzureCliProcessResult(0, b"", b"")
+
+    output = await AzureCliCommandRunner(_config(), invoker=invoke).execute_with_output(
+        _plan(dry_run=False)
+    )
+
+    assert output.stdout == payload.decode()
+    assert len(output.receipt.stdout_tail.encode()) == 4_096
+
+
 async def test_subscription_override_is_rejected_before_login() -> None:
     calls = 0
 
