@@ -272,3 +272,27 @@ async def test_activity_lookback_beyond_retention_fails_before_http() -> None:
                 limits=LIMITS,
             )
     assert calls == 0
+
+
+async def test_guest_lookback_beyond_retention_fails_before_http() -> None:
+    calls = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        transport = AzureRestReadTransport(
+            config=_config(),
+            identity=_Identity(),
+            http_client=client,
+            clock=lambda: NOW,
+        )
+        with pytest.raises(AzureReadRestError, match="guest log lookback.*retention"):
+            await transport.query_guest_shutdown_events(
+                RESOURCE_ID,
+                lookback_seconds=31 * 24 * 3_600,
+                limits=LIMITS,
+            )
+    assert calls == 0

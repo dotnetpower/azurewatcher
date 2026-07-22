@@ -59,6 +59,7 @@ class AzureReadRestConfig:
     max_attempts: int = 3
     max_raw_response_bytes: int = 1_000_000
     activity_retention_seconds: int = 90 * 24 * 3_600
+    guest_log_retention_seconds: int = 30 * 24 * 3_600
 
     def __post_init__(self) -> None:
         if not self.scopes or len({scope.scope_ref for scope in self.scopes}) != len(self.scopes):
@@ -81,6 +82,8 @@ class AzureReadRestConfig:
             raise ValueError("max_raw_response_bytes MUST be in [1024, 5000000]")
         if not 3_600 <= self.activity_retention_seconds <= 365 * 24 * 3_600:
             raise ValueError("activity_retention_seconds MUST be in [3600, 31536000]")
+        if not 3_600 <= self.guest_log_retention_seconds <= 365 * 24 * 3_600:
+            raise ValueError("guest_log_retention_seconds MUST be in [3600, 31536000]")
 
 
 class AzureRestReadTransport:
@@ -287,6 +290,8 @@ class AzureRestReadTransport:
         scope = self._scope_for_resource(provider_ref)
         if scope.workspace_id is None:
             raise AzureReadRestError("guest log workspace is not configured")
+        if lookback_seconds > self._config.guest_log_retention_seconds:
+            raise AzureReadRestError("requested guest log lookback exceeds configured retention")
         query = (
             "union isfuzzy=true "
             "(Event | where EventLog == 'System' and EventID in (1074, 6006) "

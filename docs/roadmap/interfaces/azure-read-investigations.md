@@ -239,8 +239,9 @@ raw CLI output, prompts, and unredacted caller payloads.
 - **Unauthorized scope:** Report unavailable and record the denied provider operation class.
 - **Provider throttling:** Apply bounded retry with jitter inside the original timeout; never widen
   scope or wall-clock budget.
-- **Insufficient retention:** Return unavailable before cloud I/O when the requested Activity Log
-  lookback exceeds the adapter's configured retention, which defaults to 90 days.
+- **Insufficient retention:** Return unavailable before cloud I/O when a requested lookback exceeds
+  its source-specific configured retention. Activity Log defaults to 90 days and guest logs default
+  to 30 days; deployments can narrow either window to their actual retention.
 - **Partial evidence:** Return supported facts and name the missing source.
 - **Process loss:** Mark an expired running attempt `unknown(process_lost)`; do not replay it
   automatically.
@@ -275,7 +276,7 @@ failure paths that are not safe to induce against a live subscription.
 | Ambiguous resource name | Live | Passed. One duplicate name returned four bounded candidates, no exact resource binding, and no history query. |
 | Guest OS shutdown | Live and contract | Incomplete. Sixteen accessible workspaces contained no retained Event or Syslog shutdown record across their available history. Live missing-workspace behavior returned `unavailable`; matched Event and Syslog normalization passed contract tests only. |
 | Provider throttling | Contract | Behavior passed. Synthetic `429` responses exercised bounded retry and terminal failure. An actual live `429` was not induced because deliberate throttling would violate the bounded-read policy. |
-| Insufficient retention | Contract | Passed. A lookback beyond configured Activity Log retention fails before HTTP and normalizes as unavailable through the provider boundary. |
+| Insufficient retention | Contract | Passed. Lookbacks beyond configured Activity Log or guest-log retention fail before HTTP and normalize as unavailable through the provider boundary. |
 
 The incomplete guest-event row and missing naturally occurring live `429` remain release evidence,
 not implementation defects. Keep the issue open until the dedicated validation environment can
