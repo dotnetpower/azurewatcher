@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import json
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
@@ -22,6 +21,10 @@ if TYPE_CHECKING:
         AzureBlobIdempotencyConfig,
         AzureBlobIdempotencyLedger,
     )
+    from delivery.dev_operations_gateway.principal import (
+        PrincipalHeaderError,
+        parse_easy_auth_principal,
+    )
 elif __package__:
     from .gateway import (
         GatewayConfig,
@@ -31,6 +34,7 @@ elif __package__:
         OperationsGateway,
     )
     from .idempotency import AzureBlobIdempotencyConfig, AzureBlobIdempotencyLedger
+    from .principal import PrincipalHeaderError, parse_easy_auth_principal
 else:
     from gateway import (
         GatewayConfig,
@@ -40,6 +44,7 @@ else:
         OperationsGateway,
     )
     from idempotency import AzureBlobIdempotencyConfig, AzureBlobIdempotencyLedger
+    from principal import PrincipalHeaderError, parse_easy_auth_principal
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -108,42 +113,10 @@ async def invoke(request: func.HttpRequest) -> func.HttpResponse:
 
 def _principal(headers: Mapping[str, str]) -> GatewayPrincipal:
     encoded = headers.get("X-MS-CLIENT-PRINCIPAL", "")
-    if not encoded:
-        raise GatewayError(401, "unauthenticated", "Easy Auth principal is required")
     try:
-        payload = json.loads(base64.b64decode(encoded).decode("utf-8"))
-    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise GatewayError(401, "unauthenticated", "Easy Auth principal is invalid") from exc
-    claims = payload.get("claims") if isinstance(payload, Mapping) else None
-    if not isinstance(claims, list):
-        raise GatewayError(401, "unauthenticated", "Easy Auth claims are missing")
-    object_id = ""
-    groups: set[str] = set()
-    roles: set[str] = set()
-    for claim in claims:
-        if not isinstance(claim, Mapping):
-            continue
-        claim_type = str(claim.get("typ", ""))
-        value = str(claim.get("val", ""))
-        if claim_type in {"oid", "http://schemas.microsoft.com/identity/claims/objectidentifier"}:
-            object_id = value
-        if claim_type in {
-            "groups",
-            "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
-        }:
-            groups.add(value)
-        if claim_type in {
-            "roles",
-            "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
-        }:
-            roles.add(value)
-    if not object_id:
-        raise GatewayError(401, "unauthenticated", "Easy Auth object id is missing")
-    return GatewayPrincipal(
-        object_id=object_id,
-        groups=frozenset(groups),
-        roles=frozenset(roles),
-    )
+        return parse_easy_auth_principal(encoded)
+    except PrincipalHeaderError as exc:
+        raise GatewayError(401, "unauthenticated", str(exc)) from exc
 
 
 def _response(status_code: int, payload: Mapping[str, object]) -> func.HttpResponse:

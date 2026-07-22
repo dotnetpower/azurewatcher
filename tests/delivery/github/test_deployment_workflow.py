@@ -364,6 +364,10 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
         "\n  }", maxsplit=1
     )[0]
     assert re.search(
+        r'FDAI_DEV_GATEWAY_MUTATIONS_ENABLED\s*=\s*"0"',
+        gateway_app_settings,
+    )
+    assert re.search(
         r'AzureWebJobsStorage__credential\s*=\s*"managedidentity"',
         gateway_app_settings,
     )

@@ -12,6 +12,7 @@ from delivery.dev_operations_gateway.gateway import (
     GatewayPrincipal,
     ManagedIdentityTokenProvider,
     OperationsGateway,
+    PrivateProbe,
 )
 from delivery.dev_operations_gateway.idempotency import IdempotencyError
 
@@ -72,6 +73,7 @@ def _config() -> GatewayConfig:
         executor_identity_client_id="client-executor",
         idempotency_container_url="https://storage.example.com/operation-idempotency",
         private_probes={},
+        mutations_enabled=True,
     )
 
 
@@ -114,6 +116,54 @@ def test_config_rejects_unsafe_idempotency_container_url() -> None:
                 )
             )
         )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://169.254.169.254/metadata/instance",
+        "https://127.0.0.1/private",
+        "https://localhost/private",
+        "https://service.example.com/private#fragment",
+    ],
+)
+def test_private_probe_rejects_unsafe_targets(url: str) -> None:
+    with pytest.raises(ValueError, match="private probe URL"):
+        PrivateProbe(url=url, audience="api-application-id")
+
+
+async def test_mutations_are_disabled_by_default() -> None:
+    config = GatewayConfig.from_env(_environment())
+    assert config.mutations_enabled is False
+    calls = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gateway = OperationsGateway(
+            config=config,
+            reader_token_provider=_Tokens(),
+            executor_token_provider=_Tokens(),
+            http_client=client,
+            idempotency_ledger=_Ledger(),
+        )
+        with pytest.raises(GatewayError) as error:
+            await gateway.invoke(
+                "azure.compute.vm.start",
+                {
+                    "resource_group": "rg-example",
+                    "vm_name": "vm-app",
+                    "safety": _safety(),
+                },
+                GatewayPrincipal("principal-executor", frozenset()),
+            )
+
+    assert error.value.status_code == 404
+    assert error.value.code == "operation_not_found"
+    assert calls == 0
 
 
 @pytest.mark.parametrize("response", [httpx.Response(200, content=b"not-json")])
@@ -209,6 +259,47 @@ async def test_contributor_can_read_one_allowlisted_nsg() -> None:
     assert rules[0]["destination_port_range"] == "443"
 
 
+@pytest.mark.parametrize(("rule_count", "expected_truncated"), [(64, False), (65, True)])
+async def test_nsg_truncation_reports_only_omitted_rules(
+    rule_count: int,
+    expected_truncated: bool,
+) -> None:
+    rules = [
+        {
+            "name": f"rule-{index}",
+            "properties": {
+                "access": "Allow",
+                "direction": "Inbound",
+                "protocol": "Tcp",
+                "priority": 100 + index,
+            },
+        }
+        for index in range(rule_count)
+    ]
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(
+            200,
+            json={"properties": {"securityRules": rules, "defaultSecurityRules": []}},
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        gateway = OperationsGateway(
+            config=_config(),
+            reader_token_provider=_Tokens(),
+            executor_token_provider=_Tokens(),
+            http_client=client,
+        )
+        result = await gateway.invoke(
+            "azure.network.nsg.read",
+            {"resource_group": "rg-example", "nsg_name": "nsg-app"},
+            GatewayPrincipal("principal-user", frozenset({"group-contributor"})),
+        )
+
+    projected = cast(Mapping[str, object], result["result"])
+    assert len(cast(list[object], projected["rules"])) == 64
+    assert projected["truncated"] is expected_truncated
+
+
 async def test_scope_and_unregistered_operations_fail_closed() -> None:
     transport = httpx.MockTransport(lambda _: httpx.Response(500))
     async with httpx.AsyncClient(transport=transport) as client:
@@ -229,6 +320,96 @@ async def test_scope_and_unregistered_operations_fail_closed() -> None:
         with pytest.raises(GatewayError, match="not registered") as operation_error:
             await gateway.invoke("azure.raw.request", {}, principal)
         assert operation_error.value.status_code == 404
+
+
+async def test_arm_resource_not_found_preserves_non_retryable_status() -> None:
+    transport = httpx.MockTransport(lambda _request: httpx.Response(404))
+    async with httpx.AsyncClient(transport=transport) as client:
+        gateway = OperationsGateway(
+            config=_config(),
+            reader_token_provider=_Tokens(),
+            executor_token_provider=_Tokens(),
+            http_client=client,
+        )
+        with pytest.raises(GatewayError) as error:
+            await gateway.invoke(
+                "azure.network.nsg.read",
+                {"resource_group": "rg-example", "nsg_name": "nsg-missing"},
+                GatewayPrincipal("principal-user", frozenset({"group-contributor"})),
+            )
+
+    assert error.value.status_code == 404
+    assert error.value.code == "azure_resource_not_found"
+
+
+async def test_private_probe_never_follows_redirects() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(302, headers={"Location": "https://169.254.169.254/metadata"})
+
+    config = _config()
+    config = GatewayConfig(
+        subscription_id=config.subscription_id,
+        resource_groups=config.resource_groups,
+        contributor_group_id=config.contributor_group_id,
+        executor_principal_id=config.executor_principal_id,
+        reader_identity_client_id=config.reader_identity_client_id,
+        executor_identity_client_id=config.executor_identity_client_id,
+        idempotency_container_url=config.idempotency_container_url,
+        private_probes={
+            "service": PrivateProbe(
+                url="https://service.example.com/health",
+                audience="api-application-id",
+            )
+        },
+        mutations_enabled=config.mutations_enabled,
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        follow_redirects=True,
+    ) as client:
+        gateway = OperationsGateway(
+            config=config,
+            reader_token_provider=_Tokens(),
+            executor_token_provider=_Tokens(),
+            http_client=client,
+        )
+        result = await gateway.invoke(
+            "azure.private.http.probe",
+            {"probe": "service"},
+            GatewayPrincipal("principal-user", frozenset({"group-contributor"})),
+        )
+
+    assert len(requests) == 1
+    assert result["status"] == "succeeded"
+
+
+async def test_read_operation_rejects_unexpected_arm_202() -> None:
+    status_url = (
+        "https://management.azure.com/subscriptions/sub-example/providers/"
+        "Microsoft.Network/locations/koreacentral/operations/operation-one"
+    )
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(202, headers={"Azure-AsyncOperation": status_url})
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        gateway = OperationsGateway(
+            config=_config(),
+            reader_token_provider=_Tokens(),
+            executor_token_provider=_Tokens(),
+            http_client=client,
+        )
+        with pytest.raises(GatewayError) as error:
+            await gateway.invoke(
+                "azure.network.nsg.read",
+                {"resource_group": "rg-example", "nsg_name": "nsg-app"},
+                GatewayPrincipal("principal-user", frozenset({"group-contributor"})),
+            )
+
+    assert error.value.status_code == 502
+    assert error.value.code == "azure_response_invalid"
 
 
 async def test_contributor_app_role_can_read_without_group_claim() -> None:

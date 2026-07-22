@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -57,9 +58,29 @@ class PrivateProbe:
 
     def __post_init__(self) -> None:
         parsed = urlparse(self.url)
-        if parsed.scheme != "https" or not parsed.netloc or parsed.username is not None:
+        hostname = parsed.hostname or ""
+        try:
+            ipaddress.ip_address(hostname)
+            literal_ip = True
+        except ValueError:
+            literal_ip = False
+        if (
+            parsed.scheme != "https"
+            or not parsed.netloc
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.fragment
+            or hostname.casefold() == "localhost"
+            or literal_ip
+            or len(self.url) > 2_048
+            or any(character in self.url for character in ("\x00", "\r", "\n"))
+        ):
             raise ValueError("private probe URL MUST be an absolute HTTPS URL")
-        if not self.audience.strip() or len(self.audience) > 256:
+        if (
+            not self.audience.strip()
+            or len(self.audience) > 256
+            or any(character in self.audience for character in ("\x00", "\r", "\n"))
+        ):
             raise ValueError("private probe audience MUST be bounded")
 
 
@@ -73,6 +94,7 @@ class GatewayConfig:
     executor_identity_client_id: str
     idempotency_container_url: str
     private_probes: Mapping[str, PrivateProbe]
+    mutations_enabled: bool = False
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> GatewayConfig:
@@ -103,6 +125,9 @@ class GatewayConfig:
             "FDAI_DEV_GATEWAY_IDEMPOTENCY_CONTAINER_URL", ""
         ).strip()
         AzureBlobIdempotencyConfig(container_url=idempotency_container_url)
+        mutations_raw = values.get("FDAI_DEV_GATEWAY_MUTATIONS_ENABLED", "0").strip()
+        if mutations_raw not in {"0", "1"}:
+            raise ValueError("FDAI_DEV_GATEWAY_MUTATIONS_ENABLED MUST be 0 or 1")
         config = cls(
             subscription_id=values.get("FDAI_DEV_GATEWAY_SUBSCRIPTION_ID", "").strip(),
             resource_groups=groups,
@@ -116,6 +141,7 @@ class GatewayConfig:
             ).strip(),
             idempotency_container_url=idempotency_container_url,
             private_probes=probes,
+            mutations_enabled=mutations_raw == "1",
         )
         for name, value in (
             ("subscription id", config.subscription_id),
@@ -203,6 +229,8 @@ class OperationsGateway:
     ) -> Mapping[str, object]:
         self._authorize_read(principal)
         if operation_id == "azure.operation.status":
+            if not self._config.mutations_enabled:
+                raise GatewayError(404, "operation_not_found", "operation is not registered")
             return await self._operation_status(payload, principal)
         handlers = {
             "azure.network.nsg.read": self._read_nsg,
@@ -222,6 +250,8 @@ class OperationsGateway:
             "azure.compute.vm.start",
             "azure.compute.vm.deallocate",
         }
+        if mutation and not self._config.mutations_enabled:
+            raise GatewayError(404, "operation_not_found", "operation is not registered")
         if not mutation:
             result = await handler(payload)
             return {"operation_id": operation_id, "status": "succeeded", "result": result}
@@ -389,7 +419,7 @@ class OperationsGateway:
         properties = raw.get("properties")
         if not isinstance(properties, Mapping):
             raise GatewayError(502, "azure_response_invalid", "NSG properties were missing")
-        rules: list[Mapping[str, object]] = []
+        projected_rules: list[Mapping[str, object]] = []
         for collection_name, kind in (
             ("securityRules", "custom"),
             ("defaultSecurityRules", "default"),
@@ -397,13 +427,13 @@ class OperationsGateway:
             collection = properties.get(collection_name)
             if not isinstance(collection, list):
                 continue
-            for item in collection[:64]:
+            for item in collection:
                 if not isinstance(item, Mapping):
                     continue
                 rule = item.get("properties")
                 if not isinstance(rule, Mapping):
                     continue
-                rules.append(
+                projected_rules.append(
                     {
                         "name": str(item.get("name", ""))[:128],
                         "kind": kind,
@@ -425,7 +455,11 @@ class OperationsGateway:
                         ),
                     }
                 )
-        return {"name": name, "rules": rules, "truncated": len(rules) >= 64}
+        return {
+            "name": name,
+            "rules": projected_rules[:64],
+            "truncated": len(projected_rules) > 64,
+        }
 
     async def _read_peerings(self, payload: Mapping[str, object]) -> object:
         subscription, group = self._scope(payload)
@@ -482,6 +516,7 @@ class OperationsGateway:
             probe.url,
             headers={"Authorization": f"Bearer {token}"},
             timeout=10.0,
+            follow_redirects=False,
         )
         return {
             "probe": alias,
@@ -565,6 +600,8 @@ class OperationsGateway:
             json=json_body,
             timeout=30.0,
         )
+        if response.status_code == 404:
+            raise GatewayError(404, "azure_resource_not_found", "Azure resource was not found")
         if response.status_code == 429 or response.status_code >= 500:
             raise GatewayError(
                 503,
@@ -604,6 +641,12 @@ class OperationsGateway:
             headers={"Authorization": f"Bearer {token}"},
             timeout=30.0,
         )
+        if response.status_code == 404:
+            raise GatewayError(
+                404,
+                "azure_operation_not_found",
+                "Azure operation status was not found",
+            )
         if response.status_code == 429 or response.status_code >= 500:
             raise GatewayError(
                 503,

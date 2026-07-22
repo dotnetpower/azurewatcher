@@ -1,7 +1,7 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: 468543c3d68ff5ef0274de36652495940f1571bd
+translation_source_sha: 38ca0ba89a4437abe6a383f275a1488dd4a784ed
 translation_revised: 2026-07-22
 ---
 
@@ -92,8 +92,12 @@ Easy Auth audience를 모두 출력하면 NSG 및 VNet peering 질문은 local A
 registered read operation만 호출합니다. Pair가 없으면 wrapper를 비활성화하고 configured gateway가
 실패하면 direct ARM fallback 없이 unavailable을 보고합니다. Gateway는 reader/executor managed
 identity를 분리하며 local read API에 execution identity를 제공하지 않습니다. Mutation은 target-scoped
-Blob lease와 durable idempotency claim을 사용합니다. ARM long-running operation은 `submitted` 상태로
-유지되며 executor만 원래 idempotency key를 통해 server-owned status URL을 조회할 수 있습니다.
+Blob lease와 durable idempotency claim을 사용하지만 upstream Terraform은
+`FDAI_DEV_GATEWAY_MUTATIONS_ENABLED=0`으로 설정합니다. Direct-API contract가 검증된 dry-run 및
+rollback evidence를 전달할 수 있을 때까지 write handler는 shipped execution path가 아닙니다. Disabled
+contract test는 target-scoped Blob lease와 durable idempotency claim을 계속 요구합니다. ARM
+long-running operation은 `submitted` 상태로 유지되며 executor만 원래 idempotency key를 통해
+server-owned status URL을 조회할 수 있습니다.
 Stale pending claim은 계속 차단된 상태로 남지 않고 bounded timeout 이후 ETag compare-and-swap으로
 복구됩니다.
 

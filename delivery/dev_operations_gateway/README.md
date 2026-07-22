@@ -7,8 +7,10 @@ URLs, ARM paths, commands, or query text.
 ## Contracts
 
 - Read operations require the configured Contributor group or the FDAI executor principal.
-- Write and execute operations require the FDAI executor principal plus idempotency, audit,
-  dry-run, stop-condition, rollback, and single-resource impact evidence.
+- Write and execute handlers are present for contract hardening but remain disabled in upstream
+  Terraform with `FDAI_DEV_GATEWAY_MUTATIONS_ENABLED=0`. They are not a shipped execution path
+  until a governed direct-API adapter can provide verified dry-run, audit, stop-condition, and
+  rollback evidence instead of caller-asserted strings.
 - Mutation idempotency keys are claimed in a private, Microsoft Entra-authenticated Blob
   container before Azure is called. A completed duplicate reuses the recorded response, a
   conflicting payload is blocked, and storage uncertainty fails closed. Stale pending claims can
@@ -19,6 +21,8 @@ URLs, ARM paths, commands, or query text.
   in the operation record. The executor can poll it only through `azure.operation.status` with the
   original idempotency key.
 - Resource groups and private probe endpoints come from server configuration.
+- Private probe configuration rejects literal IP addresses, localhost, fragments, credentials,
+  and control characters before any token is requested. Probe requests never follow redirects.
 - The gateway refuses to start unless `FDAI_DEV_GATEWAY_ENABLED=1` and `FDAI_ENV=dev`.
 - App Service Authentication validates Microsoft Entra tokens before the anonymous Function route
   runs. Function keys are not an authorization boundary.
@@ -30,11 +34,11 @@ URLs, ARM paths, commands, or query text.
 | `azure.network.nsg.read` | read | One configured development NSG |
 | `azure.network.peering.read` | read | Peerings for one configured development VNet |
 | `azure.private.http.probe` | read | One server-registered HTTPS private endpoint |
-| `azure.network.nsg.rule.upsert` | write | One NSG security rule |
-| `azure.network.nsg.rule.delete` | write | One NSG security rule |
-| `azure.compute.vm.start` | execute | One VM |
-| `azure.compute.vm.deallocate` | execute | One VM |
-| `azure.operation.status` | execute status | One previously submitted mutation |
+| `azure.network.nsg.rule.upsert` | disabled write contract | One NSG security rule |
+| `azure.network.nsg.rule.delete` | disabled write contract | One NSG security rule |
+| `azure.compute.vm.start` | disabled execute contract | One VM |
+| `azure.compute.vm.deallocate` | disabled execute contract | One VM |
+| `azure.operation.status` | disabled execute status | One previously submitted mutation |
 
 ## Testing
 

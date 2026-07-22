@@ -81,7 +81,8 @@ terraform -chdir=infra apply -var-file=envs/dev.tfvars
 3. **Verify the development operations gateway.** When enabled, confirm the protected source
    archive was deployed after Terraform apply, the current remote-build deployment succeeded,
    both Function triggers are registered, host and idempotency storage use the reader managed
-   identity, and a duplicate mutation reuses its recorded response without a second ARM call.
+   identity, registered network reads succeed, and mutation operations return `operation_not_found`
+   while the upstream deployment keeps them disabled.
 4. **Onboard one bounded scope.** Start with a single resource-group-equivalent
    scope and name its owner.
 5. **Observe in observation mode.** Let FDAI judge and audit without mutating, and
