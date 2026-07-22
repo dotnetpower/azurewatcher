@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: e5c1c58c280d733490b880d98f9d545b0904f360
+translation_source_sha: f52559f9f1472db776b8557d69ee5b7b6d9addca
 translation_revised: 2026-07-23
 ---
 
@@ -78,11 +78,11 @@ Protected plan은 binary Terraform plan, bounded preflight evidence, Function so
 각각 별도 SHA-256 digest와 함께 저장합니다. Exact apply는 모든 artifact를 download하고
 검증합니다. Development operations gateway를 선택하면 Terraform은 해당 Function resource, URL과
 audience를 받는 core Container App, operational canary, realtime inventory publisher 및 해당 dependency graph를
-target합니다. 관련 없는 runtime resource 변경은 plan에서 제외됩니다. Terraform은 `AzureWebJobsStorage`가 reader managed identity를 사용하도록 구성하며,
-shared-key host storage와 Terraform source publishing은 비활성 상태로 유지합니다. Function
-`site_config`는 Application Insights connection을 단독으로 관리해 duplicate app-setting drift를
-방지합니다. Exact apply가 수렴하면 workflow가 보호된 source archive를 다시 검증하고 remote
-build한 후 현재의 성공한 deployment record와 Function trigger를 확인합니다. 전체 런북:
+target합니다. 관련 없는 runtime resource 변경은 plan에서 제외됩니다. Terraform은 `AzureWebJobsStorage`에
+reader managed identity를 사용하고 shared-key host storage를 비활성화합니다. 해당 identity에는
+host용 `Storage Blob Data Owner`와 idempotency용 contributor grant를 별도로 부여합니다. Function
+`site_config`는 Application Insights를 단독 관리합니다. Exact apply가 수렴하면 workflow가 검증된
+source를 remote build하고 bounded trigger sync 후 두 Function trigger를 확인합니다. 전체 런북:
 [`infra/bootstrap/README.md`](../../../infra/bootstrap/README.md).
 Scheduled driver는 `SCHEDULER_TICK_CRON_EXPRESSION` 및
 `ANALYZER_TICK_CRON_EXPRESSION` 리포지토리 변수를 통해 Terraform이 관리합니다. 선택적

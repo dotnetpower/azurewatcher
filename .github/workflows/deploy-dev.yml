@@ -829,29 +829,40 @@ jobs:
           cli_exit=$?
           set -e
 
-          deployment_verified=false
+          source_deployed=false
           for _ in $(seq 1 30); do
             latest="$(az rest --method get \
               --uri "https://management.azure.com${resource_id}/deployments?api-version=2024-04-01" \
-              --query 'sort_by(value, &properties.received_time)[-1].properties.{status:status,received_time:received_time,complete:complete,remoteBuild:remoteBuild}' \
+              --query 'sort_by(value, &properties.received_time)[-1].properties.{status:status,statusText:status_text,received_time:received_time,complete:complete,remoteBuild:remoteBuild}' \
               -o json 2>/dev/null || true)"
             if LATEST_DEPLOYMENT="$latest" STARTED_EPOCH="$started_epoch" python3 -c \
-              'import json, os; from datetime import datetime; deployment = json.loads(os.environ["LATEST_DEPLOYMENT"]); received = datetime.fromisoformat(str(deployment["received_time"]).replace("Z", "+00:00")).timestamp(); valid = received >= int(os.environ["STARTED_EPOCH"]) - 5 and deployment.get("complete") is True and deployment.get("remoteBuild") is True and deployment.get("status") == 4; raise SystemExit(0 if valid else 1)' \
+              'import json, os; from datetime import datetime; deployment = json.loads(os.environ["LATEST_DEPLOYMENT"]); received = datetime.fromisoformat(str(deployment["received_time"]).replace("Z", "+00:00")).timestamp(); status = deployment.get("status"); sync_only = status == 6 and str(deployment.get("statusText", "")).startswith("Function triggers synchronization failed"); valid = received >= int(os.environ["STARTED_EPOCH"]) - 5 and deployment.get("complete") is True and deployment.get("remoteBuild") is True and (status == 4 or sync_only); raise SystemExit(0 if valid else 1)' \
               2>/dev/null; then
-              deployment_verified=true
+              source_deployed=true
               break
             fi
             sleep 10
           done
-          if [ "$deployment_verified" != "true" ]; then
-            echo "gateway remote build did not produce a current successful deployment record (CLI exit $cli_exit)." >&2
+          if [ "$source_deployed" != "true" ]; then
+            echo "gateway remote build did not produce a current completed source deployment (CLI exit $cli_exit)." >&2
             exit 1
           fi
 
-          functions="$(az rest --method get \
-            --uri "https://management.azure.com${resource_id}/functions?api-version=2024-04-01" \
-            --query 'value[].name' -o tsv)"
-          if ! grep -q '/health$' <<<"$functions" || ! grep -q '/invoke$' <<<"$functions"; then
+          triggers_registered=false
+          for _ in $(seq 1 30); do
+            functions="$(az rest --method get \
+              --uri "https://management.azure.com${resource_id}/functions?api-version=2024-04-01" \
+              --query 'value[].name' -o tsv 2>/dev/null || true)"
+            if grep -q '/health$' <<<"$functions" && grep -q '/invoke$' <<<"$functions"; then
+              triggers_registered=true
+              break
+            fi
+            az rest --method post \
+              --uri "https://management.azure.com${resource_id}/syncfunctiontriggers?api-version=2024-04-01" \
+              --output none 2>/dev/null || true
+            sleep 20
+          done
+          if [ "$triggers_registered" != "true" ]; then
             echo "gateway deployment completed without the required Function triggers." >&2
             exit 1
           fi

@@ -703,6 +703,13 @@ resource "azurerm_role_assignment" "dev_gateway_storage_runtime" {
   principal_id         = module.dev_gateway_reader_identity[0].principal_id
 }
 
+resource "azurerm_role_assignment" "dev_gateway_storage_host" {
+  count                = var.enable_dev_operations_gateway ? 1 : 0
+  scope                = azurerm_storage_account.dev_gateway[0].id
+  role_definition_name = "Storage Blob Data Owner"
+  principal_id         = module.dev_gateway_reader_identity[0].principal_id
+}
+
 module "dev_gateway_blob_private_endpoint" {
   count                 = var.enable_dev_operations_gateway && !var.enable_document_ingestion ? 1 : 0
   source                = "./modules/private-endpoint"
@@ -862,6 +869,7 @@ resource "azurerm_function_app_flex_consumption" "dev_gateway" {
     azurerm_role_assignment.dev_gateway_executor_network,
     azurerm_role_assignment.dev_gateway_executor_vm,
     azurerm_role_assignment.dev_gateway_storage_runtime,
+    azurerm_role_assignment.dev_gateway_storage_host,
     azurerm_storage_container.dev_gateway_idempotency,
     module.dev_gateway_blob_private_endpoint,
     azurerm_private_endpoint.dev_gateway_blob_shared_dns,

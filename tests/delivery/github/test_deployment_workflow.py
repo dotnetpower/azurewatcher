@@ -367,6 +367,8 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     assert "zip_deploy_file" not in terraform
     assert "AzureWebJobsStorage__accountName" in terraform
     assert "AzureWebJobsStorage__clientId" in terraform
+    assert 'resource "azurerm_role_assignment" "dev_gateway_storage_host"' in terraform
+    assert 'role_definition_name = "Storage Blob Data Owner"' in terraform
     assert 'resource "azurerm_storage_container" "dev_gateway_idempotency"' in terraform
     assert "FDAI_DEV_GATEWAY_IDEMPOTENCY_CONTAINER_URL" in terraform
     assert 'module "event_bus_auxiliary"' in terraform
@@ -416,6 +418,9 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     deploy_step = workflow.index("Deploy exact development operations gateway source")
     config_zip = workflow.index("az functionapp deployment source config-zip")
     assert workflow.index("verify-deployment-plan.py", deploy_step) < config_zip
+    assert "Function triggers synchronization failed" in workflow[config_zip:]
+    assert "/syncfunctiontriggers?api-version=2024-04-01" in workflow[config_zip:]
+    assert 'if [ "$triggers_registered" != "true" ]' in workflow[config_zip:]
     assert (
         "inputs.apply && inputs.deploy_dev_operations_gateway" in workflow[deploy_step:config_zip]
     )
