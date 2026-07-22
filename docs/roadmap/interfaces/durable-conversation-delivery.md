@@ -119,10 +119,11 @@ Pause, resume, and status commands live in the separately authenticated channel 
 
 ## Conversation and scheduled integration
 
-`ConversationChannelGateway` keeps inbound deduplication and thread semantics from the shared
-conversation gateway. When durable delivery is bound, it resolves verified binding context and
-submits the complete response to the ledger instead of calling the provider directly. Duplicate
-webhooks or completions do not rerun the coordinator or create another delivery.
+`ConversationChannelGateway` keeps inbound deduplication, protected attachment evidence, and thread
+semantics from the shared conversation gateway. Attachment bytes complete governed ingestion before
+response persistence; only citations enter the immutable response. See
+[conversation-attachments.md](conversation-attachments.md). Duplicate webhooks or completions do
+not rerun ingestion, the coordinator, or delivery.
 
 `ScheduledContinuationDeliveryCoordinator` submits external Slack and Teams results with the
 stable anchor id as the origin. It uses the already persisted result summary, digest, evidence,

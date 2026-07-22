@@ -57,7 +57,7 @@ fdai/
 │   │   ├── mscp_profile/       # pure mscp-operational-v1 provenance, effect verification, cycle guard, and runtime-integrity policies; no execution authority
 │   │   ├── deploy_preflight/   # pre-deployment feasibility probes → grounded readiness report
 │   │   ├── assurance_twin/     # read-only ontology twin: text-to-query review / Q&A / assessment (proposes, never executes)
-│   │   ├── conversation/       # operator-console coordination, verified principal bindings, durable outbound delivery, adapter health, and busy-input arbitration
+│   │   ├── conversation/       # operator-console coordination, explicit attachment purpose, verified principal bindings, durable outbound delivery, adapter health, and busy-input arbitration
 │   │   ├── user_context_projection.py  # metadata-only principal context / workflow binding projection into runtime ontology
 │   │   ├── console_request/    # operator-console write-direction re-request policy (Scenario B deny-override), a single pure `evaluate_operator_rerequest`
 │   │   ├── verticals/          # Resilience / Change Safety / Cost Governance (P3 integration surface); each is a sub-package (G-6) with its own orchestrator + submodules, plus the shared `Vertical` Protocol in `base.py` and the `VerticalRegistry` seam
@@ -96,7 +96,7 @@ fdai/
 │   │   ├── chaos/              # live chaos-inject adapters when a `Chaos` runbook step goes enforce: `live_injectors.py` (CSP-neutral primitive fan-out) + `chaos_mesh.py` (Chaos Mesh CRDs) + `mysql_load.py` (MySQL benchmark load)
 │   │   ├── remediation/        # concrete `DirectApiExecutor` for direct-API remediation (`live_direct_api.py`); the Protocol lives in `shared/providers/`
 │   │   ├── read_api/           # thin ASGI - `main.py` composes one module per HTTP surface under `routes/`, SSE fan-out under `streaming/`, and separate `dev/` / `production/` wiring. GET routes project bounded state; POST command routes submit governed records or typed proposals and never call a privileged executor directly
-│   │   ├── ingestion_gateway/  # dedicated content-write ASGI: scoped uploads and governed deletion; optional handover governance binds idempotent draft PR delivery plus a signed GitHub merge webhook
+│   │   ├── ingestion_gateway/  # dedicated content-write ASGI: scoped uploads, uploader-scoped web chat refs, governed deletion, and optional handover governance
 │   │   ├── provisioning/       # surface-A Genesis bootstrap: pure `terraform_bridge.py` (terraform `-json` → `provision.*`) + `serve.py` harness (`aiter_json_lines` + `pump_provision_events`, I/O injected, no subprocess)
 │   │   └── scheduler_tick_cli.py  # standalone entry point that drives the scheduler tick from a cron / Container Apps Job
 │   ├── rule_catalog/          # rule-catalog PIPELINE code

@@ -43,6 +43,10 @@ from fdai.core.conversation.adapter_health import (
     AdapterHealthConfig,
     AdapterHealthService,
 )
+from fdai.core.conversation.attachment_directive import (
+    AttachmentDirective,
+    parse_attachment_directive,
+)
 from fdai.core.conversation.binding_delivery_context import (
     ChannelScopeResolver,
     VerifiedBindingDeliveryContextResolver,
@@ -204,6 +208,7 @@ __all__ = [
     "AuditReader",
     "AuditWriter",
     "AttachmentIngestionResult",
+    "AttachmentDirective",
     "AuthorizedChannelPrincipal",
     "BusyInput",
     "BusyInputConflictError",
@@ -269,6 +274,7 @@ __all__ = [
     "PrincipalConversationBindingService",
     "PrincipalConversationBindingStore",
     "PrincipalScopeAuthorization",
+    "parse_attachment_directive",
     "PairingApprovalAuthorizer",
     "PairingChallenge",
     "PairingCreateResult",

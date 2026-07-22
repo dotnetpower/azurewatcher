@@ -4,6 +4,15 @@ from fdai.delivery.channels.adapter_health_commands import (
     AdapterHealthCommandAuthenticator,
     make_adapter_health_command_routes,
 )
+from fdai.delivery.channels.attachment_fetchers import (
+    AttachmentDownloadLocation,
+    ChannelAttachmentFetchError,
+    SlackAttachmentFetcherConfig,
+    SlackPrivateFileFetcher,
+    TeamsAttachmentEndpointResolver,
+    TeamsAttachmentFetcherConfig,
+    TeamsServerAttachmentFetcher,
+)
 from fdai.delivery.channels.document_evidence import (
     ChannelAttachmentFetcher,
     ChannelDocumentEvidenceConfig,
@@ -21,6 +30,11 @@ from fdai.delivery.channels.prod import (
     ProductionChannelConfig,
     ProductionChannelRuntime,
     build_channel_app,
+)
+from fdai.delivery.channels.production_attachments import (
+    ProductionAttachmentConfig,
+    ProductionAttachmentConfigError,
+    build_production_attachment_ingestor,
 )
 from fdai.delivery.channels.publishers import (
     SlackReplyPublisherConfig,
@@ -59,6 +73,8 @@ from fdai.delivery.channels.teams_auth import (
 
 __all__ = [
     "AdapterHealthCommandAuthenticator",
+    "AttachmentDownloadLocation",
+    "ChannelAttachmentFetchError",
     "ChannelAttachmentFetcher",
     "ChannelDeliveryStartupReconciler",
     "ChannelGatewayRunner",
@@ -70,13 +86,19 @@ __all__ = [
     "ProtectedChannelAttachmentIngestor",
     "ProductionChannelConfig",
     "ProductionChannelRuntime",
+    "ProductionAttachmentConfig",
+    "ProductionAttachmentConfigError",
     "SlackBotChannel",
+    "SlackAttachmentFetcherConfig",
+    "SlackPrivateFileFetcher",
     "SlackIngressResult",
     "SlackReplyPublisher",
     "SlackReplyPublisherConfig",
     "ScheduledContinuationDeliveryCoordinator",
     "SlackWebApiReplyPublisher",
     "TeamsActivityAuthenticator",
+    "TeamsAttachmentEndpointResolver",
+    "TeamsAttachmentFetcherConfig",
     "TeamsAuthConfigError",
     "TeamsAuthenticationError",
     "TeamsBotChannel",
@@ -84,6 +106,7 @@ __all__ = [
     "TeamsIngressResult",
     "TeamsReplyPublisher",
     "TeamsReplyPublisherConfig",
+    "TeamsServerAttachmentFetcher",
     "TeamsPrincipalResolver",
     "TeamsPrincipalResolverProtocol",
     "BotFrameworkJwtAuthenticator",
@@ -92,4 +115,5 @@ __all__ = [
     "make_teams_activity_route",
     "make_adapter_health_command_routes",
     "build_channel_app",
+    "build_production_attachment_ingestor",
 ]

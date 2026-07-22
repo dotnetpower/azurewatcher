@@ -71,6 +71,12 @@ from fdai.delivery.read_api.routes.chat_busy_input import (
     ChatTurnInterruptedError,
     answer_with_busy_input,
 )
+from fdai.delivery.read_api.routes.chat_document_evidence import (
+    ChatDocumentEvidenceResolver,
+    merge_document_verification,
+    resolve_document_refs,
+    with_document_evidence,
+)
 from fdai.delivery.read_api.routes.chat_evidence_enrichment import (
     AgentChatDelegate,
     ChatBehaviorEvidenceResolver,
@@ -171,6 +177,7 @@ from fdai.delivery.read_api.routes.post_turn_review import (
     explicit_corrections,
 )
 from fdai.shared.providers.briefing import ConversationPolicyStore
+from fdai.shared.providers.document_ingestion import DocumentAccessDeniedError
 from fdai.shared.providers.user_context import ConversationHistoryStore, UserContextConflictError
 from fdai.shared.telemetry.correlation import with_correlation
 
@@ -224,6 +231,7 @@ def make_chat_route(
     answer_preference_resolver: AnswerPreferenceResolver | None = None,
     post_turn_review_submitter: PostTurnReviewSubmitter | None = None,
     busy_input_coordinator: BusyInputCoordinator | None = None,
+    document_evidence_resolver: ChatDocumentEvidenceResolver | None = None,
     path: str = DEFAULT_ROUTE_PATH,
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
 ) -> Route:
@@ -266,6 +274,18 @@ def make_chat_route(
             raise HTTPException(status_code=400, detail="chat body MUST be JSON") from exc
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="chat body MUST be a JSON object")
+        try:
+            document_evidence_refs = await resolve_document_refs(
+                body=body,
+                principal_id=user_id,
+                resolver=document_evidence_resolver,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except DocumentAccessDeniedError as exc:
+            raise HTTPException(status_code=403, detail="document reference access denied") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=501, detail=str(exc)) from exc
 
         prompt = body.get("prompt")
         if not isinstance(prompt, str) or not prompt.strip():
@@ -331,6 +351,7 @@ def make_chat_route(
                         request_id=request_id,
                         content=clean_prompt,
                         recorded_at=datetime.now(tz=UTC),
+                        metadata={"document_refs": list(document_evidence_refs)},
                         ontology_projector=user_context_ontology_projector,
                     )
                 except UserContextConflictError as exc:
@@ -355,6 +376,7 @@ def make_chat_route(
                 user_id=user_id,
                 store=conversation_policy_store,
             )
+            view_context = with_document_evidence(view_context, document_evidence_refs)
             view_context = await _with_behavior_evidence(
                 clean_prompt,
                 view_context,
@@ -511,6 +533,10 @@ def make_chat_route(
                     **reply,
                     "answer": verification.answer,
                 }
+            verification = merge_document_verification(
+                verification,
+                document_evidence_refs,
+            )
             reply = {
                 **reply,
                 "answer": verification.answer,

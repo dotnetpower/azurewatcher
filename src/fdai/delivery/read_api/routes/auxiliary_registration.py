@@ -87,6 +87,7 @@ def append_auxiliary_routes(
             config.user_context.preferences if config.user_context is not None else None
         ),
         post_turn_review_submitter=config.post_turn_review_submitter,
+        document_evidence_resolver=config.chat_document_evidence,
         user_context_ontology_projector=config.user_context_ontology_projector,
         model_settings=config.model_settings,
         authorize=authorize,

@@ -162,12 +162,14 @@ def _normalize_event(payload: Mapping[str, Any]) -> InboundTurn | None:
         return None
     if not isinstance(sender, str) or not sender:
         return None
-    if not isinstance(text, str) or not text:
+    if not isinstance(text, str):
         return None
     if not isinstance(message_id, str) or not message_id:
         return None
     attachments = _normalize_files(event.get("files"))
     if attachments is None:
+        return None
+    if not text.strip() and not attachments:
         return None
     thread = event.get("thread_ts")
     return InboundTurn(

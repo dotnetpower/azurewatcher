@@ -395,7 +395,7 @@ Set `enable_document_ingestion=true` only with `enable_llm=true`, a resolved
 ingestion CORS origins. Terraform then provisions:
 
 - a dedicated ingestion UAMI with only ACR pull, Key Vault DSN read, Event Hubs send, ADLS data,
-  and Azure OpenAI invoke roles;
+  Azure OpenAI invoke, and optional resource-scoped Document Intelligence OCR roles;
 - a StorageV2 account with HNS, the `documents` and `derived` filesystems, quarantine expiry,
   derived-data cool tiering, soft delete, and no Shared Key;
 - `blob` and `dfs` private endpoints. The app VNet links to the endpoint zones; the ops runner

@@ -50,6 +50,20 @@ check "document_ingestion_requires_dependencies" {
   }
 }
 
+check "document_ocr_requires_complete_binding" {
+  assert {
+    condition = (
+      trimspace(var.document_ocr_endpoint) == "" &&
+      trimspace(var.document_ocr_resource_id) == ""
+      ) || (
+      var.enable_document_ingestion &&
+      can(regex("^https://[^/]+/?$", var.document_ocr_endpoint)) &&
+      trimspace(var.document_ocr_resource_id) != ""
+    )
+    error_message = "document OCR requires document ingestion plus an HTTPS endpoint and matching Azure resource id."
+  }
+}
+
 check "read_api_requires_stewardship_bindings" {
   assert {
     condition = !var.enable_read_api || (

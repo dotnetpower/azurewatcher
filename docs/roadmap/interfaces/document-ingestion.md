@@ -84,7 +84,9 @@ mutates ingestion state without an owning agent and a Saga audit entry is a defe
 
 The drop zone is one entry point for a document ingestion service. Drag and drop, a file picker,
 ChatOps attachment, email-in gateway, and connector all create the same `UploadSession` and enter
-the same pipeline. A channel adapter cannot skip scanning or classification.
+the same pipeline. A channel adapter cannot skip scanning or classification. The concrete Slack,
+Teams, web chat, purpose, and OCR contract lives in
+[conversation-attachments.md](conversation-attachments.md).
 
 ChatOps adapters retain only an opaque vendor attachment id and bounded metadata. A delivery-layer
 fetcher with server-owned credentials retrieves the bytes; payload-supplied URLs never cross into

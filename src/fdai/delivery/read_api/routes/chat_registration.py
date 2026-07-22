@@ -35,6 +35,7 @@ from fdai.delivery.read_api.routes.chat_behavior_evidence import (
     RepositoryBehaviorEvidenceResolver,
 )
 from fdai.delivery.read_api.routes.chat_data_sources import DataSourceChatTools
+from fdai.delivery.read_api.routes.chat_document_evidence import ChatDocumentEvidenceResolver
 from fdai.delivery.read_api.routes.chat_evidence import OperationalEvidenceResolver
 from fdai.delivery.read_api.routes.chat_inventory import InventoryChatTools
 from fdai.delivery.read_api.routes.chat_log_query import LogQueryChatTools
@@ -70,6 +71,7 @@ def append_chat_routes(
     data_sources: tuple[ReadDataSourceStatus, ...] = (),
     answer_preference_store: UserPreferenceStore | None = None,
     post_turn_review_submitter: PostTurnReviewSubmitter | None = None,
+    document_evidence_resolver: ChatDocumentEvidenceResolver | None = None,
     user_context_ontology_projector: UserContextOntologyProjector | None = None,
     model_settings: object | None = None,
     authorize: Callable[[Request], Awaitable[str]],
@@ -139,6 +141,7 @@ def append_chat_routes(
                 ),
                 answer_preference_resolver=_answer_preference_resolver(answer_preference_store),
                 post_turn_review_submitter=post_turn_review_submitter,
+                document_evidence_resolver=document_evidence_resolver,
                 busy_input_coordinator=(
                     busy_input_runtime.coordinator if busy_input_runtime is not None else None
                 ),
@@ -162,6 +165,7 @@ def append_chat_routes(
                 ),
                 answer_preference_resolver=_answer_preference_resolver(answer_preference_store),
                 post_turn_review_submitter=post_turn_review_submitter,
+                document_evidence_resolver=document_evidence_resolver,
                 busy_input_coordinator=(
                     busy_input_runtime.coordinator if busy_input_runtime is not None else None
                 ),

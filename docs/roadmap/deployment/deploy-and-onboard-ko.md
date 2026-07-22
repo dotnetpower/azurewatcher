@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: 4266d7739cc2e909ac1c847c129c2e74ff1efb02
+translation_source_sha: cfe5bdc634c8ab0d7a0b3511ebabd44b7d33a967
 translation_revised: 2026-07-23
 ---
 
@@ -389,8 +389,8 @@ additional_tags = {
 console API audience, Entra RBAC group id 5개, 명시적인 ingestion CORS origin과 함께 설정합니다.
 Terraform은 다음 항목을 프로비저닝합니다.
 
-- ACR pull, Key Vault DSN read, Event Hubs send, ADLS data, Azure OpenAI invoke role만 가진
-  dedicated ingestion UAMI
+- ACR pull, Key Vault DSN read, Event Hubs send, ADLS data, Azure OpenAI invoke 및 optional
+  resource-scoped Document Intelligence OCR role만 가진 dedicated ingestion UAMI
 - HNS, `documents`와 `derived` filesystem, quarantine expiry, derived-data cool tiering, soft
   delete, Shared Key 비활성화를 적용한 StorageV2 account
 - `blob` 및 `dfs` private endpoint. App VNet은 endpoint zone에 link하고, ops runner는 기존

@@ -39,6 +39,7 @@ variable "adls_source_file_system" { type = string }
 variable "adls_derived_file_system" { type = string }
 variable "embedding_endpoint" { type = string }
 variable "embedding_deployment" { type = string }
+variable "ocr_endpoint" { type = string }
 variable "kafka_bootstrap_servers" { type = string }
 variable "document_event_topic" { type = string }
 variable "runtime_env" { type = string }

@@ -313,6 +313,10 @@ class ReadApiConfig:
     endpoint unregistered (the FE deck then falls back to its built-in
     deterministic answerer)."""
 
+    chat_document_evidence: Any = None
+    """Optional resolver for immutable, already-ingested web-chat document
+    references. The chat route never accepts file bytes or download URLs."""
+
     skill_disclosure: RuntimeSkillDisclosure | None = None
     """Optional read-only runtime skill snapshot shared by the narrator,
     typed RPC composition, and Skills inspection panel. Skill reads never

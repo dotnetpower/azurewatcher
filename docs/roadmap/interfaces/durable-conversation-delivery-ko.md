@@ -1,7 +1,7 @@
 ---
 translation_of: durable-conversation-delivery.md
-translation_source_sha: 58e2532e7e5e6abc9a8903f9004fa6c8498f0006
-translation_revised: 2026-07-21
+translation_source_sha: 05d14df03212b4c7ba379d1dbcd11c935a66f4a9
+translation_revised: 2026-07-23
 ---
 # 영구 대화 전송
 
@@ -120,10 +120,11 @@ Pause, resume 및 status command는 별도로 authenticated된 channel command a
 
 ## Conversation 및 scheduled integration
 
-`ConversationChannelGateway`는 shared conversation gateway의 inbound deduplication과 thread
-semantics를 유지합니다. Durable delivery가 binding되면 verified binding context를 확인하고
-provider를 직접 호출하는 대신 complete response를 ledger에 제출합니다. Duplicate webhook 또는
-completion은 coordinator를 다시 실행하거나 다른 delivery를 만들지 않습니다.
+`ConversationChannelGateway`는 shared conversation gateway의 inbound deduplication, protected
+attachment evidence 및 thread semantics를 유지합니다. Attachment byte는 response persistence 전에
+governed ingestion을 완료하며 immutable response에는 citation만 들어갑니다.
+[conversation-attachments-ko.md](conversation-attachments-ko.md)를 참조하세요. Duplicate webhook
+또는 completion은 ingestion, coordinator, delivery를 다시 실행하지 않습니다.
 
 `ScheduledContinuationDeliveryCoordinator`는 stable anchor id를 origin으로 사용해 외부 Slack 및
 Teams result를 제출합니다. 이미 저장된 result summary, digest, evidence, conversation reference,

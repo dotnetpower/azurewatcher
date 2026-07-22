@@ -71,6 +71,7 @@ from fdai.core.rbac.access_request import AccessRequestService
 from fdai.core.rbac.kill_switch_command import KillSwitchCommandService
 from fdai.core.stewardship import load_stewardship_from_yaml
 from fdai.delivery.event_bus_multiplex import MultiplexedEventBus
+from fdai.delivery.ingestion_gateway.chat_evidence import UploaderDocumentEvidenceResolver
 from fdai.delivery.persistence import (
     PostgresModelHealthTransitionSink,
     PostgresModelHealthTransitionSinkConfig,
@@ -80,6 +81,10 @@ from fdai.delivery.persistence import (
 from fdai.delivery.persistence.postgres_conversation_delivery import (
     PostgresConversationDeliveryStore,
     PostgresConversationDeliveryStoreConfig,
+)
+from fdai.delivery.persistence.postgres_document_ingestion import (
+    PostgresDocumentMetadataStore,
+    PostgresDocumentMetadataStoreConfig,
 )
 from fdai.delivery.persistence.postgres_inventory_snapshot import (
     PostgresInventoryGraphProvider,
@@ -697,6 +702,15 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         model_settings=model_settings,
         python_tasks=python_tasks,
         chat=chat,
+        chat_document_evidence=UploaderDocumentEvidenceResolver(
+            metadata=PostgresDocumentMetadataStore(
+                config=PostgresDocumentMetadataStoreConfig(
+                    dsn=read_model._config.dsn,
+                    statement_timeout_ms=read_model._config.statement_timeout_ms,
+                    connect_timeout_s=read_model._config.connect_timeout_s,
+                )
+            )
+        ),
         chat_agent_delegate=read_investigation_chat_delegate,
         skill_disclosure=skill_runtime.disclosure,
         skill_sources=skill_sources.routes,

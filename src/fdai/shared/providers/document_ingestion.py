@@ -14,6 +14,7 @@ from fdai.shared.contracts import (
     DocumentVersion,
     MalwareVerdict,
     ProtectionState,
+    StructuralUnit,
     UploadSession,
 )
 from fdai.shared.providers.knowledge import KnowledgeChunk
@@ -29,6 +30,14 @@ class DocumentNotFoundError(DocumentIngestionError):
 
 class DocumentAccessDeniedError(DocumentIngestionError):
     """The principal is not permitted to perform the operation."""
+
+
+@dataclass(frozen=True, slots=True)
+class ChatDocumentRef:
+    """Immutable governed document version selected by a conversation turn."""
+
+    document_id: UUID
+    version_id: UUID
 
 
 class ProviderUnavailableError(DocumentIngestionError):
@@ -164,6 +173,18 @@ class DocumentExtractor(Protocol):
 
 
 @runtime_checkable
+class ImageOcrProvider(Protocol):
+    """Extract bounded, cited text units from one image source."""
+
+    async def extract(
+        self,
+        *,
+        version: DocumentVersion,
+        content: bytes,
+    ) -> tuple[StructuralUnit, ...]: ...
+
+
+@runtime_checkable
 class DocumentArtifactStore(Protocol):
     async def put(self, envelope: DocumentEnvelope) -> str: ...
 
@@ -207,6 +228,7 @@ class DocumentActivitySink(Protocol):
 
 
 __all__ = [
+    "ChatDocumentRef",
     "DirectUploadStore",
     "DocumentAccessDeniedError",
     "DocumentAccessProvider",
@@ -220,6 +242,7 @@ __all__ = [
     "DocumentObjectStore",
     "DocumentReadyConsumer",
     "DocumentSearch",
+    "ImageOcrProvider",
     "MalwareScanner",
     "ProtectionInspection",
     "ProtectionInspector",

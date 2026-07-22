@@ -413,6 +413,13 @@ resource "azurerm_role_assignment" "ingestion_eventhubs_receiver" {
   principal_id         = module.ingestion_identity[0].principal_id
 }
 
+resource "azurerm_role_assignment" "ingestion_ocr_user" {
+  count                = var.enable_document_ingestion && var.document_ocr_resource_id != "" ? 1 : 0
+  scope                = var.document_ocr_resource_id
+  role_definition_name = "Cognitive Services User"
+  principal_id         = module.ingestion_identity[0].principal_id
+}
+
 resource "azurerm_role_assignment" "inventory_reader" {
   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
   role_definition_name = "Reader"
@@ -1558,6 +1565,7 @@ module "ingestion_gateway" {
   adls_derived_file_system       = module.document_storage[0].derived_file_system
   embedding_endpoint             = var.enable_llm ? module.llm_azure_openai[0].endpoint : ""
   embedding_deployment           = var.enable_llm ? lookup(module.llm_azure_openai[0].deployments, var.ingestion_embedding_capability, "") : ""
+  ocr_endpoint                   = var.document_ocr_endpoint
   kafka_bootstrap_servers        = module.event_bus.kafka_bootstrap
   document_event_topic           = "aw.pipeline.stages"
   runtime_env                    = var.env == "" ? "dev" : var.env
@@ -1578,6 +1586,7 @@ module "ingestion_gateway" {
     azurerm_role_assignment.ingestion_eventhubs_sender,
     azurerm_role_assignment.ingestion_eventhubs_receiver,
     azurerm_role_assignment.ingestion_kv_secrets_user,
+    azurerm_role_assignment.ingestion_ocr_user,
     azurerm_key_vault_secret.gitops_token,
     azurerm_key_vault_secret.github_webhook_secret,
     azurerm_role_assignment.ingestion_document_data,

@@ -18,6 +18,7 @@ from fdai.core.conversation.busy_input_coordinator import BusyInputCoordinator
 from fdai.core.conversation.coordinator import ConversationCoordinator
 from fdai.core.conversation.session import ConversationSession, Principal
 from fdai.core.conversation.tools import AbstainResult, ToolResult
+from fdai.shared.contracts import DocumentPurpose
 from fdai.shared.providers.conversation_channel import (
     ConversationChannelAdapter,
     InboundTurn,
@@ -96,6 +97,8 @@ class AttachmentIngestionResult:
     status: Literal["ready", "rejected"]
     evidence_refs: tuple[str, ...] = ()
     reason: str = ""
+    purpose: DocumentPurpose = DocumentPurpose.KNOWLEDGE_BASE
+    message: str | None = None
 
     def __post_init__(self) -> None:
         if self.status == "ready" and (
@@ -158,6 +161,12 @@ class ConversationChannelGateway:
         self._busy_input_mode_resolver = busy_input_mode_resolver
         self._outbound_delivery = outbound_delivery
         self._delivery_context_resolver = delivery_context_resolver
+
+    def bind_attachment_ingestor(self, ingestor: ChannelAttachmentIngestor) -> None:
+        """Bind one production attachment ingestor before channel consumers start."""
+        if self._attachment_ingestor is not None and self._attachment_ingestor is not ingestor:
+            raise RuntimeError("channel attachment ingestor is already bound")
+        self._attachment_ingestor = ingestor
 
     async def run(self, adapter: ConversationChannelAdapter) -> None:
         """Consume one adapter until its receive stream ends."""
@@ -252,6 +261,7 @@ class ConversationChannelGateway:
                 )
                 busy_turn_started = True
             attachment_evidence: tuple[str, ...] = ()
+            attachment_message: str | None = None
             if turn.attachments:
                 if self._attachment_ingestor is None:
                     return _HandledChannelResponse(
@@ -273,8 +283,24 @@ class ConversationChannelGateway:
                         session_id=session_id,
                     )
                 attachment_evidence = ingestion.evidence_refs
+                attachment_message = ingestion.message
+                if ingestion.purpose is DocumentPurpose.HANDOVER_BOOTSTRAP:
+                    return _HandledChannelResponse(
+                        response=_handover_attachment_ready(turn, attachment_evidence),
+                        principal=principal,
+                        session_id=session_id,
+                    )
+                if attachment_message == "":
+                    return _HandledChannelResponse(
+                        response=_knowledge_attachment_ready(turn, attachment_evidence),
+                        principal=principal,
+                        session_id=session_id,
+                    )
             session = await self._load_session(session_id, principal, turn.channel_id)
-            result = self._coordinator.handle_turn(session=session, message=turn.text)
+            result = self._coordinator.handle_turn(
+                session=session,
+                message=attachment_message if attachment_message is not None else turn.text,
+            )
             result_status = result.status if isinstance(result, ToolResult) else "abstain"
             self._emit(turn, "message.handled", "accepted", {"status": result_status})
             return _HandledChannelResponse(
@@ -401,6 +427,39 @@ def _attachment_error(turn: InboundTurn, reason: str) -> OutboundResponse:
         thread_id=turn.thread_id,
         status="error",
         text=reason,
+    )
+
+
+def _handover_attachment_ready(
+    turn: InboundTurn,
+    evidence_refs: tuple[str, ...],
+) -> OutboundResponse:
+    return OutboundResponse(
+        channel_kind=turn.channel_kind,
+        channel_id=turn.channel_id,
+        in_reply_to=turn.message_id,
+        thread_id=turn.thread_id,
+        status="ready",
+        text=(
+            "The attachment completed protected ownership-handover ingestion. "
+            "Review the generated draft and governance pull request before merge."
+        ),
+        evidence_refs=evidence_refs,
+    )
+
+
+def _knowledge_attachment_ready(
+    turn: InboundTurn,
+    evidence_refs: tuple[str, ...],
+) -> OutboundResponse:
+    return OutboundResponse(
+        channel_kind=turn.channel_kind,
+        channel_id=turn.channel_id,
+        in_reply_to=turn.message_id,
+        thread_id=turn.thread_id,
+        status="ready",
+        text="The attachment completed protected ingestion and is ready as governed evidence.",
+        evidence_refs=evidence_refs,
     )
 
 

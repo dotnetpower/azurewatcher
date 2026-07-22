@@ -1,7 +1,7 @@
 ---
 title: 문서 인제스트와 Drop Zone
 translation_of: document-ingestion.md
-translation_source_sha: 79177232c5b2444d6f511aa5acd3ac5a0b5b2221
+translation_source_sha: a203c880f4a6178ff98a38122cb861b659e03183
 translation_revised: 2026-07-23
 ---
 # 문서 인제스트와 Drop Zone
@@ -89,7 +89,9 @@ Var가 민감한 승격을 승인하고 Saga가 감사를 봉인하기 전까지
 
 Drop zone은 문서 인제스트 서비스의 진입점 중 하나입니다. Drag and drop, file picker,
 ChatOps attachment, email-in gateway, connector는 모두 동일한 `UploadSession`을 만들고
-동일한 파이프라인으로 들어갑니다. 채널 adapter는 검사나 분류를 건너뛸 수 없습니다.
+동일한 파이프라인으로 들어갑니다. 채널 adapter는 검사나 분류를 건너뛸 수 없습니다. 구체적인
+Slack, Teams, web chat, purpose 및 OCR contract는
+[conversation-attachments-ko.md](conversation-attachments-ko.md)를 참조하세요.
 
 ChatOps adapter는 opaque vendor attachment id와 bounded metadata만 유지합니다. Server-owned
 credential을 사용하는 delivery-layer fetcher가 byte를 가져오며 payload가 제공한 URL은 core로

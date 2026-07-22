@@ -108,6 +108,9 @@ extractor accepts only one of the fixed 15 agent names. After publication, the a
 PR reference, URL, and replay flag so the authenticated submitter can open the same idempotent
 proposal returned by a retry.
 
+Slack and Teams can enter the same path only through an exact `/handover` attachment directive and
+the Contributor role floor. See [conversation-attachments.md](conversation-attachments.md).
+
 The PR candidate is an additive overlay on the current validated map. Grounded mappings add or
 retag subjects, while existing owners, maintainers, channels, and thresholds remain intact. The
 service never turns an unmapped draft agent autonomous or removes an owner automatically. A human

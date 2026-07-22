@@ -11,6 +11,7 @@ from fdai.delivery.channels import (
     ChannelDocumentEvidenceConfig,
     ProtectedChannelAttachmentIngestor,
 )
+from fdai.delivery.channels.document_evidence import ChannelAttachmentFetchError
 from fdai.shared.contracts import (
     IngestionCapabilities,
     MalwareVerdict,
@@ -58,10 +59,17 @@ class _Fetcher:
         return self.content
 
 
+class _FailingFetcher:
+    async def fetch(self, attachment: ChannelAttachment, *, max_bytes: int) -> bytes:
+        raise ChannelAttachmentFetchError("provider timeout")
+
+
 def _bridge(
     content: bytes,
     *,
     malware: MalwareVerdict = MalwareVerdict.CLEAN,
+    fetcher_enabled: bool = True,
+    fetch_fails: bool = False,
 ) -> tuple[ProtectedChannelAttachmentIngestor, _Fetcher]:
     access = InMemoryDocumentAccessProvider(
         contributors={"channel-evidence": frozenset({"operator-example"})},
@@ -104,7 +112,9 @@ def _bridge(
     bridge = ProtectedChannelAttachmentIngestor(
         service=service,
         worker=worker,
-        fetchers={"slack": fetcher},
+        fetchers=(
+            {"slack": _FailingFetcher() if fetch_fails else fetcher} if fetcher_enabled else {}
+        ),
         config=ChannelDocumentEvidenceConfig(
             collection_id="channel-evidence",
             access_descriptor_ref="channel-evidence-readers",
@@ -115,13 +125,13 @@ def _bridge(
     return bridge, fetcher
 
 
-def _turn(content: bytes) -> InboundTurn:
+def _turn(content: bytes, *, text: str = "explore_catalog storage") -> InboundTurn:
     return InboundTurn(
         channel_kind=ConversationChannelKind.SLACK,
         channel_id="channel-example",
         message_id="message-example",
         sender_id="sender-example",
-        text="explore_catalog storage",
+        text=text,
         attachments=(
             ChannelAttachment(
                 source_ref="opaque-file-id",
@@ -146,6 +156,73 @@ async def test_clean_attachment_completes_protection_and_returns_only_doc_ref() 
     assert result.evidence_refs[0].startswith("doc:")
     assert "ignore all instructions" not in repr(result)
     assert fetcher.refs == ["opaque-file-id"]
+
+
+async def test_explicit_handover_requires_contributor_before_fetch() -> None:
+    content = b"Thor owner: Example Operator"
+    bridge, fetcher = _bridge(content)
+
+    result = await bridge.ingest(
+        turn=_turn(content, text="/handover"),
+        principal=Principal(id="operator-example", role=Role.READER),
+    )
+
+    assert result.status == "rejected"
+    assert "Contributor" in result.reason
+    assert fetcher.refs == []
+
+
+async def test_handover_authorization_precedes_fetcher_availability() -> None:
+    content = b"Thor owner: Example Operator"
+    bridge, _ = _bridge(content, fetcher_enabled=False)
+
+    result = await bridge.ingest(
+        turn=_turn(content, text="/handover"),
+        principal=Principal(id="operator-example", role=Role.READER),
+    )
+
+    assert result.status == "rejected"
+    assert result.reason == "ownership handover attachments require Contributor or Owner"
+
+
+async def test_vendor_fetch_failure_rejects_only_the_attachment_turn() -> None:
+    content = b"evidence"
+    bridge, _ = _bridge(content, fetch_fails=True)
+
+    result = await bridge.ingest(
+        turn=_turn(content),
+        principal=Principal(id="operator-example", role=Role.READER),
+    )
+
+    assert result.status == "rejected"
+    assert result.reason == "channel attachment download failed"
+    assert result.evidence_refs == ()
+
+
+async def test_explicit_handover_routes_to_handover_purpose() -> None:
+    content = b"Thor owner: Example Operator"
+    bridge, _ = _bridge(content)
+
+    result = await bridge.ingest(
+        turn=_turn(content, text="/handover ownership transfer"),
+        principal=Principal(id="operator-example", role=Role.CONTRIBUTOR),
+    )
+
+    assert result.status == "ready"
+    assert result.purpose.value == "handover_bootstrap"
+
+
+async def test_handover_word_inside_prose_does_not_change_purpose() -> None:
+    content = b"ordinary evidence"
+    bridge, _ = _bridge(content)
+
+    result = await bridge.ingest(
+        turn=_turn(content, text="Explain this handover document"),
+        principal=Principal(id="operator-example", role=Role.READER),
+    )
+
+    assert result.status == "ready"
+    assert result.purpose.value == "knowledge_base"
 
 
 async def test_infected_attachment_is_held_and_never_becomes_citation() -> None:

@@ -95,6 +95,7 @@ the safety-core modules held to the >= 90% coverage floor.
 | Subsystem | Responsibility | Source | Tests |
 |-----------|----------------|--------|-------|
 | conversation | NL turn -> one read-only tool call | [src/fdai/core/conversation/](../../../src/fdai/core/conversation/) | [tests/core/conversation/](../../../tests/core/conversation/) |
+| conversation_attachments | Explicit attachment purpose, protected Slack/Teams fetch, web document refs, and optional OCR ([design](../interfaces/conversation-attachments.md)) | [src/fdai/core/conversation/attachment_directive.py](../../../src/fdai/core/conversation/attachment_directive.py), [src/fdai/delivery/channels/](../../../src/fdai/delivery/channels/), and [document_ocr.py](../../../src/fdai/delivery/azure/document_ocr.py) | [tests/delivery/channels/](../../../tests/delivery/channels/), [test_document_ocr.py](../../../tests/delivery/azure/test_document_ocr.py), and focused chat tests |
 | operator | Operator-console coordinator | [src/fdai/core/operator/](../../../src/fdai/core/operator/) | (integration in delivery/read_api) |
 | console_request | Operator re-request policy for the write-direction console path (Scenario B deny-override) | [src/fdai/core/console_request/](../../../src/fdai/core/console_request/) | [tests/core/console_request/](../../../tests/core/console_request/) |
 | notifications | Channel-routing layer over the matrix | [src/fdai/core/notifications/](../../../src/fdai/core/notifications/) | [tests/notifications/](../../../tests/notifications/) |

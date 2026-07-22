@@ -7,6 +7,7 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import UUID
 
 import httpx
 import pytest
@@ -46,6 +47,7 @@ from fdai.delivery.read_api.routes.chat import (
 )
 from fdai.delivery.read_api.routes.chat_evidence import OperationalEvidenceResolver
 from fdai.delivery.read_api.routes.chat_registration import append_chat_routes
+from fdai.shared.providers.document_ingestion import DocumentAccessDeniedError
 from fdai.shared.providers.testing.user_context import InMemoryConversationHistoryStore
 from fdai.shared.providers.workload_identity import IdentityToken
 from fdai.shared.telemetry.correlation import current_correlation_id, with_correlation
@@ -207,6 +209,105 @@ def test_authenticated_preferences_shape_plan_but_current_turn_still_wins() -> N
     assert overridden["answer_plan"]["format"] == "numbered_steps"
 
 
+def test_chat_resolves_ingested_document_refs_into_verified_evidence() -> None:
+    class Resolver:
+        async def resolve(self, *, principal_id, references):
+            assert principal_id == "test-reader"
+            assert len(references) == 1
+            reference = references[0]
+            return (f"doc:{reference.document_id}:{reference.version_id}",)
+
+    backend = _RecordingBackend(model="test", delay_ms=0)
+    app = Starlette(
+        routes=[
+            make_chat_route(
+                backend=backend,
+                authorize=_allow,
+                document_evidence_resolver=Resolver(),
+            )
+        ]
+    )
+    document_id = str(UUID(int=1))
+    version_id = str(UUID(int=2))
+
+    response = TestClient(app).post(
+        "/chat",
+        json={
+            "prompt": "Summarize the attached evidence",
+            "document_refs": [{"document_id": document_id, "version_id": version_id}],
+        },
+    )
+
+    assert response.status_code == 200
+    evidence_ref = f"doc:{document_id}:{version_id}"
+    assert evidence_ref in response.json()["verification"]["evidence_refs"]
+    assert backend.view_context is not None
+    assert backend.view_context["_document_evidence"]["evidence_refs"] == [evidence_ref]
+
+
+def test_chat_rejects_download_urls_in_document_refs() -> None:
+    response = TestClient(_app(_RecordingBackend(model="test", delay_ms=0))).post(
+        "/chat",
+        json={
+            "prompt": "Read this",
+            "document_refs": [{"url": "https://example.com/file"}],
+        },
+    )
+
+    assert response.status_code == 400
+    assert "UUID" in response.text
+
+
+def test_chat_fails_closed_when_document_resolver_is_unavailable() -> None:
+    response = TestClient(_app(_RecordingBackend(model="test", delay_ms=0))).post(
+        "/chat",
+        json={
+            "prompt": "Read this",
+            "document_refs": [
+                {
+                    "document_id": str(UUID(int=1)),
+                    "version_id": str(UUID(int=2)),
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 501
+    assert "unavailable" in response.text
+
+
+def test_chat_returns_403_when_document_reference_is_not_owned() -> None:
+    class Resolver:
+        async def resolve(self, *, principal_id, references):
+            raise DocumentAccessDeniedError
+
+    app = Starlette(
+        routes=[
+            make_chat_route(
+                backend=_RecordingBackend(model="test", delay_ms=0),
+                authorize=_allow,
+                document_evidence_resolver=Resolver(),
+            )
+        ]
+    )
+
+    response = TestClient(app).post(
+        "/chat",
+        json={
+            "prompt": "Read this",
+            "document_refs": [
+                {
+                    "document_id": str(UUID(int=1)),
+                    "version_id": str(UUID(int=2)),
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.text == "document reference access denied"
+
+
 def test_chat_idempotency_conflict_returns_409_instead_of_500() -> None:
     store = InMemoryConversationHistoryStore()
     app = Starlette(
@@ -233,6 +334,44 @@ def test_chat_idempotency_conflict_returns_409_instead_of_500() -> None:
 
     assert conflict.status_code == 409
     assert conflict.text == "chat request id conflicts with an existing turn"
+
+
+def test_chat_idempotency_conflicts_when_document_refs_change() -> None:
+    class Resolver:
+        async def resolve(self, *, principal_id, references):
+            return tuple(
+                f"doc:{reference.document_id}:{reference.version_id}" for reference in references
+            )
+
+    store = InMemoryConversationHistoryStore()
+    app = Starlette(
+        routes=[
+            make_chat_route(
+                backend=_RecordingBackend(model="test", delay_ms=0),
+                authorize=_allow,
+                conversation_history_store=store,
+                document_evidence_resolver=Resolver(),
+            )
+        ]
+    )
+    client = TestClient(app)
+    request = {
+        "prompt": "Summarize this.",
+        "session_id": "conversation-1",
+        "request_id": "request-1",
+        "document_refs": [
+            {
+                "document_id": str(UUID(int=1)),
+                "version_id": str(UUID(int=2)),
+            }
+        ],
+    }
+
+    assert client.post("/chat", json=request).status_code == 200
+    request["document_refs"][0]["version_id"] = str(UUID(int=3))
+    conflict = client.post("/chat", json=request)
+
+    assert conflict.status_code == 409
 
 
 def test_incident_conversation_context_selects_exact_server_incident() -> None:

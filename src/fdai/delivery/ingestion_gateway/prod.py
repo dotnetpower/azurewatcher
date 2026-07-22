@@ -13,6 +13,10 @@ from starlette.applications import Starlette
 from fdai.core.document_ingestion import DocumentIngestionService, DocumentIngestionWorker
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver
 from fdai.core.stewardship.handover_bootstrap import HandoverBootstrapper
+from fdai.delivery.azure.document_ocr import (
+    AzureDocumentIntelligenceOcr,
+    AzureDocumentOcrConfig,
+)
 from fdai.delivery.azure.document_storage import (
     AzureDataLakeArtifactStore,
     AzureDataLakeConfig,
@@ -90,6 +94,21 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         timeout=httpx.Timeout(connect=10.0, read=60.0, write=60.0, pool=10.0)
     )
     identity = ManagedIdentityWorkloadIdentity(http_client=http_client)
+    ocr_endpoint = env.get("FDAI_OCR_ENDPOINT", "").strip()
+    image_ocr = (
+        AzureDocumentIntelligenceOcr(
+            config=AzureDocumentOcrConfig(
+                endpoint=ocr_endpoint,
+                api_version=env.get("FDAI_OCR_API_VERSION", "2024-11-30").strip(),
+                max_lines=_positive_int(env, "FDAI_OCR_MAX_LINES", 5000),
+                max_characters=_positive_int(env, "FDAI_OCR_MAX_CHARACTERS", 1_000_000),
+            ),
+            identity=identity,
+            http_client=http_client,
+        )
+        if ocr_endpoint
+        else None
+    )
 
     async def graph_token() -> str:
         token = await identity.get_token("https://graph.microsoft.com/.default")
@@ -184,7 +203,7 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
             )
         ),
         protection=SignatureProtectionInspector(),
-        extractor=StandardLibraryDocumentExtractor(),
+        extractor=StandardLibraryDocumentExtractor(image_ocr=image_ocr),
         artifacts=artifact_store,
         index=document_index,
         activity=activity,

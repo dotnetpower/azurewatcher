@@ -104,6 +104,45 @@ async def test_slack_rejects_stale_or_invalid_signature() -> None:
     assert invalid.reason == "invalid signature"
 
 
+async def test_slack_accepts_attachment_only_message() -> None:
+    secret = "test-signing-secret"
+    timestamp = 1_700_000_000
+    body = json.dumps(
+        {
+            "type": "event_callback",
+            "event_id": "event-file",
+            "event": {
+                "type": "message",
+                "channel": "channel-1",
+                "user": "user-1",
+                "text": "",
+                "ts": "1.2",
+                "files": [
+                    {
+                        "id": "file-1",
+                        "name": "evidence.txt",
+                        "size": 4,
+                        "mimetype": "text/plain",
+                    }
+                ],
+            },
+        }
+    ).encode()
+    channel = SlackBotChannel(
+        signing_secret=secret,
+        publisher=_Publisher(),
+        clock=lambda: float(timestamp),
+    )
+
+    result = await channel.accept(headers=_slack_headers(secret, timestamp, body), body=body)
+    channel.close()
+    turns = [turn async for turn in channel.receive()]
+
+    assert result.accepted is True
+    assert turns[0].text == ""
+    assert turns[0].attachments[0].source_ref == "file-1"
+
+
 async def test_slack_ignores_bot_messages() -> None:
     secret = "test-signing-secret"
     timestamp = 1_700_000_000
@@ -186,6 +225,34 @@ async def test_teams_queue_capacity_fails_closed() -> None:
     channel.close()
     turns = [turn async for turn in channel.receive()]
     assert len(turns) == 1
+
+
+async def test_teams_accepts_attachment_only_message() -> None:
+    channel = TeamsBotChannel(publisher=_Publisher())
+
+    result = await channel.accept_authenticated_activity(
+        activity={
+            "type": "message",
+            "id": "activity-file",
+            "text": "",
+            "from": {"aadObjectId": "sender-1"},
+            "conversation": {"id": "conversation-1"},
+            "attachments": [
+                {
+                    "id": "attachment-1",
+                    "name": "evidence.txt",
+                    "size": 4,
+                    "contentType": "text/plain",
+                }
+            ],
+        }
+    )
+    channel.close()
+    turns = [turn async for turn in channel.receive()]
+
+    assert result.accepted is True
+    assert turns[0].text == ""
+    assert turns[0].attachments[0].source_ref == "attachment-1"
 
 
 async def test_channel_adapters_forward_delivery_acknowledgements() -> None:

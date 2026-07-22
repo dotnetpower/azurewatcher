@@ -53,6 +53,19 @@ class _Gateway:
             self.stopped.append(adapter.channel_kind.value)
 
 
+@dataclass
+class _AttachmentAwareGateway(_Gateway):
+    attachment_ingestor: object | None = None
+
+    def bind_attachment_ingestor(self, ingestor: object) -> None:
+        self.attachment_ingestor = ingestor
+
+
+class _AttachmentIngestor:
+    async def ingest(self, *, turn, principal):  # noqa: ANN001, ANN201
+        raise AssertionError("binding test does not ingest")
+
+
 class _HealthAuthenticator:
     async def authenticate(self, request: Request) -> str | None:
         return (
@@ -118,6 +131,36 @@ def test_slack_runtime_fetches_secrets_starts_route_and_stops() -> None:
 
     assert secrets.requested == ["slack-signing-secret", "slack-bot-token"]
     assert gateway.stopped == ["slack"]
+
+
+def test_runtime_binds_attachment_ingestor_before_start() -> None:
+    secrets = _Secrets(values={"slack-signing-secret": "signing", "slack-bot-token": "token"})
+    gateway = _AttachmentAwareGateway()
+    ingestor = _AttachmentIngestor()
+    runtime = ProductionChannelRuntime(
+        config=ProductionChannelConfig(slack_enabled=True, teams_enabled=False),
+        gateway=gateway,
+        secrets=secrets,
+        attachment_ingestor=ingestor,
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200))),
+    )
+
+    with TestClient(build_channel_app(runtime)):
+        assert gateway.attachment_ingestor is ingestor
+
+
+def test_runtime_rejects_attachment_ingestor_with_unaware_gateway() -> None:
+    runtime = ProductionChannelRuntime(
+        config=ProductionChannelConfig(slack_enabled=True, teams_enabled=False),
+        gateway=_Gateway(),
+        secrets=_Secrets(values={"slack-signing-secret": "signing", "slack-bot-token": "token"}),
+        attachment_ingestor=_AttachmentIngestor(),
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200))),
+    )
+
+    with pytest.raises(ValueError, match="attachment-aware"):
+        with TestClient(build_channel_app(runtime)):
+            pass
 
 
 def test_teams_runtime_wires_auth_principal_and_workload_publisher() -> None:

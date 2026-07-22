@@ -1,7 +1,7 @@
 ---
 title: 코드 맵
 translation_of: code-map.md
-translation_source_sha: 5e63fef21edf2e9958164b57d3e8610918f38b26
+translation_source_sha: 289bd10c1b4b346f0ccb4a6ed610c763003e9b38
 translation_revised: 2026-07-23
 ---
 # 코드 맵
@@ -96,6 +96,7 @@ shared 패키지를 커버한다.
 | 서브시스템 | 책임 | 소스 | 테스트 |
 |-----------|------|------|--------|
 | conversation | NL 턴 -> read-only 툴 호출 하나 | [src/fdai/core/conversation/](../../../src/fdai/core/conversation/) | [tests/core/conversation/](../../../tests/core/conversation/) |
+| conversation_attachments | Explicit attachment purpose, protected Slack/Teams fetch, web document ref 및 optional OCR ([설계](../interfaces/conversation-attachments-ko.md)) | [src/fdai/core/conversation/attachment_directive.py](../../../src/fdai/core/conversation/attachment_directive.py), [src/fdai/delivery/channels/](../../../src/fdai/delivery/channels/), [document_ocr.py](../../../src/fdai/delivery/azure/document_ocr.py) | [tests/delivery/channels/](../../../tests/delivery/channels/), [test_document_ocr.py](../../../tests/delivery/azure/test_document_ocr.py), focused chat test |
 | operator | 오퍼레이터 콘솔 코디네이터 | [src/fdai/core/operator/](../../../src/fdai/core/operator/) | (delivery/read_api 통합) |
 | console_request | write-direction 콘솔 경로의 오퍼레이터 재요청 정책 (Scenario B deny-override) | [src/fdai/core/console_request/](../../../src/fdai/core/console_request/) | [tests/core/console_request/](../../../tests/core/console_request/) |
 | notifications | 매트릭스 기반 채널 라우팅 레이어 | [src/fdai/core/notifications/](../../../src/fdai/core/notifications/) | [tests/notifications/](../../../tests/notifications/) |

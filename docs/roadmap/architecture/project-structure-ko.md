@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: b381deb06f1f427faa85bde9e3f1d016c307cb08
+translation_source_sha: 992d519a444a3aaa8581d45fc5110bfae84d98c5
 translation_revised: 2026-07-23
 ---
 
@@ -62,7 +62,7 @@ fdai/
 │   │   ├── mscp_profile/       # 실행 authority 없는 순수 mscp-operational-v1 provenance, effect verification, cycle guard 및 runtime-integrity policy
 │   │   ├── deploy_preflight/   # 배포 전 feasibility 프로브 → grounded readiness 리포트
 │   │   ├── assurance_twin/     # 읽기 전용 온톨로지 트윈: text-to-query 리뷰 / Q&A / assessment (제안만, 실행 안 함)
-│   │   ├── conversation/       # Operator console 조정, verified principal binding, durable outbound delivery, adapter health 및 busy-input arbitration
+│   │   ├── conversation/       # Operator console 조정, explicit attachment purpose, verified principal binding, durable outbound delivery, adapter health 및 busy-input arbitration
 │   │   ├── user_context_projection.py  # principal context / workflow binding metadata만 runtime ontology에 projection
 │   │   ├── console_request/    # 오퍼레이터 콘솔 write-direction 재요청 정책 (Scenario B deny-override), 순수 함수 `evaluate_operator_rerequest` 하나
 │   │   ├── verticals/          # Resilience / Change Safety / Cost Governance (P3 통합 지점); 각 vertical 은 sub-package (G-6) 로 자체 orchestrator + 서브모듈 을 갖고, 공유 `Vertical` Protocol 은 `base.py`, `VerticalRegistry` seam 도 함께
@@ -101,7 +101,7 @@ fdai/
 │   │   ├── chaos/              # `Chaos` runbook 단계가 enforce로 갈 때 쓰는 라이브 카오스 주입 어댑터: `live_injectors.py` (CSP-중립 프리미티브 fan-out) + `chaos_mesh.py` (Chaos Mesh CRD) + `mysql_load.py` (MySQL 벤치마크 부하)
 │   │   ├── remediation/        # 직접 API 리메디에이션용 구체 `DirectApiExecutor` (`live_direct_api.py`); Protocol 은 `shared/providers/`에 있음
 │   │   ├── read_api/           # 얇은 ASGI - `main.py`가 `routes/`의 HTTP surface module, `streaming/`의 SSE fan-out, 분리된 `dev/` / `production/` wiring을 조립. GET route는 bounded state를 projection하고 POST command route는 governed record 또는 typed proposal을 제출하며 privileged executor를 직접 호출하지 않음
-│   │   ├── ingestion_gateway/  # 전용 content-write ASGI: scoped upload 및 governed deletion; optional handover governance는 idempotent draft PR delivery와 signed GitHub merge webhook을 bind
+│   │   ├── ingestion_gateway/  # 전용 content-write ASGI: scoped upload, uploader-scoped web chat ref, governed deletion, optional handover governance
 │   │   ├── provisioning/       # surface-A Genesis 부트스트랩: 순수 `terraform_bridge.py` (terraform `-json` → `provision.*`) + `serve.py` harness (`aiter_json_lines` + `pump_provision_events`, I/O 주입, subprocess 없음)
 │   │   └── scheduler_tick_cli.py  # cron / Container Apps Job에서 스케줄러 tick을 구동하는 독립 엔트리 포인트
 │   ├── rule_catalog/          # rule-catalog 파이프라인 코드

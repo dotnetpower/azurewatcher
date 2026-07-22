@@ -22,6 +22,7 @@ from fdai.core.conversation.channel_gateway import (
 from fdai.core.conversation.coordinator import ConversationCoordinator
 from fdai.core.conversation.session import ConversationSession, Principal, Role
 from fdai.core.conversation.tools import ToolResult
+from fdai.shared.contracts import DocumentPurpose
 from fdai.shared.providers.conversation_channel import (
     ChannelAttachment,
     ConversationChannelKind,
@@ -314,6 +315,17 @@ def test_inbound_turn_rejects_oversized_text() -> None:
         )
 
 
+def test_inbound_turn_rejects_empty_text_without_attachment() -> None:
+    with pytest.raises(ValueError, match="text or at least one attachment"):
+        InboundTurn(
+            channel_kind=ConversationChannelKind.WEB,
+            channel_id="channel-1",
+            message_id="message-1",
+            sender_id="sender-1",
+            text="",
+        )
+
+
 async def test_ready_attachment_becomes_citation_never_tool_instruction() -> None:
     _ReadTool.calls.clear()
     turn = replace(
@@ -362,6 +374,66 @@ async def test_rejected_attachment_never_invokes_tool() -> None:
 
     assert response is not None and response.status == "error"
     assert response.evidence_refs == ()
+    assert _ReadTool.calls == []
+
+
+async def test_attachment_only_knowledge_returns_citation_without_tool_call() -> None:
+    _ReadTool.calls.clear()
+    turn = replace(
+        _turn(),
+        text="",
+        attachments=(
+            ChannelAttachment(
+                source_ref="file-1",
+                name="evidence.txt",
+                size_bytes=12,
+                media_type_hint="text/plain",
+            ),
+        ),
+    )
+    response = await _gateway(
+        attachment_ingestor=_AttachmentIngestor(
+            AttachmentIngestionResult(
+                status="ready",
+                evidence_refs=("doc:document-1:version-1",),
+                message="",
+            )
+        )
+    ).handle(adapter=_Adapter(), turn=turn)
+
+    assert response is not None and response.status == "ready"
+    assert response.evidence_refs == ("doc:document-1:version-1",)
+    assert _ReadTool.calls == []
+
+
+async def test_handover_attachment_returns_review_ack_without_tool_call() -> None:
+    _ReadTool.calls.clear()
+    turn = replace(
+        _turn(),
+        text="/handover",
+        attachments=(
+            ChannelAttachment(
+                source_ref="file-1",
+                name="handover.txt",
+                size_bytes=12,
+                media_type_hint="text/plain",
+            ),
+        ),
+    )
+    response = await _gateway(
+        attachment_ingestor=_AttachmentIngestor(
+            AttachmentIngestionResult(
+                status="ready",
+                evidence_refs=("doc:document-1:version-1",),
+                purpose=DocumentPurpose.HANDOVER_BOOTSTRAP,
+                message="",
+            )
+        )
+    ).handle(adapter=_Adapter(), turn=turn)
+
+    assert response is not None and response.status == "ready"
+    assert "governance pull request" in response.text
+    assert response.evidence_refs == ("doc:document-1:version-1",)
     assert _ReadTool.calls == []
 
 

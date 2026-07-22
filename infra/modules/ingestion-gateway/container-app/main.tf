@@ -214,6 +214,13 @@ resource "azurerm_container_app" "ingestion" {
         name  = "FDAI_EMBEDDING_DEPLOYMENT"
         value = var.embedding_deployment
       }
+      dynamic "env" {
+        for_each = var.ocr_endpoint == "" ? [] : [var.ocr_endpoint]
+        content {
+          name  = "FDAI_OCR_ENDPOINT"
+          value = env.value
+        }
+      }
       env {
         name  = "FDAI_EMBEDDING_DIM"
         value = tostring(var.embedding_dim)

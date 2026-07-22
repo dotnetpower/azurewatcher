@@ -767,6 +767,18 @@ variable "ingestion_embedding_capability" {
   default     = "t1.embedding"
 }
 
+variable "document_ocr_endpoint" {
+  description = "Optional Azure Document Intelligence endpoint for image OCR. Empty keeps image metadata only."
+  type        = string
+  default     = ""
+}
+
+variable "document_ocr_resource_id" {
+  description = "Azure resource id matching document_ocr_endpoint for ingestion identity RBAC."
+  type        = string
+  default     = ""
+}
+
 variable "document_storage_replication_type" {
   description = "ADLS Gen2 standard replication type."
   type        = string

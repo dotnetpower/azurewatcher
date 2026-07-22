@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from fdai.core.conversation.adapter_health import AdapterHealthService
+from fdai.core.conversation.channel_gateway import ChannelAttachmentIngestor
 from fdai.delivery.channels.adapter_health_commands import (
     AdapterHealthCommandAuthenticator,
     make_adapter_health_command_routes,
@@ -105,6 +106,7 @@ class ProductionChannelRuntime:
         delivery_reconciler: ChannelDeliveryStartupReconciler | None = None,
         adapter_health_service: AdapterHealthService | None = None,
         adapter_health_authenticator: AdapterHealthCommandAuthenticator | None = None,
+        attachment_ingestor: ChannelAttachmentIngestor | None = None,
         http_client: httpx.AsyncClient | None = None,
         environ: Mapping[str, str] | None = None,
     ) -> None:
@@ -122,6 +124,7 @@ class ProductionChannelRuntime:
             )
         self._adapter_health_service = adapter_health_service
         self._adapter_health_authenticator = adapter_health_authenticator
+        self._attachment_ingestor = attachment_ingestor
         self._http = http_client
         self._owns_http = http_client is None
         self._environ = environ
@@ -135,6 +138,17 @@ class ProductionChannelRuntime:
         self._http = http_client
         routes: list[Route] = []
         try:
+            if self._attachment_ingestor is not None:
+                bind_attachment_ingestor = getattr(
+                    self._gateway,
+                    "bind_attachment_ingestor",
+                    None,
+                )
+                if not callable(bind_attachment_ingestor):
+                    raise ValueError(
+                        "production channel attachments require an attachment-aware gateway"
+                    )
+                bind_attachment_ingestor(self._attachment_ingestor)
             if self._delivery_reconciler is not None:
                 await self._delivery_reconciler.reconcile_startup()
                 await self._delivery_reconciler.drain_due()

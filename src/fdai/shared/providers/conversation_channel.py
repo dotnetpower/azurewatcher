@@ -109,7 +109,10 @@ class InboundTurn:
         _bounded("channel_id", self.channel_id, MAX_CHANNEL_ID_CHARS)
         _bounded("message_id", self.message_id, MAX_MESSAGE_ID_CHARS)
         _bounded("sender_id", self.sender_id, MAX_SENDER_ID_CHARS)
-        _bounded("text", self.text, MAX_TEXT_CHARS)
+        if len(self.text) > MAX_TEXT_CHARS:
+            raise ValueError(f"InboundTurn.text exceeds cap ({len(self.text)} > {MAX_TEXT_CHARS})")
+        if not self.text.strip() and not self.attachments:
+            raise ValueError("InboundTurn requires text or at least one attachment")
         if self.thread_id is not None:
             _bounded("thread_id", self.thread_id, MAX_THREAD_ID_CHARS)
         if len(self.attachments) > MAX_ATTACHMENT_COUNT:

@@ -23,6 +23,7 @@ from fdai.shared.contracts import (
 )
 from fdai.shared.providers.document_ingestion import (
     DocumentNotFoundError,
+    ImageOcrProvider,
     ProtectionInspection,
     StoredObjectInfo,
     UploadGrant,
@@ -158,6 +159,9 @@ class SignatureProtectionInspector:
 class StandardLibraryDocumentExtractor:
     """Safely extract bounded UTF-8 text and modern OOXML without active content."""
 
+    def __init__(self, *, image_ocr: ImageOcrProvider | None = None) -> None:
+        self._image_ocr = image_ocr
+
     async def extract(
         self, *, version: DocumentVersion, chunks: AsyncIterator[bytes]
     ) -> DocumentEnvelope:
@@ -178,7 +182,11 @@ class StandardLibraryDocumentExtractor:
         elif observed == "ooxml":
             units = _extract_ooxml(content)
         elif observed == "image":
-            units = ()
+            units = (
+                await self._image_ocr.extract(version=version, content=content)
+                if self._image_ocr is not None
+                else ()
+            )
         else:
             raise ValueError("no safe standard-library extractor is available for this format")
         return DocumentEnvelope(

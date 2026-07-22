@@ -104,10 +104,12 @@ def _normalize_activity(
         return None
     if not isinstance(message_id, str) or not message_id:
         return None
-    if not isinstance(text, str) or not text:
+    if not isinstance(text, str):
         return None
     attachments = _normalize_attachments(activity.get("attachments"))
     if attachments is None:
+        return None
+    if not text.strip() and not attachments:
         return None
     reply_to = activity.get("replyToId")
     return InboundTurn(

@@ -26,6 +26,7 @@ async def append_operator_turn(
     request_id: str,
     content: str,
     recorded_at: datetime,
+    metadata: dict[str, Any] | None = None,
     ontology_projector: UserContextOntologyProjector | None = None,
 ) -> ConversationTurnRecord:
     conversation = await store.get_conversation(
@@ -52,6 +53,7 @@ async def append_operator_turn(
         content=content,
         recorded_at=recorded_at,
         idempotency_key=idempotency_key,
+        metadata=dict(metadata or {}),
     )
     stored = await store.append_turn(turn, allocate_index=True)
     if ontology_projector is not None:

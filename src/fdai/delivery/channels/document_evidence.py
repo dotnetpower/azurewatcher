@@ -7,8 +7,13 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol
 
+from fdai.core.conversation.attachment_directive import parse_attachment_directive
 from fdai.core.conversation.channel_gateway import AttachmentIngestionResult
-from fdai.core.conversation.session import Principal
+from fdai.core.conversation.session import (
+    Principal,
+    Role,
+    principal_has_role_at_least,
+)
 from fdai.core.document_ingestion import (
     CreateUploadRequest,
     DocumentIngestionService,
@@ -26,6 +31,10 @@ class ChannelAttachmentFetcher(Protocol):
     """Fetch one opaque vendor ref using server-owned app credentials."""
 
     async def fetch(self, attachment: ChannelAttachment, *, max_bytes: int) -> bytes: ...
+
+
+class ChannelAttachmentFetchError(RuntimeError):
+    """A vendor attachment could not be resolved or downloaded safely."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +76,12 @@ class ProtectedChannelAttachmentIngestor:
         turn: InboundTurn,
         principal: Principal,
     ) -> AttachmentIngestionResult:
+        directive = parse_attachment_directive(turn.text)
+        if (
+            directive.purpose is DocumentPurpose.HANDOVER_BOOTSTRAP
+            and not principal_has_role_at_least(principal.role, Role.CONTRIBUTOR)
+        ):
+            return _rejected("ownership handover attachments require Contributor or Owner")
         fetcher = self._fetchers.get(turn.channel_kind.value)
         if fetcher is None:
             return AttachmentIngestionResult(
@@ -77,10 +92,13 @@ class ProtectedChannelAttachmentIngestor:
         for attachment in turn.attachments:
             if attachment.size_bytes > self._service.capabilities.max_file_size:
                 return _rejected("attachment exceeds the ingestion size limit")
-            content = await fetcher.fetch(
-                attachment,
-                max_bytes=self._service.capabilities.max_file_size,
-            )
+            try:
+                content = await fetcher.fetch(
+                    attachment,
+                    max_bytes=self._service.capabilities.max_file_size,
+                )
+            except ChannelAttachmentFetchError:
+                return _rejected("channel attachment download failed")
             if len(content) != attachment.size_bytes:
                 return _rejected("attachment size does not match channel metadata")
             session, _ = await self._service.create_upload(
@@ -92,7 +110,7 @@ class ProtectedChannelAttachmentIngestor:
                     expected_size=len(content),
                     expected_sha256=hashlib.sha256(content).hexdigest(),
                     storage_mode=self._config.storage_mode,
-                    purposes=(DocumentPurpose.KNOWLEDGE_BASE,),
+                    purposes=(directive.purpose,),
                     access_descriptor_ref=self._config.access_descriptor_ref,
                     reader_groups=self._config.reader_groups,
                     retention_policy_version=self._config.retention_policy_version,
@@ -128,6 +146,8 @@ class ProtectedChannelAttachmentIngestor:
         return AttachmentIngestionResult(
             status="ready",
             evidence_refs=tuple(evidence_refs),
+            purpose=directive.purpose,
+            message=directive.message,
         )
 
 
@@ -140,6 +160,7 @@ def _rejected(reason: str) -> AttachmentIngestionResult:
 
 
 __all__ = [
+    "ChannelAttachmentFetchError",
     "ChannelAttachmentFetcher",
     "ChannelDocumentEvidenceConfig",
     "ProtectedChannelAttachmentIngestor",
