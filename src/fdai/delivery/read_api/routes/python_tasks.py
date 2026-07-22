@@ -116,6 +116,22 @@ def build_python_task_routes(
     if not prefix.startswith("/"):
         raise ValueError("Python task route prefix MUST start with '/'")
 
+    async def capabilities(request: Request) -> JSONResponse:
+        await authorize_oid(request)
+        return JSONResponse(
+            {
+                "available": True,
+                "operations": {
+                    "generate": config.author is not None,
+                    "validate": True,
+                    "stage": True,
+                    "test": True,
+                    "request_run": config.submitter is not None,
+                    "schedule": config.schedule_store is not None,
+                },
+            }
+        )
+
     async def validate_task(request: Request) -> JSONResponse:
         await authorize_oid(request)
         raw = await _json_body(request)
@@ -280,6 +296,7 @@ def build_python_task_routes(
         )
 
     return [
+        Route(f"{prefix}/capabilities", capabilities, methods=["GET"]),
         Route(f"{prefix}/generate", generate_task, methods=["POST"]),
         Route(f"{prefix}/validate", validate_task, methods=["POST"]),
         Route(f"{prefix}/stage", stage_task, methods=["POST"]),

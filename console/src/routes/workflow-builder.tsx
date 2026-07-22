@@ -28,6 +28,10 @@ import type {
   WorkflowCatalogResponse,
   WorkflowDefinitionCatalogResponse,
 } from "../workflow/validate";
+import {
+  decodePythonTaskAvailability,
+  type PythonTaskAvailability,
+} from "../workflow/python-task";
 import type { CombinedData } from "./workflow-builder.model";
 import { BuiltInList } from "./workflow-builder.catalog";
 import { WorkflowChat } from "./workflow-builder.chatpanel";
@@ -63,6 +67,18 @@ export async function loadWorkflowDefinitions(
   }
 }
 
+export async function loadPythonTaskAvailability(
+  client: Pick<ReadApiClient, "panel">,
+): Promise<PythonTaskAvailability | null> {
+  try {
+    const payload = await client.panel<unknown>("/python-tasks/capabilities");
+    return decodePythonTaskAvailability(payload);
+  } catch (error) {
+    if (isOptionalReadApiUnavailable(error)) return null;
+    throw error;
+  }
+}
+
 export function WorkflowBuilderRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<CombinedData>>({ status: "loading" });
 
@@ -71,10 +87,11 @@ export function WorkflowBuilderRoute({ client }: Props) {
     setState({ status: "loading" });
     (async () => {
       try {
-        const [palette, catalog, definitions] = await Promise.all([
+        const [palette, catalog, definitions, pythonTasks] = await Promise.all([
           client.panel<ActionTypePaletteResponse>("/workflows/action-types"),
           client.panel<WorkflowCatalogResponse>("/workflows/catalog"),
           loadWorkflowDefinitions(client),
+          loadPythonTaskAvailability(client),
         ]);
         if (!cancelled) {
           setState({
@@ -83,6 +100,7 @@ export function WorkflowBuilderRoute({ client }: Props) {
               palette: palette.action_types,
               workflows: catalog.workflows,
               definitions,
+              pythonTasks,
             },
           });
         }
@@ -187,13 +205,16 @@ function WorkflowShell({ data }: { readonly data: CombinedData }) {
     return <WorkflowChat palette={data.palette} onBack={() => setMode("list")} />;
   }
   if (mode === "python") {
-    return <PythonTaskWorkbench onBack={() => setMode("list")} />;
+    return data.pythonTasks
+      ? <PythonTaskWorkbench availability={data.pythonTasks} onBack={() => setMode("list")} />
+      : null;
   }
   return (
     <BuiltInList
       workflows={data.workflows}
       definitions={data.definitions}
       palette={data.palette}
+      pythonTasks={data.pythonTasks}
       onNew={() => setMode("new")}
       onPython={() => setMode("python")}
     />

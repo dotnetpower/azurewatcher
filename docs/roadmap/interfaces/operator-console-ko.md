@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 4d71c3252d1b79f939b3d77b809eaf0d62d7e762
+translation_source_sha: 2edb3bc57136c0a3daf469444c6b7fe1aa647f19
 translation_revised: 2026-07-22
 ---
 
@@ -1575,10 +1575,16 @@ high-risk를 승인하며, Thor만 실행한다(shadow-first).
 
 Workflow Builder 는
 [`python_tasks.py`](../../../src/fdai/delivery/read_api/routes/python_tasks.py) 의 여섯
-`/python-tasks/*` route 를 사용하는 multi-file Python task workbench 를 포함합니다.
+mutation route 와 read-only `GET /python-tasks/capabilities` route 를 사용하는
+multi-file Python task workbench 를 포함합니다.
 Operator 는 source file 을 편집하고 entrypoint 를 선택하며 module 및 host
 capability 를 선언한 뒤 validate, immutable artifact stage, inventory Resource 대상
 shadow plan 을 수행할 수 있습니다.
+
+Capability response 는 optional operation 별 가용성을 따로 보고합니다. Console 은 route 가
+없으면 workbench 를 열지 않으며 adapter, submitter 또는 schedule store 가 연결되지 않은
+operation 을 비활성화합니다. 따라서 unavailable path 가 generic `404` 로 실패하는 실행 가능한
+control 처럼 표시되지 않습니다.
 
 Workbench 는 console identity boundary 를 유지합니다.
 

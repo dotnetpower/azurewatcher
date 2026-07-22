@@ -8,6 +8,20 @@ export type PythonTaskCapability =
   | "filesystem_write"
   | "process";
 
+export interface PythonTaskOperations {
+  readonly generate: boolean;
+  readonly validate: boolean;
+  readonly stage: boolean;
+  readonly test: boolean;
+  readonly request_run: boolean;
+  readonly schedule: boolean;
+}
+
+export interface PythonTaskAvailability {
+  readonly available: true;
+  readonly operations: PythonTaskOperations;
+}
+
 export interface PythonTaskFileDraft {
   readonly path: string;
   readonly content: string;
@@ -77,6 +91,38 @@ export interface PythonTaskGenerationResponse {
 
 export function pythonTaskDraftKey(task: PythonTaskDraft): string {
   return JSON.stringify(task);
+}
+
+export function decodePythonTaskAvailability(value: unknown): PythonTaskAvailability {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Python task capability API returned an invalid response.");
+  }
+  const record = value as Record<string, unknown>;
+  const operations = record["operations"];
+  if (
+    record["available"] !== true
+    || operations === null
+    || typeof operations !== "object"
+    || Array.isArray(operations)
+  ) {
+    throw new Error("Python task capability API returned an invalid response.");
+  }
+  const operationRecord = operations as Record<string, unknown>;
+  const keys = ["generate", "validate", "stage", "test", "request_run", "schedule"] as const;
+  if (keys.some((key) => typeof operationRecord[key] !== "boolean")) {
+    throw new Error("Python task capability API returned an invalid response.");
+  }
+  return {
+    available: true,
+    operations: {
+      generate: operationRecord["generate"] as boolean,
+      validate: operationRecord["validate"] as boolean,
+      stage: operationRecord["stage"] as boolean,
+      test: operationRecord["test"] as boolean,
+      request_run: operationRecord["request_run"] as boolean,
+      schedule: operationRecord["schedule"] as boolean,
+    },
+  };
 }
 
 export function pythonTaskGenerationCanApply(currentRevision: number, submittedRevision: number): boolean {

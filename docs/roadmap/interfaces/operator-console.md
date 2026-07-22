@@ -1668,11 +1668,16 @@ Var approves a high-risk one, and only Thor executes (shadow-first).
 ### 13.7 Python VM task workbench
 
 The Workflow Builder includes a multi-file Python task workbench backed by the
-six `/python-tasks/*` routes in
+six mutation routes and the read-only `GET /python-tasks/capabilities` route in
 [`python_tasks.py`](../../../src/fdai/delivery/read_api/routes/python_tasks.py).
 Operators can edit source files, choose an entrypoint, declare modules and host
 capabilities, validate, stage an immutable artifact, and render a shadow plan
 for an inventory Resource.
+
+The capability response reports each optional operation separately. The console
+doesn't open the workbench when the route is absent and disables any operation
+whose adapter, submitter, or schedule store isn't wired, so an unavailable path
+never appears as an executable control that fails with a generic `404`.
 
 The workbench preserves the console identity boundary:
 

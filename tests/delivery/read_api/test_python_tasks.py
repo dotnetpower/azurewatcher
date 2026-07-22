@@ -128,6 +128,25 @@ def test_validate_stage_and_shadow_test() -> None:
     assert planned.json()["plan"]["files_would_copy"] == 1
 
 
+def test_capabilities_report_wired_operations() -> None:
+    client, _ = _client()
+
+    response = client.get("/python-tasks/capabilities")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "available": True,
+        "operations": {
+            "generate": True,
+            "validate": True,
+            "stage": True,
+            "test": True,
+            "request_run": True,
+            "schedule": True,
+        },
+    }
+
+
 def test_author_generates_editable_validated_draft() -> None:
     client, _ = _client()
 

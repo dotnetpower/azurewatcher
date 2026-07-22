@@ -6,6 +6,7 @@ import type {
   WorkflowCatalogEntry,
   WorkflowDefinitionCatalogResponse,
 } from "../workflow/validate";
+import type { PythonTaskAvailability } from "../workflow/python-task";
 import { WorkflowAutomations } from "./workflow-builder.automations";
 import { WorkflowDetail } from "./workflow-builder.detail";
 import {
@@ -26,12 +27,14 @@ export function BuiltInList({
   workflows,
   definitions,
   palette,
+  pythonTasks,
   onNew,
   onPython,
 }: {
   readonly workflows: readonly WorkflowCatalogEntry[];
   readonly definitions: WorkflowDefinitionCatalogResponse;
   readonly palette: readonly ActionTypePaletteEntry[];
+  readonly pythonTasks: PythonTaskAvailability | null;
   readonly onNew: () => void;
   readonly onPython: () => void;
 }) {
@@ -110,9 +113,20 @@ export function BuiltInList({
         <button type="button" class="btn" onClick={onNew}>
           + {t("workflow.catalog.designNew")}
         </button>
-        <button type="button" class="btn" onClick={onPython}>
+        <button
+          type="button"
+          class="btn"
+          onClick={onPython}
+          disabled={pythonTasks === null}
+          title={pythonTasks === null ? t("workflow.catalog.pythonUnavailable") : undefined}
+        >
           {t("workflow.catalog.authorPython")}
         </button>
+        {pythonTasks === null ? (
+          <span class="muted small" role="status">
+            {t("workflow.catalog.pythonUnavailable")}
+          </span>
+        ) : null}
       </div>
 
       <section class="stack-section">

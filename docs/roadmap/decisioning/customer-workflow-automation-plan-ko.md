@@ -1,7 +1,7 @@
 ---
 title: 고객 워크플로 자동화 제공 계획
 translation_of: customer-workflow-automation-plan.md
-translation_source_sha: 97542ad3c80a9cecc626f521e1f74f334fa93c73
+translation_source_sha: 7a050b9a2e07b8cfaf7c7f919c063490b7aea0d0
 translation_revised: 2026-07-21
 ---
 
@@ -66,7 +66,7 @@ flowchart LR
 
 | 기능 | 현재 상태 | 제공 시 의미 |
 |------|-----------|-------------|
-| 정의 검증 및 private draft | 구현됨 | 지금 프로세스를 모델링하고 검토할 수 있습니다. Draft는 실행할 수 없습니다. |
+| 정의 검증 및 private draft | 구현됨 | 지금 action step 과 primitive parameter 를 직접 편집하고 탭 draft 를 복구하여 프로세스를 모델링하고 검토할 수 있습니다. Draft는 실행할 수 없습니다. |
 | Signal 및 schedule 트리거 | 구현됨 | 정규화된 이벤트나 일정에서 관찰 실행을 시작할 수 있습니다. |
 | Process snapshot 및 append-only journal | 구현됨 | 실행을 검사하고 결정론적으로 식별할 수 있습니다. |
 | `WAIT`, `APPROVAL`, `DECISION`, `PARALLEL`, `GATE` 실행 | 런타임에 구현됨 | Builder 지원과 종단간 운영자 전환은 추가 완성이 필요합니다. |
@@ -196,9 +196,11 @@ Console에 변경 권한을 부여하지 않고 복잡한 워크플로를 관리
 
 ### 산출물
 
-- Schema 기반 매개 변수 편집 및 스텝 삽입, 제거, 순서 변경.
+- Schema 기반 매개 변수 편집. Primitive parameter 편집과 action step 삽입, 제거 및
+  순서 변경은 구현되었으며 ActionType parameter schema 안내는 남아 있습니다.
 - Wait, approval, decision, parallel, gate 및 failure branch 저작 지원.
-- Draft 복구, deep link, immutable 검토 diff 및 GitHub 카탈로그 제안 흐름.
+- 탭 범위 draft 복구는 구현되었습니다. Deep link, immutable 검토 diff 및 완전한 GitHub
+  카탈로그 제안 흐름은 남아 있습니다.
 - 구조 검증과 명확하게 구분된 동작 미리 보기.
 - 승인 대기, 시간 초과, 실패, 보상 중 및 중단된 실행의 Process inbox.
 - 취소, 안전 경계에서 재시도, 재개 및 관찰 모드 강등을 위한 운영자 명령.

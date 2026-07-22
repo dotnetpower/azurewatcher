@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  decodePythonTaskAvailability,
   newPythonTaskRunIdempotencyKey,
   pythonTaskDraftKey,
   pythonTaskGenerationCanApply,
@@ -24,6 +25,23 @@ afterEach(() => {
 });
 
 describe("Python task authoring client", () => {
+  it("decodes the server operation capability manifest", () => {
+    expect(decodePythonTaskAvailability({
+      available: true,
+      operations: {
+        generate: false,
+        validate: true,
+        stage: true,
+        test: true,
+        request_run: false,
+        schedule: true,
+      },
+    }).operations.generate).toBe(false);
+    expect(() => decodePythonTaskAvailability({ available: true, operations: {} })).toThrow(
+      "invalid response",
+    );
+  });
+
   it("binds a staged artifact to every execution-relevant draft field", () => {
     const key = pythonTaskDraftKey(TASK);
     expect(pythonTaskDraftKey({ ...TASK, entrypoint: "worker.py" })).not.toBe(key);

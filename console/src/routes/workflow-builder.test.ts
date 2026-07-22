@@ -5,6 +5,7 @@ import {
   hasActionTypeRef,
   hasEquivalentWorkflowBinding,
   humanizeName,
+  loadPythonTaskAvailability,
   requestedActionType,
   loadWorkflowDefinitions,
   suggestDraftFromText,
@@ -56,6 +57,13 @@ describe("workflow catalog wire tolerance", () => {
       bindings: [],
       counts: { built_in: 0, shared: 0, mine: 0 },
     });
+  });
+
+  test("keeps workflow browsing available when Python tasks are unwired", async () => {
+    const availability = await loadPythonTaskAvailability({
+      panel: async () => { throw new ReadApiError(404, "Not Found"); },
+    } as never);
+    expect(availability).toBeNull();
   });
 
   test("keeps the ownership group in step drilldowns", () => {

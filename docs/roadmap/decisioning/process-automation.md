@@ -681,8 +681,19 @@ inline in the chat:
   `POST /workflows/definitions` with confirmation and creates a private
   `draft`. The saved definition isn't runnable and doesn't appear in
   Operations;
+- a collapsible **Edit validated draft** surface for action steps. It supports
+  ActionType replacement, insertion, removal, ordering, step ids, guard and
+  recovery references, primitive parameters, trigger metadata, anti-scope,
+  and promotion thresholds. Every edit invalidates the prior save result and
+  reruns the same server structural validation after a short debounce;
+- tab-scoped draft recovery in bounded `sessionStorage`. Defensive decoding
+  drops malformed or oversized records instead of loading an untrusted draft;
 - the git-native next step: copy the YAML into
   `rule-catalog/workflows/<name>.yaml` and open a remediation PR.
+
+Additional-step suggestions remain bounded to actions matched from the stated
+goal plus communication follow-ups. The builder doesn't fill suggestion rows
+with unrelated mutations merely to represent every ActionType category.
 
 The engine's pure, stateless pieces are split into sibling modules so each has
 one axis of change and is unit-testable without a DOM: the chip / form-slot

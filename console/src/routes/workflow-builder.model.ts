@@ -13,6 +13,7 @@ import type {
   WorkflowDefinitionCatalogResponse,
   WorkflowDefinitionEntry,
 } from "../workflow/validate";
+import type { PythonTaskAvailability } from "../workflow/python-task";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,6 +54,7 @@ export interface CombinedData {
   readonly palette: readonly ActionTypePaletteEntry[];
   readonly workflows: readonly WorkflowCatalogEntry[];
   readonly definitions: WorkflowDefinitionCatalogResponse;
+  readonly pythonTasks: PythonTaskAvailability | null;
 }
 
 export type WorkflowGroup = "built_in" | "shared" | "mine";

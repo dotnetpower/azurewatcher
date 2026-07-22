@@ -64,7 +64,7 @@ The baseline separates implemented platform capability from adoption work.
 
 | Capability | Current state | Delivery implication |
 |------------|---------------|----------------------|
-| Definition validation and private drafts | Implemented | Teams can model and review a process now. Drafts remain non-runnable. |
+| Definition validation and private drafts | Implemented | Teams can model, directly edit action steps and primitive parameters, recover the tab draft, and review a process now. Drafts remain non-runnable. |
 | Signal and schedule triggers | Implemented | Observation runs can start from normalized events or schedules. |
 | Process snapshot and append-only journal | Implemented | Runs can be inspected and deterministically identified. |
 | `WAIT`, `APPROVAL`, `DECISION`, `PARALLEL`, and `GATE` execution | Implemented in the runtime | Builder support and end-to-end operator transitions still need completion. |
@@ -196,9 +196,11 @@ Make complex workflows manageable without granting the console mutation authorit
 
 ### Deliverables
 
-- Schema-driven parameter editing and insertion, removal, and reordering of steps.
+- Schema-driven parameter editing. Primitive parameter editing plus action-step insertion,
+  removal, and reordering are implemented; ActionType parameter-schema guidance remains.
 - Authoring support for wait, approval, decision, parallel, gate, and failure branches.
-- Draft recovery, deep links, immutable review diff, and GitHub catalog proposal flow.
+- Tab-scoped draft recovery is implemented. Deep links, immutable review diff, and the complete
+  GitHub catalog proposal flow remain.
 - A behavior preview clearly separated from structural validation.
 - Process inboxes for waiting approval, timed-out, failed, compensating, and suspended runs.
 - Operator commands for cancel, retry from a safe boundary, resume, and demote to observation.

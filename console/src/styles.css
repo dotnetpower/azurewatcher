@@ -4133,6 +4133,23 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   letter-spacing: 0.05em; color: var(--fg-muted); font-weight: 600;
 }
 .wf-preview-cta { flex-direction: row; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wf-draft-editor { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.wf-draft-editor > summary { cursor: pointer; font-weight: 600; }
+.wf-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.wf-editor-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.wf-editor-section-head h5,
+.wf-editor-section-head h6 { margin: 0; }
+.wf-editor-steps { display: grid; gap: 10px; margin-top: 8px; }
+.wf-param-list { display: grid; gap: 6px; margin-top: 8px; }
+.wf-param-row { display: grid; grid-template-columns: minmax(100px, 1fr) 100px minmax(100px, 1fr) auto; gap: 6px; }
+@media (max-width: 720px) {
+  .wf-chat > .section-header { align-items: flex-start; flex-direction: column; }
+  .wf-chat > .section-header .btn { white-space: nowrap; }
+  .wf-chat-thread { padding: 8px; }
+  .wf-msg-bot .wf-msg-body { width: 100%; max-width: 100%; padding: 10px; }
+  .wf-editor-grid { grid-template-columns: 1fr; }
+  .wf-param-row { grid-template-columns: 1fr 1fr; }
+}
 .wf-test-pass {
   margin: 0; padding: 8px 12px; border-radius: 8px; font-size: 13px;
   border: 1px solid color-mix(in oklab, #3aa76d 40%, var(--border));

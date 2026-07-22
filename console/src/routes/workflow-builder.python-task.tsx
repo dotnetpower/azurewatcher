@@ -9,6 +9,7 @@ import {
   stagePythonTask,
   testPythonTask,
   validatePythonTask,
+  type PythonTaskAvailability,
   type PythonTaskCapability,
   type PythonTaskDraft,
   type PythonTaskFileDraft,
@@ -52,7 +53,13 @@ interface StagedArtifact {
   readonly draftKey: string;
 }
 
-export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void }) {
+export function PythonTaskWorkbench({
+  availability,
+  onBack,
+}: {
+  readonly availability: PythonTaskAvailability;
+  readonly onBack: () => void;
+}) {
   const governedRunIntent = useRef<MutationIntentIdentity | null>(null);
   const draftRevision = useRef(0);
   const [files, setFiles] = useState<readonly PythonTaskFileDraft[]>(INITIAL_FILES);
@@ -232,15 +239,15 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
 
       <div class="python-task-intent">
         <label><span>{t("workflow.pythonTask.field.intent")}</span><textarea value={intent} rows={2} onInput={(event) => setIntent((event.target as HTMLTextAreaElement).value)} /></label>
-        <button type="button" class="btn" disabled={busy !== null || !intent.trim()} onClick={() => void generate()}>{t(busy === "generate" ? "workflow.pythonTask.authoring" : "workflow.pythonTask.generate")}</button>
+        <button type="button" class="btn" disabled={busy !== null || !intent.trim() || !availability.operations.generate} onClick={() => void generate()}>{t(busy === "generate" ? "workflow.pythonTask.authoring" : "workflow.pythonTask.generate")}</button>
       </div>
 
       <div class="python-task-actions">
-        <button type="button" class="btn" disabled={busy !== null} onClick={() => void run("validate", () => validatePythonTask(draft()))}>{t(busy === "validate" ? "workflow.pythonTask.validating" : "workflow.pythonTask.validate")}</button>
-        <button type="button" class="btn" disabled={busy !== null} onClick={() => { const task = draft(); void run("stage", () => stagePythonTask(task), pythonTaskDraftKey(task)); }}>{t(busy === "stage" ? "workflow.pythonTask.staging" : "workflow.pythonTask.stage")}</button>
-        <button type="button" class="btn" disabled={busy !== null || !target.trim()} onClick={() => void run("test", () => testPythonTask(draft(), target.trim()))}>{t(busy === "test" ? "workflow.pythonTask.testing" : "workflow.pythonTask.test")}</button>
-        <button type="button" class="btn primary" disabled={busy !== null || artifactRef === null || reason.trim().length < 10} onClick={() => { const request = { artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), reason: reason.trim() }; const identity = identityForMutationIntent(governedRunIntent.current, JSON.stringify(request)); governedRunIntent.current = identity; void run("request", () => requestPythonTaskRun({ ...request, idempotencyKey: identity.idempotencyKey })); }}>{t(busy === "request" ? "workflow.pythonTask.submitting" : "workflow.pythonTask.request")}</button>
-        <button type="button" class="btn" disabled={busy !== null || artifactRef === null || !cronExpression.trim()} onClick={() => void run("schedule", () => schedulePythonTask({ artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), workflowRef: "scheduled-gpu-python-task", cronExpression: cronExpression.trim() }))}>{t(busy === "schedule" ? "workflow.pythonTask.scheduling" : "workflow.pythonTask.createSchedule")}</button>
+        <button type="button" class="btn" disabled={busy !== null || !availability.operations.validate} onClick={() => void run("validate", () => validatePythonTask(draft()))}>{t(busy === "validate" ? "workflow.pythonTask.validating" : "workflow.pythonTask.validate")}</button>
+        <button type="button" class="btn" disabled={busy !== null || !availability.operations.stage} onClick={() => { const task = draft(); void run("stage", () => stagePythonTask(task), pythonTaskDraftKey(task)); }}>{t(busy === "stage" ? "workflow.pythonTask.staging" : "workflow.pythonTask.stage")}</button>
+        <button type="button" class="btn" disabled={busy !== null || !target.trim() || !availability.operations.test} onClick={() => void run("test", () => testPythonTask(draft(), target.trim()))}>{t(busy === "test" ? "workflow.pythonTask.testing" : "workflow.pythonTask.test")}</button>
+        <button type="button" class="btn primary" disabled={busy !== null || artifactRef === null || reason.trim().length < 10 || !availability.operations.request_run} onClick={() => { const request = { artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), reason: reason.trim() }; const identity = identityForMutationIntent(governedRunIntent.current, JSON.stringify(request)); governedRunIntent.current = identity; void run("request", () => requestPythonTaskRun({ ...request, idempotencyKey: identity.idempotencyKey })); }}>{t(busy === "request" ? "workflow.pythonTask.submitting" : "workflow.pythonTask.request")}</button>
+        <button type="button" class="btn" disabled={busy !== null || artifactRef === null || !cronExpression.trim() || !availability.operations.schedule} onClick={() => void run("schedule", () => schedulePythonTask({ artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), workflowRef: "scheduled-gpu-python-task", cronExpression: cronExpression.trim() }))}>{t(busy === "schedule" ? "workflow.pythonTask.scheduling" : "workflow.pythonTask.createSchedule")}</button>
       </div>
 
       <PythonTaskResult result={result} error={error} artifactRef={artifactRef} />

@@ -1,7 +1,7 @@
 ---
 title: 프로세스 자동화(Process Automation)
 translation_of: process-automation.md
-translation_source_sha: 5206e6479705bed69ce8272bb7199ae02eb0bba7
+translation_source_sha: e1cac8b87c52c3481a65f7462144bf006cb14e15
 translation_revised: 2026-07-22
 ---
 
@@ -656,8 +656,19 @@ echo 되는 클릭 가능한 **옵션 칩**입니다. 설계 속성은 다음과
 - confirmation 과 함께 `POST /workflows/definitions` 를 호출하는 명시적 **Save
   private draft** action 은 private `draft` 를 만듭니다. 저장된 definition 은 실행할
   수 없고 Operations 에 나타나지 않습니다.
+- 접을 수 있는 **Edit validated draft** 표면에서 action step 을 편집할 수 있습니다.
+  ActionType 교체, 삽입, 제거, 순서 변경, step id, guard 및 recovery 참조, primitive
+  parameter, trigger metadata, anti-scope 및 promotion threshold 를 지원합니다. 편집하면
+  이전 save 결과가 무효화되고 짧은 debounce 후 동일한 server structural validation 을
+  다시 실행합니다.
+- 크기가 제한된 `sessionStorage` 에서 탭 범위 draft 를 복구합니다. 방어적 decoder 는
+  malformed 또는 oversized record 를 신뢰할 수 없는 draft 로 로드하지 않고 폐기합니다.
 - git-native 다음 단계: YAML 을 `rule-catalog/workflows/<name>.yaml` 로
   복사하고 remediation PR 을 연다.
+
+추가 step 제안은 명시한 목표에서 일치한 action 과 communication follow-up 으로
+제한됩니다. Builder 는 모든 ActionType category 를 보여 주기 위해 무관한 mutation 으로
+제안 행을 채우지 않습니다.
 
 엔진의 순수·무상태 조각은 각기 하나의 변경 축을 갖고 DOM 없이 단위 테스트
 가능하도록 형제 모듈로 분리되어 있다: 칩 / 폼-슬롯 빌더와 옵션 토큰 문법

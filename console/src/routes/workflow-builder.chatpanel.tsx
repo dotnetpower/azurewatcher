@@ -29,6 +29,11 @@ import type { FormState } from "./workflow-builder.model";
 import { validateWorkflowDraft } from "../workflow/validate";
 import { parseBlocks, type InlineToken } from "./workflow-builder.richtext";
 import { buildVizModel } from "./workflow-builder.viz";
+import { WorkflowDraftEditor } from "./workflow-builder.draft-editor";
+import {
+  loadWorkflowChatSession,
+  saveWorkflowChatSession,
+} from "./workflow-builder.session";
 import { formatNumber, t } from "./i18n/workflow";
 import {
   respondToChat,
@@ -58,6 +63,7 @@ export function WorkflowChat({ palette, onBack }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [slots, setSlots] = useState<ChatSlots | null>(null);
   const [input, setInput] = useState("");
+  const [restored, setRestored] = useState(false);
   const idRef = useRef(0);
   const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -73,11 +79,25 @@ export function WorkflowChat({ palette, onBack }: Props) {
   // ever hands back a fresh array reference cannot silently reset a
   // conversation in progress.
   useEffect(() => {
+    const recovered = loadWorkflowChatSession(workflowSessionStorage());
+    if (recovered !== null) {
+      setSlots(recovered.slots);
+      setMessages([...recovered.messages]);
+      idRef.current = Math.max(0, ...recovered.messages.map((message) => message.id));
+      setRestored(true);
+      return;
+    }
     const turn = startChat(palette);
     setSlots(turn.slots);
     setMessages([botMessage(turn, nextId())]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (slots !== null && messages.length > 0) {
+      saveWorkflowChatSession(workflowSessionStorage(), { messages, slots });
+    }
+  }, [messages, slots]);
 
   // Focus the composer on mount so an operator can start typing immediately.
   useEffect(() => {
@@ -104,6 +124,13 @@ export function WorkflowChat({ palette, onBack }: Props) {
     setInput("");
   }
 
+  function updatePreview(messageId: number, form: FormState): void {
+    setSlots((current) => current === null ? current : { ...current, form });
+    setMessages((current) => current.map((message) =>
+      message.id === messageId ? { ...message, preview: form } : message
+    ));
+  }
+
   // Only the newest bot turn's chips stay interactive; older chips go inert so
   // a click on a stale suggestion cannot apply to a later stage.
   const latestBotId = messages.reduce((acc, m) => (m.role === "bot" ? m.id : acc), -1);
@@ -121,6 +148,9 @@ export function WorkflowChat({ palette, onBack }: Props) {
         <span class="muted small">
           {t("workflow.chat.disclaimer")}
         </span>
+        {restored ? (
+          <span class="muted small" role="status">{t("workflow.chat.recovered")}</span>
+        ) : null}
       </div>
 
       <div class="wf-chat-thread" ref={threadRef} role="log" aria-live="polite">
@@ -131,6 +161,7 @@ export function WorkflowChat({ palette, onBack }: Props) {
             palette={palette}
             onChip={send}
             interactive={m.id === latestBotId}
+            onPreviewChange={(form) => updatePreview(m.id, form)}
           />
         ))}
       </div>
@@ -168,6 +199,14 @@ export function WorkflowChat({ palette, onBack }: Props) {
       </form>
     </div>
   );
+}
+
+function workflowSessionStorage(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
 }
 
 function botMessage(turn: BotTurn, id: number): Message {
@@ -210,11 +249,13 @@ function MessageBubble({
   palette,
   onChip,
   interactive,
+  onPreviewChange,
 }: {
   readonly message: Message;
   readonly palette: readonly ActionTypePaletteEntry[];
   readonly onChip: (value: string) => void;
   readonly interactive: boolean;
+  readonly onPreviewChange: (form: FormState) => void;
 }) {
   const isBot = message.role === "bot";
   return (
@@ -228,7 +269,13 @@ function MessageBubble({
           // never through the markdown parser (correctness + defense in depth).
           <p class="wf-msg-plain">{message.text}</p>
         )}
-        {message.preview ? <WorkflowPreview form={message.preview} palette={palette} /> : null}
+        {message.preview ? (
+          <WorkflowPreview
+            form={message.preview}
+            palette={palette}
+            onChange={onPreviewChange}
+          />
+        ) : null}
         {message.options && message.options.length > 0 ? (
           <div
             class={interactive ? "wf-chip-row" : "wf-chip-row is-inert"}
@@ -308,9 +355,11 @@ function renderSpans(spans: readonly InlineToken[]): ComponentChildren {
 function WorkflowPreview({
   form,
   palette,
+  onChange,
 }: {
   readonly form: FormState;
   readonly palette: readonly ActionTypePaletteEntry[];
+  readonly onChange: (form: FormState) => void;
 }) {
   const [result, setResult] = useState<ValidateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -327,19 +376,25 @@ function WorkflowPreview({
   useEffect(() => {
     let cancelled = false;
     setValidating(true);
+    setResult(null);
     setError(null);
-    validateWorkflowDraft(draft)
-      .then((res) => {
-        if (!cancelled) setResult(res);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (!cancelled) setValidating(false);
-      });
+    setSaved(null);
+    setSaveError(null);
+    const timer = setTimeout(() => {
+      validateWorkflowDraft(draft)
+        .then((res) => {
+          if (!cancelled) setResult(res);
+        })
+        .catch((err: unknown) => {
+          if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          if (!cancelled) setValidating(false);
+        });
+    }, 300);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [draft, retryKey]);
 
@@ -362,6 +417,7 @@ function WorkflowPreview({
   return (
     <div class="wf-preview">
       <WorkflowViz form={form} palette={palette} />
+      <WorkflowDraftEditor form={form} palette={palette} onChange={onChange} />
 
       <div class="wf-preview-section">
         <h4 class="wf-preview-title">{t("workflow.chat.generatedWorkflow")}</h4>
@@ -418,7 +474,9 @@ function WorkflowPreview({
             <a class="btn secondary" href={prUrl} target="_blank" rel="noopener noreferrer">
               {t("workflow.chat.propose")} &rarr;
             </a>
-          ) : null}
+          ) : (
+            <span class="muted small">{t("workflow.chat.proposeUnavailable")}</span>
+          )}
           <span class="muted small">
             {t("workflow.chat.saveHintBeforePath")} {" "}
             <code>rule-catalog/workflows/{form.name}.yaml</code>{" "}
