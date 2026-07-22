@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: f99367d96c4fee087a7c326273d9c28839a1de8a
+translation_source_sha: e9f886a0dc0bae2cb37d9d2fc843bb64d683ea4d
 translation_revised: 2026-07-22
 ---
 
@@ -64,8 +64,10 @@ ownership을 상속하지 않습니다. Owned route가 manifest에 하나라도 
 명시적으로 source-independent인 panel만 source status를 생략합니다.
 
 Production read API는 `GET /stewardship`을 등록하기 전에 operational ownership map을 load하고
-validate합니다. Console은 이 source를 read-only로 projection하며 draft PR 생성과 signed merge
-processing은 별도 ingestion/GitOps boundary에 유지됩니다.
+validate합니다. Console은 이 source를 read-only로 projection합니다. Handover form은 structured
+person 또는 group assignment를 별도 ingestion boundary에 제출할 수 있지만 map을 적용하거나 Git
+credential을 보유할 수 없습니다. Draft PR 생성과 signed merge processing은 ingestion/GitOps
+boundary에 유지되며 반환된 draft에는 persisted idempotent PR receipt가 포함됩니다.
 
 ## Stream recovery 및 authentication
 

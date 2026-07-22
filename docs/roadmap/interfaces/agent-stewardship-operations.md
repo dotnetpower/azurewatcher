@@ -7,7 +7,8 @@ This document defines the implemented runtime and governance lifecycle for FDAI 
 ownership (`stewardship`). It complements the handover-map schema and ownership concepts in
 [Agent operational ownership and ownership handover](agent-stewardship-and-handover.md).
 
-> The console remains read-only. Ownership changes are generated as draft pull requests, reviewed
+> The console's ownership projection remains read-only. Its guided form submits a handover document
+> to the ingestion boundary; ownership changes are still generated as draft pull requests, reviewed
 > through the Git host, and observed after merge through a signed webhook. Stewardship grants no
 > RBAC capability and never receives Thor's executor identity.
 
@@ -28,7 +29,8 @@ flowchart LR
     TF[Terraform bindings] --> START[Production startup validation]
     START --> VIEW[GET /stewardship]
     START --> HEALTH[Scheduled Entra liveness check]
-    DOC[Grounded handover upload] --> DRAFT[Durable handover draft]
+    FORM[Guided registration form] --> DOC[Grounded handover upload]
+    DOC --> DRAFT[Durable handover draft]
     DRAFT --> PR[Idempotent draft governance PR]
     PR --> REVIEW[Git review and approval]
     REVIEW --> HOOK[Signed merge webhook]
@@ -49,7 +51,7 @@ flowchart LR
 | Stale identity audit | stewardship health monitor | Implemented | Entra liveness runs on a configured interval and writes transition-only state plus audit. |
 | Handover draft PR | ingestion consumer plus GitOps adapter | Implemented, opt-in | A processed `handover_bootstrap` upload opens one draft PR for `config/agent-stewardship.yaml`. |
 | Merge notification and audit | signed GitHub webhook | Implemented, opt-in | The adapter verifies HMAC, changed files, repository, merge state, and merged YAML before recording. |
-| Console mutation | console | Intentionally absent | The SPA reads ownership and draft results; it never holds Git credentials or calls an executor. |
+| Guided registration | console plus ingestion | Implemented | Contributor, Approver, and Owner can submit structured assignments; the SPA holds no Git credentials and cannot apply the map. |
 
 The grounded T2 `HandoverInterpreter` remains an optional deployment binding. The deterministic
 extractor and exact Graph resolution work without it, and the default interpreter holds for review
@@ -99,6 +101,12 @@ malformed durable state renders `identity_health.status=unavailable` without hid
 After the ingestion worker stores a `HandoverDraftArtifact`, the optional
 `StewardshipGovernanceService` validates the rendered YAML through the same core resolver and
 publishes a draft PR through `RemediationPrPublisher`.
+
+The Handover console form emits one explicit structured line per assignment using the canonical
+agent name, responsibility, subject kind, and identity display name or email. The deterministic
+extractor accepts only one of the fixed 15 agent names. After publication, the artifact stores the
+PR reference, URL, and replay flag so the authenticated submitter can open the same idempotent
+proposal returned by a retry.
 
 The PR candidate is an additive overlay on the current validated map. Grounded mappings add or
 retag subjects, while existing owners, maintainers, channels, and thresholds remain intact. The

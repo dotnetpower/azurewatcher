@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { isOptionalReadApiUnavailable } from "../api";
 import type { ReadApiClient } from "../api";
+import type { AuthContext } from "../auth";
 import { AgentWorkspaceNav } from "../components/agent-workspace-nav";
 import {
   AsyncBoundary,
@@ -14,6 +15,7 @@ import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
 import { routeHref } from "../router";
 import { PANTHEON } from "./agents.model";
+import { HandoverProposalEditor } from "./handover-editor";
 import { panelArray, panelBoolean, panelContractError, panelNullableString, panelNumber, panelRecord, panelString, panelStringArray } from "./panel-decode";
 
 /**
@@ -75,9 +77,10 @@ interface StewardshipResponse {
 
 interface Props {
   readonly client: ReadApiClient;
+  readonly auth: AuthContext;
 }
 
-export function HandoverRoute({ client }: Props) {
+export function HandoverRoute({ client, auth }: Props) {
   const [state, setState] = useState<AsyncState<StewardshipResponse>>({ status: "loading" });
 
   useEffect(() => {
@@ -116,7 +119,7 @@ export function HandoverRoute({ client }: Props) {
         subtitle={t("handover.subtitle")}
       />
       <AsyncBoundary state={state} resourceLabel={t("route.handover")}>
-        {(data) => <HandoverBody data={data} />}
+        {(data) => <HandoverBody data={data} client={client} auth={auth} />}
       </AsyncBoundary>
     </div>
   );
@@ -205,7 +208,15 @@ function stewardshipEnum<const T extends string>(
   return decoded as T;
 }
 
-function HandoverBody({ data }: { readonly data: StewardshipResponse }) {
+function HandoverBody({
+  data,
+  client,
+  auth,
+}: {
+  readonly data: StewardshipResponse;
+  readonly client: ReadApiClient;
+  readonly auth: AuthContext;
+}) {
   const { map, coverage } = data;
   usePublishViewContext(
     () => ({
@@ -261,10 +272,7 @@ function HandoverBody({ data }: { readonly data: StewardshipResponse }) {
         </div>
       ) : null}
 
-      <div class="callout">
-        <strong>{t("handover.proposeTitle")}</strong> - {t("handover.proposeLead")} {" "}
-        <code>config/agent-stewardship.yaml</code> {t("handover.proposeTail")}
-      </div>
+      <HandoverProposalEditor client={client} auth={auth} />
 
       <section class="stack">
         <h3>{t("handover.mapTitle")}</h3>

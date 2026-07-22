@@ -1,6 +1,6 @@
 ---
 translation_of: agent-stewardship-operations.md
-translation_source_sha: 349683e37eea5ab5d6508688a80523e56900927b
+translation_source_sha: 0cb3172c83c679a41fabcfa5bf0ae41056d734bd
 translation_revised: 2026-07-22
 title: 에이전트 운영 책임 수명 주기
 ---
@@ -10,9 +10,10 @@ title: 에이전트 운영 책임 수명 주기
 Handover-map schema와 ownership 개념은
 [에이전트 운영 책임과 담당자 인수인계](agent-stewardship-and-handover-ko.md)를 참조하세요.
 
-> Console은 read-only를 유지합니다. Ownership 변경은 draft pull request로 생성하고 Git host에서
-> 검토하며, merge 후 signed webhook으로 관찰합니다. Stewardship은 RBAC capability를 부여하지
-> 않으며 Thor의 executor identity를 받지 않습니다.
+> Console의 ownership projection은 read-only를 유지합니다. Guided form은 handover document를
+> ingestion boundary에 제출합니다. Ownership 변경은 계속 draft pull request로 생성하고 Git
+> host에서 검토하며, merge 후 signed webhook으로 관찰합니다. Stewardship은 RBAC capability를
+> 부여하지 않으며 Thor의 executor identity를 받지 않습니다.
 
 ## 설계 개요
 
@@ -31,7 +32,8 @@ flowchart LR
     TF[Terraform bindings] --> START[Production startup validation]
     START --> VIEW[GET /stewardship]
     START --> HEALTH[Scheduled Entra liveness check]
-    DOC[Grounded handover upload] --> DRAFT[Durable handover draft]
+   FORM[Guided registration form] --> DOC[Grounded handover upload]
+   DOC --> DRAFT[Durable handover draft]
     DRAFT --> PR[Idempotent draft governance PR]
     PR --> REVIEW[Git review and approval]
     REVIEW --> HOOK[Signed merge webhook]
@@ -52,7 +54,7 @@ flowchart LR
 | Stale identity audit | stewardship health monitor | 구현됨 | 설정한 interval로 Entra liveness를 실행하고 transition-only state 및 audit를 기록합니다. |
 | Handover draft PR | ingestion consumer plus GitOps adapter | 구현됨, opt-in | 처리된 `handover_bootstrap` upload가 `config/agent-stewardship.yaml` draft PR 하나를 엽니다. |
 | Merge notification and audit | signed GitHub webhook | 구현됨, opt-in | Adapter가 HMAC, changed file, repository, merge state, merged YAML을 검증한 후 기록합니다. |
-| Console mutation | console | 의도적으로 없음 | SPA는 ownership 및 draft result를 읽기만 하며 Git credential을 보유하거나 executor를 호출하지 않습니다. |
+| Guided registration | console plus ingestion | 구현됨 | Contributor, Approver, Owner가 structured assignment를 제출할 수 있습니다. SPA는 Git credential을 보유하지 않고 map을 적용할 수 없습니다. |
 
 Grounded T2 `HandoverInterpreter`는 선택적인 deployment binding으로 남습니다. Deterministic
 extractor와 exact Graph resolution은 이 binding 없이 동작하며, 기본 interpreter는 추측하는 대신
@@ -103,6 +105,12 @@ coverage에 merge합니다. Malformed durable state는 base map을 숨기지 않
 Ingestion worker가 `HandoverDraftArtifact`를 저장한 다음 optional
 `StewardshipGovernanceService`가 같은 core resolver로 rendered YAML을 validate하고
 `RemediationPrPublisher`를 통해 draft PR을 publish합니다.
+
+Handover console form은 assignment마다 canonical agent name, responsibility, subject kind,
+identity display name 또는 email을 포함한 explicit structured line 하나를 emit합니다.
+Deterministic extractor는 fixed 15 agent name 중 하나만 허용합니다. Publish 후 artifact는 PR
+reference, URL, replay flag를 저장하므로 인증된 submitter가 retry에서 반환된 동일한 idempotent
+proposal을 열 수 있습니다.
 
 PR candidate는 현재 validated map에 대한 additive overlay입니다. Grounded mapping은 subject를
 추가하거나 retag하지만 existing owner, maintainer, channel, threshold는 유지합니다. Service는

@@ -21,7 +21,8 @@ the two are resolved and validated independently.
 > **Implementation status.** The complete lifecycle is shipped: production map binding,
 > fail-closed Terraform identity injection, scheduled stale-OID transition audit, grounded
 > handover ingestion, idempotent GitHub draft-PR delivery, signed merge observation,
-> stakeholder notification, append-only audit, and the read-only console projection. See
+> stakeholder notification, append-only audit, the read-only console projection, and a guided
+> registration form that submits draft-PR proposals through ingestion. See
 > [Agent operational ownership lifecycle](agent-stewardship-operations.md) for runtime,
 > deployment, recovery, and verification details.
 
@@ -42,9 +43,10 @@ the two are resolved and validated independently.
 4. **Fail toward a human.** An unmapped agent, a stale steward OID, or a missing
    maintainer degrades to "escalate to the maintainer", never to "silently
    unowned".
-5. **Console stays read-only.** The stewardship settings surface renders state;
-   edits are authored as draft PRs by the GitHub App, exactly like every other
-   governance change ([app-shape.instructions.md](../../../.github/instructions/app-shape.instructions.md)).
+5. **Console never mutates the map.** The stewardship projection remains read-only. The guided
+  registration form submits a structured `handover_bootstrap` document to the ingestion boundary;
+  the GitHub App authors the resulting draft PR like every other governance change
+  ([app-shape.instructions.md](../../../.github/instructions/app-shape.instructions.md)).
 6. **Every change must be notified and audited.** Core deterministically computes recipients and
   the audit payload. Live PR/merge integration must bind those primitives to notification and
   audit adapters.
@@ -293,23 +295,28 @@ permanently recorded.
 
 ## 9. Console settings surface
 
-The read-only Handover view at `console/src/routes/handover.tsx` contains two sections:
+The Handover route combines a read-only projection with a governed proposal form:
 
-- **Handover map** - 15 agent cards, each showing its stewards (resolved display
-  names via Graph), responsibility tags, bus-factor, and a validation badge
-  (clean / warn / fail).
-- **Maintainers** - the maintainer list with the min-1/rec-2 status banner.
+- **Current ownership** - all 15 agents, accountable owners, notification contacts, backup
+  coverage, autonomous status, FDAI maintainer count, and validation findings from
+  `GET /stewardship`.
+- **Register ownership** - a Contributor, Approver, or Owner can add one or more rows containing
+  the canonical agent, person or group display name or email, subject kind, and responsibility.
+  The browser generates explicit `agent`, `subject`, `identity`, and `responsibility` tags and
+  submits them as a `handover_bootstrap` text document. Reader sees a locked explanation.
+- **Review result** - the processed draft shows mapping, unresolved-identity, and unmapped-agent
+  counts, generated YAML, and the idempotent draft PR link when governance delivery is enabled.
 
-The console shows "Propose a change" guidance and the config path; it provides no mutation button
-or GitHub credential. An Owner can edit the file directly, or submit a `handover_bootstrap`
-document whose grounded result is delivered as a draft PR by the ingestion service. The loader
-rejects fewer than one maintainer; the console shows a recommendation banner below two.
+The SPA holds no Git credential and never writes `config/agent-stewardship.yaml`. The ingestion
+service resolves identities, validates the additive candidate with the core resolver, and creates
+the Owner-reviewed draft PR. The loader rejects fewer than one maintainer; the console shows a
+recommendation banner below two.
 
 ## 10. Security and safety
 
 - Stewardship never holds or grants the executor Managed Identity.
-- Changing the map is a governance PR (author != approver, audited), not a console
-  button.
+- A console button can submit a proposal, but changing the map still requires an audited governance
+  PR (author != approver) and merge.
 - Steward OIDs are the only identity used for routing and audit; UPN/email are
   informational and never authoritative (same rule as `Principal`).
 - No customer-identifying value enters this repo; a fork supplies real OIDs, group
@@ -332,7 +339,9 @@ deterministic-first, grounded, abstaining pipeline:
    "who owned X" questions from the handover skill, one entry per pantheon
    agent). A line that hits a domain keyword, a person/team, and a
    responsibility marker yields a grounded `ExtractedMapping` **without a
-   model**. This is the deterministic-first stage.
+  model**. The registration form uses the explicit structured form
+  `Agent: <name>; responsibility: <value>; subject: <kind>; identity: <display name>`;
+  unknown agent tags are ignored. This is the deterministic-first stage.
 2. **Model interpretation** (`interpreter.py`). What structure cannot resolve
    MAY be handed to a T2 `HandoverInterpreter` seam. Upstream ships
    `AbstainingInterpreter` (proposes nothing) so a deployment without an LLM
@@ -357,8 +366,8 @@ The document-ingestion gateway accepts `handover_bootstrap` as an explicit
 `DocumentReadyConsumer` for that purpose. Both local and production compositions
 bind `HandoverBootstrapConsumer` and expose the result through authenticated
 `GET /ingestion/uploads/{upload_id}/handover-draft`. The console polls the processing
-state and renders the draft JSON summary and YAML for review. It doesn't apply the map
-or create a privileged mutation path. Local development stores drafts in memory;
+state and renders the draft summary, YAML, and persisted governance PR receipt for review. It
+doesn't apply the map or create a privileged mutation path. Local development stores drafts in memory;
 production stores them through `PostgresStateStore`, so a worker or gateway restart
 doesn't lose the review artifact.
 
@@ -375,8 +384,9 @@ ungrounded. `draft_yaml.py` renders the draft as `stewardship:`-shaped YAML that
 fail-fast gates), with inline citation comments and placeholder ids for
 unresolved people. When stewardship governance is enabled, the delivery layer publishes that YAML
 as one idempotent governance draft PR. A human reviews and merges it, and the signed merge webhook
-writes the merge audit and notifies the affected owners. The console stays read-only, and no map is
-ever applied autonomously. Full state, failure, and deployment contracts are in
+writes the merge audit and notifies the affected owners. The console can submit the source proposal
+but cannot apply the resulting map, and no map is ever applied autonomously. Full state, failure,
+and deployment contracts are in
 [agent-stewardship-operations.md](agent-stewardship-operations.md).
 
 The remaining fork binding is `HandoverInterpreter` for grounded T2 interpretation

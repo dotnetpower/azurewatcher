@@ -14,6 +14,7 @@ from fdai.core.stewardship.handover_bootstrap import (
 from fdai.delivery.ingestion_gateway.handover import (
     HandoverBootstrapConsumer,
     HandoverDraftArtifact,
+    HandoverProposalReceipt,
     StateStoreHandoverDraftStore,
 )
 from fdai.shared.contracts import (
@@ -28,6 +29,7 @@ from fdai.shared.contracts import (
     UploadSession,
 )
 from fdai.shared.providers import DocumentNotFoundError
+from fdai.shared.providers.remediation_pr import PublishReceipt
 from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 
@@ -46,6 +48,11 @@ async def test_state_store_handover_draft_round_trips_across_instances() -> None
             warnings=("unresolved_people:1",),
         ),
         yaml="stewardship:\n  version: 1\n",
+        proposal=HandoverProposalReceipt(
+            pr_ref="PR-42",
+            url="https://example.com/pull/42",
+            already_existed=True,
+        ),
     )
 
     await StateStoreHandoverDraftStore(state_store=state).put(artifact)
@@ -68,6 +75,11 @@ async def test_consumer_proposes_stored_draft_with_authenticated_actor() -> None
 
         async def propose(self, *, artifact, actor_oid):
             self.calls.append((artifact, actor_oid))
+            return PublishReceipt(
+                pr_ref="PR-7",
+                url="https://example.com/pull/7",
+                already_existed=False,
+            )
 
     now = datetime.now(tz=UTC)
     upload_id = uuid4()
@@ -118,4 +130,10 @@ async def test_consumer_proposes_stored_draft_with_authenticated_actor() -> None
     await consumer.consume(session=session, envelope=envelope)
 
     assert governance.calls[0][1] == "operator-1"
-    assert governance.calls[0][0] == await store.get(upload_id)
+    stored = await store.get(upload_id)
+    assert governance.calls[0][0].draft == stored.draft
+    assert stored.proposal == HandoverProposalReceipt(
+        pr_ref="PR-7",
+        url="https://example.com/pull/7",
+        already_existed=False,
+    )

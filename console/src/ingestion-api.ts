@@ -33,6 +33,11 @@ export interface HandoverDraftResult {
     readonly warnings: readonly string[];
   };
   readonly yaml: string;
+  readonly proposal?: {
+    readonly pr_ref: string;
+    readonly url: string | null;
+    readonly already_existed: boolean;
+  } | null;
 }
 
 interface CreateUploadResponse {

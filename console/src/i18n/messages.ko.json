@@ -371,7 +371,7 @@
     "organizationChartLabel": "판테온 조직도"
   },
   "handover": {
-    "subtitle": "FDAI가 제어 평면을 운영하는 현재, 15개 에이전트의 책임 담당자와 FDAI 유지관리자 및 인수인계 범위를 보여주는 읽기 전용 화면입니다.",
+    "subtitle": "15개 에이전트의 책임 담당자, FDAI 유지관리자, 담당 범위를 확인하고 Owner 검토용 담당 체계 변경을 제안합니다. 이 화면에서 런타임 변경을 직접 적용하지 않습니다.",
     "unavailable": "이 배포에는 담당 체계 엔드포인트가 연결되지 않았습니다. 활성화하려면 구성 루트에서 ReadApiConfig.stewardship_map을 설정하세요.",
     "noMaintainer": "구성된 유지관리자가 없습니다. 최소 1명이 필요합니다.",
     "oneMaintainer": "유지관리자가 1명뿐입니다. 안전한 승계를 위해 2명을 권장합니다.",
@@ -394,7 +394,40 @@
     "findingsTitle": "담당 범위 발견 사항",
     "severity": "심각도",
     "code": "코드",
-    "message": "메시지"
+    "message": "메시지",
+    "editor": {
+      "title": "담당자 등록",
+      "description": "최종 책임자 또는 알림 대상을 추가합니다. 제출하면 거버넌스 초안 PR이 생성되며, 병합 전까지 현재 담당 체계는 바뀌지 않습니다.",
+      "ownerReview": "Owner 검토 필요",
+      "permissionRequired": "담당 체계 변경을 제안하려면 Contributor, Approver 또는 Owner 권한이 필요합니다.",
+      "agent": "에이전트",
+      "identity": "사람 또는 그룹",
+      "identityPlaceholder": "표시 이름 또는 메일",
+      "kind": "ID 유형",
+      "user": "사용자",
+      "group": "그룹",
+      "responsibility": "담당 유형",
+      "accountable": "최종 책임자",
+      "informed": "알림 대상",
+      "remove": "담당 항목 제거",
+      "empty": "담당 항목을 하나 이상 추가하세요.",
+      "validation": "모든 행에 사람 또는 그룹을 입력하세요. 세미콜론과 줄 바꿈은 지원되지 않습니다.",
+      "add": "담당 항목 추가",
+      "submit": "초안 PR 만들기",
+      "submitting": "변경 제안 생성 중...",
+      "textUnsupported": "문서 수집 서비스가 텍스트 인수인계 문서를 지원하지 않습니다.",
+      "serviceUnavailable": "이 배포에는 담당 체계 변경 제안용 문서 수집이 구성되지 않았습니다.",
+      "permissionDenied": "현재 역할로는 담당 체계 변경을 제안할 수 없습니다.",
+      "fileTooLarge": "생성된 담당 체계 변경 제안이 문서 수집 크기 제한을 초과했습니다.",
+      "storageUnavailable": "사용 가능한 문서 수집 저장 모드가 없습니다.",
+      "processingFailed": "담당 체계 변경 제안 처리가 다음 상태로 종료되었습니다: {state}.",
+      "submitFailed": "담당 체계 변경 제안을 제출하지 못했습니다.",
+      "proposalCreated": "거버넌스 초안 PR 생성 완료",
+      "draftCreated": "담당 체계 초안이 생성되었지만 거버넌스 PR 전달은 구성되지 않았습니다.",
+      "resultSummary": "매핑 {mappings}개, 미해결 ID {unresolved}개, 제안된 최종 책임자가 없는 에이전트 {unmapped}개입니다.",
+      "openProposal": "{ref} 열기",
+      "reviewYaml": "생성된 YAML 검토"
+    }
   },
   "agents": {
     "workspace": {

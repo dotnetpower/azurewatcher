@@ -24,6 +24,7 @@ from fdai.core.stewardship.handover_bootstrap.contract import (
     SourceSpan,
 )
 from fdai.core.stewardship.model import Responsibility, StewardKind
+from fdai.core.stewardship.names import AGENT_NAMES
 
 # Responsibility markers. RACI single-letter tags are matched only as bracketed
 # tokens ("(A)") to avoid firing on stray letters.
@@ -64,6 +65,15 @@ _TEAM_RE = re.compile(
 )
 _NAME_RE = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b")
 _EMAIL_RE = re.compile(r"\b([a-z0-9._%+-]+)@[a-z0-9.-]+\.[a-z]{2,}\b", re.IGNORECASE)
+_AGENT_TAG_RE = re.compile(
+    rf"\bagent\s*:\s*({'|'.join(re.escape(name) for name in AGENT_NAMES)})\b",
+    re.IGNORECASE,
+)
+_SUBJECT_TAG_RE = re.compile(
+    r"\bsubject\s*:\s*(user|group)\s*;\s*identity\s*:\s*([^;\r\n]{1,256})",
+    re.IGNORECASE,
+)
+_AGENT_NAME_BY_CASEFOLD = {name.casefold(): name for name in AGENT_NAMES}
 
 
 class DeterministicExtractor:
@@ -83,7 +93,10 @@ class DeterministicExtractor:
         self, document: HandoverDocument, line_no: int, line: str
     ) -> list[ExtractedMapping]:
         lowered = line.casefold()
-        agent_hits = match_agents(lowered)
+        agent_hits = list(match_agents(lowered))
+        tagged_agent = _tagged_agent(line)
+        if tagged_agent is not None and all(hit[0] != tagged_agent for hit in agent_hits):
+            agent_hits.insert(0, (tagged_agent, 1.0, f"agent:{tagged_agent}"))
         if not agent_hits:
             return []
         person, explicit_person = self._extract_person(line)
@@ -110,6 +123,15 @@ class DeterministicExtractor:
     @staticmethod
     def _extract_person(line: str) -> tuple[PersonRef | None, bool]:
         """Return ``(person, explicit)``; ``explicit`` marks a strong cue."""
+        subject_match = _SUBJECT_TAG_RE.search(line)
+        if subject_match:
+            return (
+                PersonRef(
+                    _clean_name(subject_match.group(2)),
+                    StewardKind(subject_match.group(1).casefold()),
+                ),
+                True,
+            )
         owner_match = _OWNER_NAME_RE.search(line)
         if owner_match:
             return PersonRef(_clean_name(owner_match.group(1)), StewardKind.USER), True
@@ -154,6 +176,13 @@ def _clean_name(raw: str) -> str:
     period; strip it so ``"Sam Lee."`` resolves as ``"Sam Lee"``.
     """
     return raw.strip().rstrip(" .,;:")
+
+
+def _tagged_agent(line: str) -> str | None:
+    match = _AGENT_TAG_RE.search(line)
+    if match is None:
+        return None
+    return _AGENT_NAME_BY_CASEFOLD[match.group(1).casefold()]
 
 
 __all__ = ["DeterministicExtractor"]

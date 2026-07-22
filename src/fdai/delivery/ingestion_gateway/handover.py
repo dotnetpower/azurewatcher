@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Protocol
 from uuid import UUID
 
@@ -31,12 +31,27 @@ _KEY_PREFIX = "handover_draft:"
 
 
 @dataclass(frozen=True, slots=True)
+class HandoverProposalReceipt:
+    pr_ref: str
+    url: str | None = None
+    already_existed: bool = False
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "pr_ref": self.pr_ref,
+            "url": self.url,
+            "already_existed": self.already_existed,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class HandoverDraftArtifact:
     upload_id: UUID
     document_id: UUID
     version_id: UUID
     draft: StewardMapDraft
     yaml: str
+    proposal: HandoverProposalReceipt | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -45,6 +60,7 @@ class HandoverDraftArtifact:
             "version_id": str(self.version_id),
             "draft": self.draft.to_dict(),
             "yaml": self.yaml,
+            "proposal": self.proposal.to_dict() if self.proposal is not None else None,
         }
 
 
@@ -125,7 +141,19 @@ class HandoverBootstrapConsumer:
         )
         await self._store.put(artifact)
         if self._governance is not None:
-            await self._governance.propose(artifact=artifact, actor_oid=session.actor_id)
+            receipt = await self._governance.propose(
+                artifact=artifact,
+                actor_oid=session.actor_id,
+            )
+            artifact = replace(
+                artifact,
+                proposal=HandoverProposalReceipt(
+                    pr_ref=receipt.pr_ref,
+                    url=receipt.url,
+                    already_existed=receipt.already_existed,
+                ),
+            )
+            await self._store.put(artifact)
         return draft.warnings
 
 
@@ -146,6 +174,7 @@ def _document_kind(source_name: str) -> DocumentKind:
 
 def _artifact_from_mapping(raw: Mapping[str, object]) -> HandoverDraftArtifact:
     draft_raw = _mapping(raw["draft"])
+    proposal_raw = raw.get("proposal")
     return HandoverDraftArtifact(
         upload_id=UUID(str(raw["upload_id"])),
         document_id=UUID(str(raw["document_id"])),
@@ -160,6 +189,25 @@ def _artifact_from_mapping(raw: Mapping[str, object]) -> HandoverDraftArtifact:
             warnings=_strings(draft_raw.get("warnings")),
         ),
         yaml=str(raw["yaml"]),
+        proposal=_proposal(proposal_raw) if proposal_raw is not None else None,
+    )
+
+
+def _proposal(value: object) -> HandoverProposalReceipt:
+    raw = _mapping(value)
+    pr_ref = raw.get("pr_ref")
+    url = raw.get("url")
+    already_existed = raw.get("already_existed")
+    if not isinstance(pr_ref, str) or not pr_ref:
+        raise TypeError("expected proposal PR reference")
+    if url is not None and not isinstance(url, str):
+        raise TypeError("expected proposal URL")
+    if not isinstance(already_existed, bool):
+        raise TypeError("expected proposal replay flag")
+    return HandoverProposalReceipt(
+        pr_ref=pr_ref,
+        url=url,
+        already_existed=already_existed,
     )
 
 
@@ -237,6 +285,7 @@ def _float(value: object) -> float:
 __all__ = [
     "HandoverBootstrapConsumer",
     "HandoverDraftArtifact",
+    "HandoverProposalReceipt",
     "HandoverDraftReader",
     "HandoverDraftStore",
     "InMemoryHandoverDraftStore",

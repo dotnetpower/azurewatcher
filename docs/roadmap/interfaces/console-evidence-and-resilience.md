@@ -61,8 +61,10 @@ not inherit ownership. A panel remains `unknown` when any owned route is absent 
 only explicitly source-independent panels omit source status.
 
 The production read API loads and validates the operational ownership map before registering
-`GET /stewardship`. The console projects that source read-only; draft PR creation and signed merge
-processing remain on the separate ingestion/GitOps boundary.
+`GET /stewardship`. The console projects that source read-only. Its Handover form can submit
+structured person or group assignments to the separate ingestion boundary, but it cannot apply the
+map or hold Git credentials. Draft PR creation and signed merge processing remain on the
+ingestion/GitOps boundary, and the returned draft includes the persisted idempotent PR receipt.
 
 ## Stream recovery and authentication
 

@@ -371,7 +371,7 @@
     "organizationChartLabel": "Pantheon organization chart"
   },
   "handover": {
-    "subtitle": "Who owns each of the 15 agents now that FDAI runs the control plane - accountable owners, FDAI maintainers, and ownership handover coverage. Read-only.",
+    "subtitle": "View accountable owners, FDAI maintainers, and coverage for all 15 agents. Submit governed ownership proposals for Owner review; no runtime change is applied here.",
     "unavailable": "The stewardship endpoint is not wired on this deployment. Set ReadApiConfig.stewardship_map in the composition root to enable it.",
     "noMaintainer": "No maintainer configured - at least 1 is required.",
     "oneMaintainer": "Only 1 maintainer - 2 are recommended for succession safety.",
@@ -394,7 +394,40 @@
     "findingsTitle": "Coverage findings",
     "severity": "Severity",
     "code": "Code",
-    "message": "Message"
+    "message": "Message",
+    "editor": {
+      "title": "Register ownership",
+      "description": "Add final owners or notification contacts. Submission creates a draft governance PR; current ownership stays unchanged until merge.",
+      "ownerReview": "Owner review required",
+      "permissionRequired": "Contributor, Approver, or Owner access is required to submit an ownership proposal.",
+      "agent": "Agent",
+      "identity": "Person or group",
+      "identityPlaceholder": "Display name or email",
+      "kind": "Identity type",
+      "user": "Person",
+      "group": "Group",
+      "responsibility": "Responsibility",
+      "accountable": "Final owner",
+      "informed": "Notification contact",
+      "remove": "Remove assignment",
+      "empty": "Add at least one ownership assignment.",
+      "validation": "Enter a person or group for every row. Semicolons and line breaks are not supported.",
+      "add": "Add assignment",
+      "submit": "Create draft PR",
+      "submitting": "Creating proposal...",
+      "textUnsupported": "The ingestion service does not support text handover documents.",
+      "serviceUnavailable": "Ownership proposal ingestion is not configured on this deployment.",
+      "permissionDenied": "Your current role cannot submit ownership proposals.",
+      "fileTooLarge": "The generated ownership proposal exceeds the ingestion size limit.",
+      "storageUnavailable": "No supported ingestion storage mode is available.",
+      "processingFailed": "Ownership proposal processing ended in state: {state}.",
+      "submitFailed": "The ownership proposal could not be submitted.",
+      "proposalCreated": "Draft governance PR created",
+      "draftCreated": "Ownership draft created; governance PR delivery is not configured.",
+      "resultSummary": "{mappings} mappings, {unresolved} unresolved identities, {unmapped} agents without a proposed final owner.",
+      "openProposal": "Open {ref}",
+      "reviewYaml": "Review generated YAML"
+    }
   },
   "agents": {
     "workspace": {
