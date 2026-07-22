@@ -27,6 +27,15 @@ Unavailable metric cards use a subdued whole-surface background, no elevation sh
 muted value text so they don't read as measured results. They remain focusable drill-down links and
 retain a complete-border focus or hover cue; the visual treatment never sets disabled semantics.
 
+## Loading presentation
+
+Every route, panel, and bounded content region renders a skeleton from its first loading frame.
+The shared skeleton replaces spinner-only and text-only waits, while a route can provide a shape
+that preserves its final layout dimensions. Dashboard uses a posture block followed by metric,
+distribution, attention, and vertical placeholders so loading does not collapse the report. One
+screen-reader status announces loading; decorative blocks stay hidden. Shimmer stops under reduced
+motion while the static skeleton remains visible.
+
 ## Localization boundary
 
 The SPA resolves display locale from the operator preference. Reusable strings come from the main
@@ -84,6 +93,8 @@ The production read API loads and validates the operational ownership map before
 structured person or group assignments to the separate ingestion boundary, but it cannot apply the
 map or hold Git credentials. Draft PR creation and signed merge processing remain on the
 ingestion/GitOps boundary, and the returned draft includes the persisted idempotent PR receipt.
+The browser renders a receipt URL as a link only when it is an absolute HTTPS URL without embedded
+credentials; otherwise it displays the PR reference as non-clickable text.
 
 ## Stream recovery and authentication
 

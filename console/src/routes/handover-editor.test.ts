@@ -4,6 +4,7 @@ import { PANTHEON } from "./agents.model";
 import {
   buildHandoverDocument,
   canProposeHandover,
+  safeProposalUrl,
   type HandoverAssignmentInput,
 } from "./handover-editor";
 
@@ -58,5 +59,14 @@ describe("Handover registration proposal", () => {
     expect(canProposeHandover(auth(["Owner"]))).toBe(true);
     expect(canProposeHandover(auth(["Reader"]))).toBe(false);
     expect(canProposeHandover(auth([], { devMode: true, account: false }))).toBe(true);
+  });
+
+  test("renders only absolute HTTPS proposal links without credentials", () => {
+    expect(safeProposalUrl("https://example.com/pull/42"))
+      .toBe("https://example.com/pull/42");
+    expect(safeProposalUrl("javascript:alert(1)")) .toBeNull();
+    expect(safeProposalUrl("data:text/html,unsafe")).toBeNull();
+    expect(safeProposalUrl("/pull/42")).toBeNull();
+    expect(safeProposalUrl("https://user:password@example.com/pull/42")).toBeNull();
   });
 });

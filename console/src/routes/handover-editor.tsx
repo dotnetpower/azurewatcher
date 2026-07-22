@@ -68,6 +68,17 @@ export function buildHandoverDocument(
   return ["FDAI agent ownership handover proposal", ...lines, ""].join("\n");
 }
 
+export function safeProposalUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 export function HandoverProposalEditor({ client, auth }: Props) {
   const api = useMemo(() => new IngestionApiClient(loadConfig(), client), [client]);
   const mounted = useRef(true);
@@ -293,6 +304,7 @@ export function HandoverProposalEditor({ client, auth }: Props) {
 
 function HandoverProposalResult({ result }: { readonly result: HandoverDraftResult }) {
   const proposal = result.proposal;
+  const proposalUrl = safeProposalUrl(proposal?.url);
   return (
     <div class="handover-editor__result" role="status">
       <div>
@@ -303,8 +315,8 @@ function HandoverProposalResult({ result }: { readonly result: HandoverDraftResu
           unmapped: result.draft.unmapped_agents.length,
         })}</p>
       </div>
-      {proposal?.url ? (
-        <a class="handover-editor__proposal-link" href={proposal.url} target="_blank" rel="noreferrer">
+      {proposal && proposalUrl ? (
+        <a class="handover-editor__proposal-link" href={proposalUrl} target="_blank" rel="noreferrer">
           {t("handover.editor.openProposal", { ref: proposal.pr_ref })}
         </a>
       ) : proposal ? <span class="status-pill">{proposal.pr_ref}</span> : null}

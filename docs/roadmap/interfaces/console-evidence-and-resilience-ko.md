@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: 79e8da01f71652754a2a76cb9263ac3ce6628520
+translation_source_sha: fc55d6626541b088e1b7f7dc887168cbf8489cb0
 translation_revised: 2026-07-23
 ---
 
@@ -29,6 +29,15 @@ Unavailable metric 카드는 낮은 강조도의 전체 surface 배경, elevatio
 값 text를 사용해 측정 결과처럼 보이지 않게 합니다. 이 카드는 focus 가능한 drill-down link를
 유지하고 complete-border focus 또는 hover cue를 제공하며, 시각 표현에 disabled semantics를
 사용하지 않습니다.
+
+## 로딩 표현
+
+모든 route, panel 및 bounded content 영역은 첫 loading frame부터 skeleton을 렌더링합니다. 공통
+skeleton은 spinner-only 및 text-only 대기를 대체하며, route는 최종 layout dimension을 유지하는
+고유 shape를 제공할 수 있습니다. Dashboard는 posture block 다음에 metric, distribution,
+attention 및 vertical placeholder를 사용하므로 loading 중에도 report가 축소되지 않습니다. 하나의
+screen-reader status가 loading을 알리고 decorative block은 숨깁니다. Reduced motion에서는 shimmer가
+멈추지만 정적 skeleton은 계속 표시됩니다.
 
 ## Localization 경계
 
@@ -87,6 +96,8 @@ validate합니다. Console은 이 source를 read-only로 projection합니다. Ha
 person 또는 group assignment를 별도 ingestion boundary에 제출할 수 있지만 map을 적용하거나 Git
 credential을 보유할 수 없습니다. Draft PR 생성과 signed merge processing은 ingestion/GitOps
 boundary에 유지되며 반환된 draft에는 persisted idempotent PR receipt가 포함됩니다.
+Browser는 receipt URL이 embedded credential 없는 absolute HTTPS URL일 때만 link로 렌더링하며,
+그 외에는 PR reference를 클릭할 수 없는 text로 표시합니다.
 
 ## Stream recovery 및 authentication
 
