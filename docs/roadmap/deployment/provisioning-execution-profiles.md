@@ -120,6 +120,11 @@ operation incomplete and writes an audit record.
 Online delivery uses the public `fdai` package from PyPI and a version-matched signed deployment
 bundle. The runner may use public sources only after the allowlisted TLS checks pass.
 
+The release workflow builds the wheel and source distribution once in a read-only job, checks that
+the Python and bundle versions match, and publishes that exact artifact through PyPI Trusted
+Publishing only after the matching signed bundle is published. Only the publish job receives the
+GitHub OIDC permission; no long-lived PyPI token is stored.
+
 Disconnected delivery uses the same `fdai` wheel and command contracts in a platform-specific
 offline kit. The kit contains:
 

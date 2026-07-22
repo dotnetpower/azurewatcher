@@ -20,10 +20,14 @@ on:
         description: "Optional maximum compatible fdaictl version."
         type: string
         required: false
-      publish_release:
-        description: "Create a GitHub Release after reproducibility and verification pass."
-        type: boolean
-        default: false
+        publish_release:
+          description: "Create a GitHub Release after reproducibility and verification pass."
+          type: boolean
+          default: false
+        publish_pypi:
+          description: "Publish the matching fdai wheel and sdist to PyPI. Requires publish_release."
+          type: boolean
+          default: false
 
 permissions:
   contents: read
@@ -55,6 +59,12 @@ jobs:
     steps:
       - name: Checkout exact source
         uses: actions/checkout@v4
+
+      - name: Validate release publication inputs
+        if: ${{ inputs.publish_pypi && !inputs.publish_release }}
+        run: |
+          echo "publish_pypi requires publish_release so the matching signed bundle is public." >&2
+          exit 1
 
       - name: Confirm clean checkout
         run: test -z "$(git status --porcelain)"
@@ -110,6 +120,52 @@ jobs:
         uses: pypa/gh-action-pip-audit@v1.0.8
         with:
           inputs: .
+
+  python-package:
+    name: build verified Python distributions
+    runs-on: ubuntu-24.04
+    needs: [verify, dependency-audit]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.22"
+          enable-cache: true
+
+      - name: Validate package and bundle versions
+        env:
+          BUNDLE_VERSION: ${{ inputs.bundle_version }}
+        run: |
+          package_version="$(python3 - <<'PY'
+          import tomllib
+
+          with open("pyproject.toml", "rb") as stream:
+              project = tomllib.load(stream)["project"]
+          print(project["version"])
+          PY
+          )"
+          if [ "$package_version" != "$BUNDLE_VERSION" ]; then
+            echo "Python package and deployment bundle versions must match." >&2
+            exit 1
+          fi
+
+      - name: Build and check Python distributions
+        run: |
+          uv build --out-dir python-dist
+          uvx --from twine twine check python-dist/*
+
+      - name: Upload verified Python distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: fdai-python-${{ inputs.bundle_version }}
+          path: python-dist/
+          if-no-files-found: error
+          retention-days: 30
 
   bundle:
     runs-on: ubuntu-24.04
@@ -205,3 +261,26 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "FDAI deployment bundle ${BUNDLE_VERSION}" \
             --notes "Reproducibly built, Ed25519-signed FDAI deployment bundle."
+
+  publish-pypi:
+    name: publish Python distributions to PyPI
+    if: ${{ inputs.publish_pypi }}
+    runs-on: ubuntu-24.04
+    needs: [python-package, bundle]
+    environment:
+      name: pypi
+      url: https://pypi.org/p/fdai
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download verified Python distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: fdai-python-${{ inputs.bundle_version }}
+          path: python-dist/
+
+      - name: Publish with PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@v1.14.1
+        with:
+          packages-dir: python-dist/

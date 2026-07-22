@@ -1,7 +1,7 @@
 ---
 title: Provisioning 실행 Profile
 translation_of: provisioning-execution-profiles.md
-translation_source_sha: 7d0842129ff62266121271a15cbd45c9fc3cbcaa
+translation_source_sha: b645ea9bdf0f98f983a9f3a67bd17d3dd1c747de
 translation_revised: 2026-07-22
 ---
 # Provisioning 실행 Profile
@@ -123,6 +123,11 @@ Cleanup에 실패하면 operation은 incomplete로 남고 audit record가 생성
 
 Online delivery는 PyPI의 public `fdai` package와 version-matched signed deployment bundle을
 사용합니다. Runner는 allowlist TLS 검사를 통과한 후에만 public source를 사용할 수 있습니다.
+
+Release workflow는 read-only job에서 wheel과 source distribution을 한 번만 빌드하고 Python과
+bundle version이 일치하는지 검사합니다. 일치하는 signed bundle을 게시한 후에만 같은 artifact를
+PyPI Trusted Publishing으로 게시합니다. Publish job만 GitHub OIDC permission을 받으며 장기
+PyPI token은 저장하지 않습니다.
 
 Disconnected delivery는 platform별 offline kit에서 같은 `fdai` wheel과 command contract를
 사용합니다. Kit에는 다음 항목이 포함됩니다.

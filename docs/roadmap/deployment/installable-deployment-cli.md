@@ -15,8 +15,9 @@ machine.
 > dispatch, and exact-plan apply guard are also implemented. Bounded live Azure Policy, Compute
 > quota, Resource Graph identity, value-blind Key Vault secret probes, and runner TLS egress
 > evidence are available. Read-only `provision inspect`, signed bundle build/verify/release, and
-> production exact-plan apply wiring are implemented. Signed wheel/mirror/disconnected delivery,
-> provisioning profile persistence, bootstrap orchestration, and teardown remain.
+> production exact-plan apply wiring, profile persistence, and PyPI Trusted Publishing are
+> implemented. First PyPI publication, internal mirror/disconnected delivery, bootstrap
+> orchestration, and teardown remain.
 >
 > **Execution boundary:** Terraform remains the infrastructure execution engine and source of
 > truth. `fdaictl` is a thin orchestration layer over validation, plan analysis, workflow
@@ -566,7 +567,7 @@ is exposed.
 | C2: Read-only preflight | Implemented | Static and Terraform-plan analysis, live Policy/quota/identity/secret probes, and bounded runner TLS egress with hash-only evidence | Mock transport proves no mutation or secret-value read; every failed or incomplete probe blocks a clear result |
 | C3: Plan workflow | Implemented | Opaque context digest, doctor/target guard, current GitHub dispatch API, exact-commit guard, private immutable plan upload, metadata-only status artifact, logical expiry, and bounded physical cleanup | Plan-only is the default; target identifiers are absent from dispatch and metadata, and apply stays unavailable |
 | C4: Apply workflow | Implemented | Exact restore/verifier, complete runner Policy/quota/identity/secret and egress evidence, dual evidence digests, guards, approval, at-most-once claim, audit/status, Terraform convergence, migrations, and health checks | Stale, mismatched, evidence-tampered, claimed, applied, expired, non-converged, or unhealthy plans cannot produce an applied receipt |
-| C5: Release hardening | Partial | Ed25519 verification, signed stable/beta/development channels, atomic config-preserving upgrade/rollback state, deterministic tracked-file build, CycloneDX SBOM, double-build comparison, and approval-gated artifact/optional GitHub Release publication implemented; signed wheel, mirror, and disconnected delivery remain | Reproducible bundle publication passes before broader distribution channels are enabled |
+| C5: Release hardening | Partial | Ed25519 bundle verification, signed release channels, atomic upgrade/rollback state, reproducible bundle and Python distribution builds, SBOM, GitHub Release, and OIDC PyPI publication implemented; first publication, internal mirror, and disconnected delivery remain | Version-matched bundle and Python artifacts pass verification before publication |
 | C6: Guided onboarding | Implemented | Ordered doctor, private config, target guard, live preflight, plan-only runner dispatch, and bounded sanitized status post-check | Stage-spy tests prove fail-stop ordering and no guided path imports or calls local apply |
 
 ## Acceptance criteria
@@ -585,7 +586,7 @@ The design is ready to promote from roadmap to implementation when these criteri
 
 ## Open questions and decisions
 
-- Which approved package index and release store publish the first wheel and deployment bundle?
+- [x] Public package index - PyPI through Trusted Publishing; the version-matched signed bundle uses GitHub Releases.
 - [x] Signature/attestation - detached Ed25519 manifest signature, deterministic CycloneDX file
   SBOM, and GitHub build-provenance/SBOM attestations.
 - [x] Saved-plan retention - one-hour logical expiry and bounded physical cleanup eligibility

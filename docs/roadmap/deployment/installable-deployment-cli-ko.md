@@ -1,7 +1,7 @@
 ---
 title: 설치형 배포 CLI
 translation_of: installable-deployment-cli.md
-translation_source_sha: 863c7642303e9ba9954ba137eed7b7dbe83af499
+translation_source_sha: 2efc0d0f1b940843117deefdbe7f83a8724ecdf2
 translation_revised: 2026-07-22
 ---
 # 설치형 배포 CLI
@@ -17,9 +17,9 @@ translation_revised: 2026-07-22
 > dispatch, exact-plan apply guard도 구현되었습니다. Bounded live Azure Policy, Compute quota,
 > Resource Graph identity, value-blind Key Vault secret probe와 runner TLS egress evidence를
 > 사용할 수 있습니다. 읽기 전용 `provision inspect`, signed bundle build/verify/release
-> workflow, production exact-plan apply wiring도 구현됐습니다. Signed
-> wheel/mirror/disconnected delivery, provisioning profile persistence, bootstrap orchestration,
-> teardown은 남았습니다.
+> workflow, production exact-plan apply wiring, profile persistence, PyPI Trusted Publishing도
+> 구현됐습니다. 첫 PyPI publication, internal mirror/disconnected delivery, bootstrap
+> orchestration, teardown은 남았습니다.
 >
 > **실행 경계:** Terraform은 인프라 실행 엔진이자 source of truth로 유지됩니다. `fdaictl`은
 > validation, plan 분석, workflow 제출, 배포 후 검사를 위한 얇은 orchestration 계층입니다.
@@ -570,7 +570,7 @@ Remote apply를 노출하기 전에 읽기 전용 경계를 검증할 수 있도
 | C2: 읽기 전용 preflight | 구현됨 | Static 및 Terraform-plan analysis, live Policy/quota/identity/secret probe, hash-only evidence를 사용하는 bounded runner TLS egress 구현 | Mock transport가 mutation 및 secret-value read가 없음을 입증하고 failed/incomplete probe가 clear result를 차단함 |
 | C3: Plan workflow | 구현됨 | Opaque context digest, doctor/target guard, current GitHub dispatch API, exact-commit guard, private immutable plan upload, metadata-only status artifact, logical expiry, bounded physical cleanup 구현 | Plan-only가 기본이며 target identifier는 dispatch와 metadata에 없고 apply는 계속 unavailable |
 | C4: Apply workflow | 구현됨 | Exact restore/verifier, complete runner Policy/quota/identity/secret 및 egress evidence, dual evidence digest, guard, approval, at-most-once claim, audit/status, Terraform convergence, migration, health check | Stale, mismatched, evidence-tampered, claimed, applied, expired, non-converged, unhealthy plan은 applied receipt를 생성할 수 없음 |
-| C5: Release hardening | 부분 구현 | Ed25519 verification, signed stable/beta/development channel, atomic config-preserving upgrade/rollback state, deterministic tracked-file build, CycloneDX SBOM, double-build comparison, approval-gated artifact/optional GitHub Release 게시 구현, signed wheel, mirror, disconnected delivery는 남음 | 더 넓은 distribution channel 활성화 전 reproducible bundle publication 통과 |
+| C5: Release hardening | 부분 구현 | Ed25519 bundle verification, signed release channel, atomic upgrade/rollback state, reproducible bundle 및 Python distribution build, SBOM, GitHub Release, OIDC PyPI publication 구현, 첫 publication, internal mirror, disconnected delivery는 남음 | Version-matched bundle과 Python artifact가 publication 전 verification 통과 |
 | C6: Guided onboarding | 구현됨 | 순서가 고정된 doctor, private config, target guard, live preflight, plan-only runner dispatch, bounded sanitized status post-check | Stage-spy test가 fail-stop 순서와 guided path가 local apply를 import하거나 호출하지 않음을 입증 |
 
 ## 수락 기준
@@ -589,7 +589,7 @@ Remote apply를 노출하기 전에 읽기 전용 경계를 검증할 수 있도
 
 ## 미결 질문 및 결정
 
-- 첫 wheel과 deployment bundle을 어떤 approved package index 및 release store에 게시할까요?
+- [x] Public package index - Trusted Publishing을 사용하는 PyPI이며 version-matched signed bundle은 GitHub Releases를 사용합니다.
 - [x] Signature/attestation - detached Ed25519 manifest signature + deterministic CycloneDX
   file SBOM + GitHub build provenance/SBOM attestation.
 - [x] Saved-plan retention - 1시간 logical expiry, 24시간 뒤 bounded physical cleanup 대상.
