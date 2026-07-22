@@ -199,6 +199,34 @@ async def test_vendor_fetch_failure_rejects_only_the_attachment_turn() -> None:
     assert result.evidence_refs == ()
 
 
+async def test_all_attachment_sizes_are_checked_before_first_fetch() -> None:
+    content = b"evidence"
+    bridge, fetcher = _bridge(content)
+    turn = _turn(content)
+    oversized = ChannelAttachment(
+        source_ref="oversized-file-id",
+        name="oversized.txt",
+        size_bytes=2048,
+        media_type_hint="text/plain",
+    )
+
+    result = await bridge.ingest(
+        turn=InboundTurn(
+            channel_kind=turn.channel_kind,
+            channel_id=turn.channel_id,
+            message_id=turn.message_id,
+            sender_id=turn.sender_id,
+            text=turn.text,
+            attachments=(*turn.attachments, oversized),
+        ),
+        principal=Principal(id="operator-example", role=Role.READER),
+    )
+
+    assert result.status == "rejected"
+    assert result.reason == "attachment exceeds the ingestion size limit"
+    assert fetcher.refs == []
+
+
 async def test_explicit_handover_routes_to_handover_purpose() -> None:
     content = b"Thor owner: Example Operator"
     bridge, _ = _bridge(content)

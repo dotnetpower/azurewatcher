@@ -1,6 +1,6 @@
 ---
 translation_of: conversation-attachments.md
-translation_source_sha: a3ba8cbd7b72b048e751c2596c307e3e11cb8fe8
+translation_source_sha: d81b5078a787af72d587e901e440355fefa828b3
 translation_revised: 2026-07-23
 title: 대화 첨부파일
 ---
@@ -155,8 +155,11 @@ metadata-only image version을 유지합니다. `FDAI_OCR_ENDPOINT`를 설정하
 2. HTTPS로 image를 `prebuilt-read`에 제출합니다.
 3. `Operation-Location`이 exact configured origin인지 validate합니다.
 4. Configured attempt 및 time limit 안에서 poll합니다.
-5. Bounded page line을 `page:1:line:2` 같은 locator를 가진 `StructuralUnit`으로 변환합니다.
-6. Malformed, failed, unknown, cross-origin 또는 over-budget output을 거부합니다.
+5. 각 poll response를 parse하기 전에 `FDAI_OCR_MAX_RESPONSE_BYTES`를 적용한 다음 parsed result에
+  line 및 character limit을 적용합니다.
+6. Bounded page line을 `page:1:line:2` 같은 locator를 가진 `StructuralUnit`으로 변환합니다.
+7. Redirect를 거부하고 identity, transport, malformed, failed, unknown, cross-origin 또는
+  over-budget failure를 OCR provider error로 정규화합니다.
 
 Configured OCR failure는 extraction stage를 실패시키며 searchable 또는 handover evidence를 만들지
 않습니다. OCR text는 untrusted evidence로 유지되며 instruction 또는 tool authority를 재정의할 수
@@ -185,6 +188,7 @@ Attachment가 설정됐지만 gateway가 이를 bind할 수 없으면 startup이
 |---------|------|
 | Missing vendor fetcher | Ingestion 전에 attachment 거부 |
 | Reader가 `/handover` 제출 | Vendor download 전에 거부 |
+| Attachment metadata 하나라도 byte cap 초과 | 첫 fetch 전에 전체 turn 거부 |
 | Vendor metadata size mismatch | 거부하고 citation 미생성 |
 | Redirect 또는 host mismatch | Token disclosure 또는 download 전에 거부 |
 | Byte cap 초과 | Stream 중단 및 거부 |
@@ -194,6 +198,10 @@ Attachment가 설정됐지만 gateway가 이를 bind할 수 없으면 startup이
 | Web resolver absent | 501 반환 |
 | Web version이 다른 principal 소유 또는 unavailable | Access 거부 |
 | Duplicate channel message | 기존 channel ledger가 repeated processing 방지 |
+
+Channel gateway는 unavailable, rejected 및 ready outcome에 대해 `attachment.ingestion`
+transition을 emit합니다. Filename, source reference, document content 또는 provider error는 포함하지
+않습니다.
 
 ## Verification
 

@@ -147,9 +147,12 @@ the existing metadata-only image version. When `FDAI_OCR_ENDPOINT` is configured
 2. Submit the image to `prebuilt-read` over HTTPS.
 3. Validate `Operation-Location` against the exact configured origin.
 4. Poll within configured attempt and time limits.
-5. Convert bounded page lines into `StructuralUnit` values with locators such as
+5. Enforce `FDAI_OCR_MAX_RESPONSE_BYTES` before parsing each poll response, then apply line and
+  character limits to the parsed result.
+6. Convert bounded page lines into `StructuralUnit` values with locators such as
    `page:1:line:2`.
-6. Reject malformed, failed, unknown, cross-origin, or over-budget output.
+7. Reject redirects and normalize identity, transport, malformed, failed, unknown, cross-origin,
+  or over-budget failures as OCR provider errors.
 
 A configured OCR failure fails the extraction stage and does not create searchable or handover
 evidence. OCR text remains untrusted evidence and cannot redefine instructions or tool authority.
@@ -175,6 +178,7 @@ configured with attachments and a gateway that cannot bind them fails startup.
 |---------|----------|
 | Missing vendor fetcher | Reject attachment before ingestion. |
 | Reader submits `/handover` | Reject before vendor download. |
+| Any attachment metadata exceeds the byte cap | Reject the whole turn before the first fetch. |
 | Vendor metadata size mismatch | Reject; no citation. |
 | Redirect or host mismatch | Reject before token disclosure or download. |
 | Byte cap exceeded | Abort stream and reject. |
@@ -184,6 +188,9 @@ configured with attachments and a gateway that cannot bind them fails startup.
 | Web resolver absent | Return 501. |
 | Web version belongs to another principal or is unavailable | Deny access. |
 | Duplicate channel message | Existing channel ledger prevents repeated processing. |
+
+The channel gateway emits `attachment.ingestion` transitions for unavailable, rejected, and ready
+outcomes without including filenames, source references, document contents, or provider errors.
 
 ## Verification
 

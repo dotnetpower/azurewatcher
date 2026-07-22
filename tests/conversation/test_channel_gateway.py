@@ -339,18 +339,24 @@ async def test_ready_attachment_becomes_citation_never_tool_instruction() -> Non
             ),
         ),
     )
+    transitions = InMemoryRoutingTransitionSink()
     response = await _gateway(
         attachment_ingestor=_AttachmentIngestor(
             AttachmentIngestionResult(
                 status="ready",
                 evidence_refs=("doc:document-1:version-1",),
             )
-        )
+        ),
+        transition_sink=transitions,
     ).handle(adapter=_Adapter(), turn=turn)
 
     assert response is not None
     assert response.evidence_refs == ("doc:document-1:version-1",)
     assert _ReadTool.calls == [{"query": "storage"}]
+    assert any(
+        transition.name == "attachment.ingestion" and transition.outcome == "accepted"
+        for transition in transitions.transitions
+    )
 
 
 async def test_rejected_attachment_never_invokes_tool() -> None:
@@ -366,15 +372,21 @@ async def test_rejected_attachment_never_invokes_tool() -> None:
             ),
         ),
     )
+    transitions = InMemoryRoutingTransitionSink()
     response = await _gateway(
         attachment_ingestor=_AttachmentIngestor(
             AttachmentIngestionResult(status="rejected", reason="attachment held")
-        )
+        ),
+        transition_sink=transitions,
     ).handle(adapter=_Adapter(), turn=turn)
 
     assert response is not None and response.status == "error"
     assert response.evidence_refs == ()
     assert _ReadTool.calls == []
+    assert any(
+        transition.name == "attachment.ingestion" and transition.outcome == "rejected"
+        for transition in transitions.transitions
+    )
 
 
 async def test_attachment_only_knowledge_returns_citation_without_tool_call() -> None:

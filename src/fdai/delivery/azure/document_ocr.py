@@ -28,6 +28,7 @@ class AzureDocumentOcrConfig:
     max_polls: int = 60
     max_lines: int = 5000
     max_characters: int = 1_000_000
+    max_response_bytes: int = 4_000_000
 
     def __post_init__(self) -> None:
         parsed = urlparse(self.endpoint)
@@ -48,6 +49,7 @@ class AzureDocumentOcrConfig:
             or self.max_polls < 1
             or self.max_lines < 1
             or self.max_characters < 1
+            or self.max_response_bytes < 1
         ):
             raise ValueError("OCR limits MUST be positive")
 
@@ -74,20 +76,27 @@ class AzureDocumentIntelligenceOcr:
     ) -> tuple[StructuralUnit, ...]:
         if not content:
             raise AzureDocumentOcrError("OCR source is empty")
-        token = await self._identity.get_token(self._config.audience)
+        try:
+            token = await self._identity.get_token(self._config.audience)
+        except RuntimeError as exc:
+            raise AzureDocumentOcrError("OCR identity token is unavailable") from exc
         analyze_url = (
             f"{self._config.endpoint.rstrip('/')}/documentintelligence/documentModels/"
             f"prebuilt-read:analyze?api-version={self._config.api_version}"
         )
-        response = await self._http.post(
-            analyze_url,
-            content=content,
-            headers={
-                "Authorization": f"Bearer {token.token}",
-                "Content-Type": version.media_type,
-            },
-            timeout=self._config.timeout_seconds,
-        )
+        try:
+            response = await self._http.post(
+                analyze_url,
+                content=content,
+                headers={
+                    "Authorization": f"Bearer {token.token}",
+                    "Content-Type": version.media_type,
+                },
+                timeout=self._config.timeout_seconds,
+                follow_redirects=False,
+            )
+        except httpx.HTTPError as exc:
+            raise AzureDocumentOcrError("OCR analyze request failed") from exc
         if response.status_code != 202:
             raise AzureDocumentOcrError(f"OCR analyze request returned HTTP {response.status_code}")
         operation_url = response.headers.get("operation-location")
@@ -95,13 +104,24 @@ class AzureDocumentIntelligenceOcr:
             raise AzureDocumentOcrError("OCR analyze response has no operation location")
         self._validate_operation_url(operation_url)
         for poll in range(self._config.max_polls):
-            result = await self._http.get(
-                operation_url,
-                headers={"Authorization": f"Bearer {token.token}"},
-                timeout=self._config.timeout_seconds,
-            )
-            result.raise_for_status()
-            payload = result.json()
+            try:
+                result = await self._http.get(
+                    operation_url,
+                    headers={"Authorization": f"Bearer {token.token}"},
+                    timeout=self._config.timeout_seconds,
+                    follow_redirects=False,
+                )
+                if result.status_code != 200:
+                    raise AzureDocumentOcrError(
+                        f"OCR operation poll returned HTTP {result.status_code}"
+                    )
+                if len(result.content) > self._config.max_response_bytes:
+                    raise AzureDocumentOcrError("OCR operation response exceeded configured bounds")
+                payload = result.json()
+            except AzureDocumentOcrError:
+                raise
+            except (httpx.HTTPError, ValueError) as exc:
+                raise AzureDocumentOcrError("OCR operation poll failed") from exc
             status = payload.get("status") if isinstance(payload, dict) else None
             if status == "succeeded":
                 return self._units(payload)
@@ -116,12 +136,20 @@ class AzureDocumentIntelligenceOcr:
     def _validate_operation_url(self, operation_url: str) -> None:
         endpoint = urlparse(self._config.endpoint)
         operation = urlparse(operation_url)
+        try:
+            endpoint_port = endpoint.port
+            operation_port = operation.port
+        except ValueError as exc:
+            raise AzureDocumentOcrError(
+                "OCR operation location is outside the configured origin"
+            ) from exc
         if (
             operation.scheme != endpoint.scheme
             or operation.hostname != endpoint.hostname
-            or operation.port != endpoint.port
+            or operation_port != endpoint_port
             or operation.username is not None
             or operation.password is not None
+            or operation.fragment
         ):
             raise AzureDocumentOcrError("OCR operation location is outside the configured origin")
 

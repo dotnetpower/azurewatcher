@@ -88,10 +88,13 @@ class ProtectedChannelAttachmentIngestor:
                 status="rejected",
                 reason="channel attachment fetcher is unavailable",
             )
+        if any(
+            attachment.size_bytes > self._service.capabilities.max_file_size
+            for attachment in turn.attachments
+        ):
+            return _rejected("attachment exceeds the ingestion size limit")
         evidence_refs: list[str] = []
         for attachment in turn.attachments:
-            if attachment.size_bytes > self._service.capabilities.max_file_size:
-                return _rejected("attachment exceeds the ingestion size limit")
             try:
                 content = await fetcher.fetch(
                     attachment,

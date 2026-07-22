@@ -27,6 +27,11 @@ class _Identity:
         return IdentityToken(token="identity-token", audience=audience, expires_at=None)
 
 
+class _FailingIdentity:
+    async def get_token(self, audience: str) -> IdentityToken:
+        raise RuntimeError("identity unavailable")
+
+
 def _version() -> DocumentVersion:
     now = datetime(2026, 7, 22, tzinfo=UTC)
     return DocumentVersion(
@@ -141,4 +146,82 @@ async def test_ocr_rejects_output_over_line_limit() -> None:
     )
 
     with pytest.raises(AzureDocumentOcrError, match="bounds"):
+        await ocr.extract(version=_version(), content=b"data")
+
+
+async def test_ocr_rejects_poll_redirect_from_redirecting_client() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "POST":
+            return httpx.Response(
+                202,
+                headers={"operation-location": "https://ocr.example.com/operations/1"},
+            )
+        return httpx.Response(302, headers={"Location": "https://example.com/result"})
+
+    ocr = AzureDocumentIntelligenceOcr(
+        config=AzureDocumentOcrConfig(endpoint="https://ocr.example.com"),
+        identity=_Identity(),
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            follow_redirects=True,
+        ),
+    )
+
+    with pytest.raises(AzureDocumentOcrError, match="HTTP 302"):
+        await ocr.extract(version=_version(), content=b"data")
+    assert len(requests) == 2
+
+
+async def test_ocr_normalizes_malformed_poll_json() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(
+                202,
+                headers={"operation-location": "https://ocr.example.com/operations/1"},
+            )
+        return httpx.Response(200, content=b"not-json")
+
+    ocr = AzureDocumentIntelligenceOcr(
+        config=AzureDocumentOcrConfig(endpoint="https://ocr.example.com"),
+        identity=_Identity(),
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(AzureDocumentOcrError, match="poll failed"):
+        await ocr.extract(version=_version(), content=b"data")
+
+
+async def test_ocr_rejects_poll_payload_before_json_parse() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(
+                202,
+                headers={"operation-location": "https://ocr.example.com/operations/1"},
+            )
+        return httpx.Response(200, content=b"x" * 9)
+
+    ocr = AzureDocumentIntelligenceOcr(
+        config=AzureDocumentOcrConfig(
+            endpoint="https://ocr.example.com",
+            max_response_bytes=8,
+        ),
+        identity=_Identity(),
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(AzureDocumentOcrError, match="response exceeded"):
+        await ocr.extract(version=_version(), content=b"data")
+
+
+async def test_ocr_normalizes_identity_failure() -> None:
+    ocr = AzureDocumentIntelligenceOcr(
+        config=AzureDocumentOcrConfig(endpoint="https://ocr.example.com"),
+        identity=_FailingIdentity(),
+        http_client=httpx.AsyncClient(),
+    )
+
+    with pytest.raises(AzureDocumentOcrError, match="identity token"):
         await ocr.extract(version=_version(), content=b"data")

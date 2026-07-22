@@ -264,6 +264,12 @@ class ConversationChannelGateway:
             attachment_message: str | None = None
             if turn.attachments:
                 if self._attachment_ingestor is None:
+                    self._emit(
+                        turn,
+                        "attachment.ingestion",
+                        "rejected",
+                        {"reason_code": "ingestor_unavailable"},
+                    )
                     return _HandledChannelResponse(
                         response=_attachment_error(
                             turn,
@@ -277,6 +283,12 @@ class ConversationChannelGateway:
                     principal=principal,
                 )
                 if ingestion.status == "rejected":
+                    self._emit(
+                        turn,
+                        "attachment.ingestion",
+                        "rejected",
+                        {"reason_code": "ingestion_rejected"},
+                    )
                     return _HandledChannelResponse(
                         response=_attachment_error(turn, ingestion.reason),
                         principal=principal,
@@ -284,6 +296,12 @@ class ConversationChannelGateway:
                     )
                 attachment_evidence = ingestion.evidence_refs
                 attachment_message = ingestion.message
+                self._emit(
+                    turn,
+                    "attachment.ingestion",
+                    "accepted",
+                    {"status": "ready"},
+                )
                 if ingestion.purpose is DocumentPurpose.HANDOVER_BOOTSTRAP:
                     return _HandledChannelResponse(
                         response=_handover_attachment_ready(turn, attachment_evidence),
