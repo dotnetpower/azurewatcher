@@ -30,3 +30,13 @@ def test_opa_downloads_are_bounded_and_checksum_verified() -> None:
     assert ci.count("--retry 5 --retry-delay 2 --retry-all-errors") == 2
     assert ci.count("--retry-max-time 300 --connect-timeout 15 --max-time 120") == 2
     assert ci.count("dfd5081fc6f930dfeaf2a225e31e616fc227dc0c7b43019b73d6f8fb8a1de1aa") == 2
+
+
+def test_container_opa_build_overrides_vulnerable_grpc() -> None:
+    dockerfile = (_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "ARG OPA_VERSION=v1.18.2" in dockerfile
+    assert "ARG OPA_GRPC_VERSION=v1.82.1" in dockerfile
+    assert 'go mod edit -require="google.golang.org/grpc@${OPA_GRPC_VERSION}"' in dockerfile
+    assert "go build -mod=mod -o /go/bin/opa ." in dockerfile
+    assert "awk '$2 == \"google.golang.org/grpc\" {print $3}'" in dockerfile
