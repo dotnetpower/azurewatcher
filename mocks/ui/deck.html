@@ -446,7 +446,7 @@
        attaching a file never executes anything. The tray sits above the
        composer row; the paperclip lives inside it.
        ------------------------------------------------------------------- */
-    .dk-attach-btn { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--cs-radius-sm); border: 1px solid var(--cs-hairline); background: var(--cs-card); color: var(--cs-text-soft); cursor: pointer; font-size: 15px; line-height: 1; }
+    .dk-attach-btn { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--cs-radius-sm); border: 1px solid var(--cs-hairline); background: var(--cs-card); color: var(--cs-text-soft); cursor: pointer; font-size: 20px; font-weight: 400; line-height: 1; }
     .dk-attach-btn:hover { color: var(--cs-text); background: var(--cs-shade); }
     .dk-attach-btn:focus-visible { outline: 2px solid var(--cs-steel); outline-offset: 2px; }
 
@@ -1245,12 +1245,12 @@
 
           <div class="dk-composer-row is-mentioning">
             <input type="file" id="dk-file" multiple hidden />
-            <button type="button" class="dk-attach-btn" title="Attach a file as read-only evidence" aria-label="Attach a file">&#128206;</button>
+            <button type="button" class="dk-attach-btn" title="Attach a file as read-only evidence" aria-label="Attach a file">+</button>
             <textarea rows="1" placeholder="Ask Bragi, @mention any agent / rule / event, attach a file, or type / for commands...">Hey @fo</textarea>
             <button type="button" class="dk-send">Send</button>
           </div>
           <div class="dk-composer-foot">
-            <span class="dk-tag">Type <kbd>@</kbd> to mention (agents / rules / events / workflows) &middot; <kbd>/</kbd> for slash commands &middot; <kbd>&#128206;</kbd> to attach evidence</span>
+            <span class="dk-tag">Type <kbd>@</kbd> to mention (agents / rules / events / workflows) &middot; <kbd>/</kbd> for slash commands &middot; <kbd>+</kbd> to attach evidence</span>
             <span class="dk-draft-hint" title="Draft history - browse previous drafts with Up/Down"><kbd>&uarr;</kbd><kbd>&darr;</kbd> history <b>3 / 7</b></span>
             <span class="dk-tag" style="margin-left:auto">Locale <span class="dk-mode">EN</span></span>
             <span class="dk-tag">Mode <span class="dk-mode">read + propose</span></span>
