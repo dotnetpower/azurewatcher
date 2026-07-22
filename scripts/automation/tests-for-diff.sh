@@ -236,8 +236,22 @@ if [[ $run_pytest -eq 1 ]]; then
     fi
     echo "--- running pytest on the paths above ---" >&2
 
+    parallel_args=()
+    parallel_threshold="${FDAI_CHANGED_TEST_PARALLEL_THRESHOLD:-20}"
+    if [[ ! "$parallel_threshold" =~ ^[1-9][0-9]*$ ]]; then
+        echo "tests-for-diff.sh: FDAI_CHANGED_TEST_PARALLEL_THRESHOLD must be a positive integer" >&2
+        exit 2
+    fi
+    if [[ "${FDAI_PYTEST_XDIST:-1}" == "1" && ${#tests[@]} -ge $parallel_threshold ]]; then
+        parallel_args=(
+            -n auto
+            --maxprocesses="${FDAI_PYTEST_MAX_WORKERS:-8}"
+            --dist=worksteal
+        )
+    fi
+
     set +e
-    uv run pytest -q -m "not integration" --no-cov "${tests[@]}"
+    uv run pytest -q -m "not integration" --no-cov "${parallel_args[@]}" "${tests[@]}"
     non_integration_status=$?
     set -e
     if [[ $non_integration_status -ne 0 && $non_integration_status -ne 5 ]]; then

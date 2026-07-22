@@ -67,6 +67,10 @@ that those tests were skipped. An integration-only change without a database
 still exits successfully after confirming that integration tests were selected.
 The exact repository inputs that CI classifies as Python-impacting are covered
 by a regression test so local and CI selection can't drift silently.
+Selections with at least 20 pytest paths use up to eight xdist workers by
+default; smaller selections stay single-process to avoid worker startup cost.
+Override the cutoff with `FDAI_CHANGED_TEST_PARALLEL_THRESHOLD` and the worker
+cap with `FDAI_PYTEST_MAX_WORKERS`.
 
 ## Verification
 
