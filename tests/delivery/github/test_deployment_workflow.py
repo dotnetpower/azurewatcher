@@ -290,7 +290,10 @@ def test_runner_workflow_declares_and_validates_dispatch_context() -> None:
     assert "-target=module.compute.azurerm_container_app.core" in workflow
     assert "-target=module.compute.azurerm_container_app_job.canary[0]" in workflow
     assert "-target=azurerm_role_assignment.inventory_eventhubs_raw_sender" in workflow
-    assert "-target=azurerm_eventgrid_event_subscription.inventory_resource_changes[0]" in workflow
+    assert (
+        "-target=azurerm_eventgrid_system_topic_event_subscription.inventory_resource_changes[0]"
+        in workflow
+    )
     assert "Build development operations gateway source artifact" in workflow
     assert 'source = Path("../delivery/dev_operations_gateway")' in workflow
     assert "source_artifact_digest" in workflow
@@ -380,10 +383,8 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
     assert "multiple tracked Event Grid system topics" in terraform
     assert "to = azurerm_eventgrid_system_topic.inventory_resource_changes[0]" in terraform
     assert "identity_ids = [module.inventory_identity.resource_id]" in terraform
-    assert (
-        "scope                 = azurerm_eventgrid_system_topic.inventory_resource_changes[0].id"
-        in terraform
-    )
+    assert 'resource "azurerm_eventgrid_system_topic_event_subscription"' in terraform
+    assert "system_topic          = azurerm_eventgrid_system_topic" in terraform
     assert "module.event_bus_auxiliary.topic_ids[local.canary_topic]" in terraform
     assert (
         terraform.count("module.event_bus_auxiliary.auxiliary_topic_ids[local.inventory_raw_topic]")

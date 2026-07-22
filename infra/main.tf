@@ -489,11 +489,12 @@ resource "azurerm_eventgrid_system_topic" "inventory_resource_changes" {
   }
 }
 
-resource "azurerm_eventgrid_event_subscription" "inventory_resource_changes" {
+resource "azurerm_eventgrid_system_topic_event_subscription" "inventory_resource_changes" {
   count = var.enable_realtime_inventory_discovery ? 1 : 0
 
   name                  = "evgs-${var.workload}${local.full_suffix}-inventory"
-  scope                 = azurerm_eventgrid_system_topic.inventory_resource_changes[0].id
+  resource_group_name   = azurerm_eventgrid_system_topic.inventory_resource_changes[0].resource_group_name
+  system_topic          = azurerm_eventgrid_system_topic.inventory_resource_changes[0].name
   eventhub_endpoint_id  = module.event_bus_auxiliary.auxiliary_topic_ids[local.inventory_raw_topic]
   event_delivery_schema = "EventGridSchema"
   included_event_types = [
