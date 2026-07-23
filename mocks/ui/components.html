@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Components - Calm Slate</title>
-  <link rel="stylesheet" href="assets/calm-slate.css?v=sidebar-v5" />
+  <link rel="stylesheet" href="assets/calm-slate.css?v=components-v3" />
 </head>
 <body>
   <main class="cs-container cs-page">
@@ -300,6 +300,12 @@
       <div class="cs-card">
         <p class="cs-label">Lifecycle status</p>
         <div class="cs-flex cs-wrap cs-gap-12 cs-mb-24"><span class="cs-status ok">healthy</span><span class="cs-status wait">waiting</span><span class="cs-status err">failed</span><span class="cs-status idle">idle</span></div>
+        <p class="cs-label">Live presence</p>
+        <div class="cs-presence-row cs-mb-24">
+          <span class="cs-presence is-watching"><span class="cs-presence-dot" aria-hidden="true"></span>Watching</span>
+          <span class="cs-presence is-live"><span class="cs-presence-dot" aria-hidden="true"></span>Live</span>
+          <span class="cs-presence is-syncing"><span class="cs-presence-dots" aria-hidden="true"><span class="cs-presence-dot"></span><span class="cs-presence-dot"></span><span class="cs-presence-dot"></span></span>Syncing</span>
+        </div>
         <p class="cs-label">Risk &amp; execution mode</p>
         <div class="cs-flex cs-wrap cs-gap-8 cs-mb-24"><span class="cs-risk low">low</span><span class="cs-risk medium">medium</span><span class="cs-risk high">high</span><span class="cs-risk critical">critical</span><span class="cs-mode shadow">shadow</span><span class="cs-mode enforce">enforce</span><span class="cs-mode hil">approval</span><span class="cs-mode abstain">abstain</span><span class="cs-mode deny">deny</span></div>
         <p class="cs-label">Category &amp; vertical</p>
