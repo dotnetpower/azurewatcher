@@ -51,8 +51,56 @@
       ["hcard-variants.html", "HIL card variants", "is-teal"]
     ]]
   ];
+  var standalonePageGroups = {
+    "settings-diagnostics.html": "Settings",
+    "settings-iam.html": "Settings",
+    "settings-integrations.html": "Settings",
+    "settings-memory.html": "Settings",
+    "settings-models.html": "Settings"
+  };
+
+  function currentNavigationContext() {
+    var currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
+    for (var groupIndex = 0; groupIndex < navigationGroups.length; groupIndex += 1) {
+      var group = navigationGroups[groupIndex];
+      for (var itemIndex = 0; itemIndex < group[1].length; itemIndex += 1) {
+        if (group[1][itemIndex][0] === currentPage) {
+          return { group: group[0], item: group[1][itemIndex] };
+        }
+      }
+    }
+    if (standalonePageGroups[currentPage]) {
+      return { group: standalonePageGroups[currentPage], item: [currentPage] };
+    }
+    return null;
+  }
+
+  function decoratePageTitle() {
+    var context = currentNavigationContext();
+    var heading = document.querySelector("main h1") || document.querySelector("body > header h1");
+    if (!context || !heading || heading.querySelector(".cs-page-domain")) return;
+
+    var current = document.createElement("span");
+    current.className = "cs-page-title-current";
+    while (heading.firstChild) current.appendChild(heading.firstChild);
+
+    var domain = document.createElement("span");
+    domain.className = "cs-page-domain";
+    domain.textContent = context.group;
+
+    var separator = document.createElement("span");
+    separator.className = "cs-page-separator";
+    separator.setAttribute("aria-hidden", "true");
+    separator.textContent = "/";
+
+    heading.classList.add("cs-page-title");
+    heading.appendChild(domain);
+    heading.appendChild(separator);
+    heading.appendChild(current);
+  }
 
   function createNavigation() {
+    decoratePageTitle();
     if (window.self !== window.top) {
       document.body.classList.add("cs-embedded");
       return;
