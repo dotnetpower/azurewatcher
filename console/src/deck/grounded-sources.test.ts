@@ -1,0 +1,177 @@
+import { describe, expect, it } from "vitest";
+import type { AnswerVerification } from "./backend";
+import type { Citation } from "./citations";
+import {
+  buildSources,
+  citationMarks,
+  groundingStages,
+  parseReplySource,
+  pillStats,
+} from "./grounded-sources";
+
+function manifestVerification(
+  entries: AnswerVerification["evidence_manifest"] extends infer M
+    ? M extends { entries: infer E }
+      ? E
+      : never
+    : never,
+): AnswerVerification {
+  return {
+    status: "verified",
+    authority: "server_read_model",
+    checks_completed: 2,
+    checks_total: 2,
+    evidence_refs: ["e-1", "e-2"],
+    reason_code: null,
+    evidence_manifest: {
+      schema_version: 1,
+      manifest_id: "m-1",
+      authority: "server_read_model",
+      route_id: "incident",
+      captured_at: null,
+      complete: true,
+      source_entry_count: 2,
+      entries,
+    },
+  };
+}
+
+describe("parseReplySource", () => {
+  it("splits an llm descriptor into model and timing", () => {
+    expect(parseReplySource("llm:gpt-4o-mini - 240ms")).toEqual({
+      kind: "llm",
+      model: "gpt-4o-mini",
+      timing: "240ms",
+    });
+  });
+
+  it("keeps a model with no timing", () => {
+    expect(parseReplySource("llm:gpt-4o")).toEqual({
+      kind: "llm",
+      model: "gpt-4o",
+      timing: null,
+    });
+  });
+
+  it("recognises the deterministic answerer", () => {
+    expect(parseReplySource("deterministic")).toEqual({ kind: "deterministic" });
+  });
+
+  it("returns null for an absent or blank source", () => {
+    expect(parseReplySource(undefined)).toBeNull();
+    expect(parseReplySource("  ")).toBeNull();
+  });
+});
+
+describe("buildSources", () => {
+  it("prefers the evidence manifest and numbers entries in order", () => {
+    const verification = manifestVerification([
+      {
+        ref: "e-1",
+        path: "/incident/correlation_id",
+        field: "correlation_id",
+        kind: "id",
+        raw_value: "corr-9f3a",
+        normalized_value: "corr-9f3a",
+        anchors: ["correlation"],
+      },
+      {
+        ref: "e-2",
+        path: "/incident/failed_count",
+        field: "failed_count",
+        kind: "number",
+        raw_value: "3",
+        normalized_value: "3",
+        anchors: [],
+      },
+    ]);
+    const sources = buildSources(verification, []);
+    expect(sources).toHaveLength(2);
+    expect(sources[0]).toMatchObject({ n: 1, badge: "ID", tone: "identifier", value: "corr-9f3a" });
+    expect(sources[1]).toMatchObject({ n: 2, badge: "NUM", tone: "metric", value: "3" });
+  });
+
+  it("falls back to plain citations with derived badges", () => {
+    const cites: Citation[] = [
+      { label: "screen" },
+      { label: "records.incidents", value: "12 rows" },
+      { label: "tiles.failed", value: "3" },
+    ];
+    const sources = buildSources(undefined, cites);
+    expect(sources.map((s) => s.badge)).toEqual(["SCREEN", "RECORDS", "SOURCE"]);
+    // screen has no value; "12 rows" is matchable; "3" is below the 2-char
+    // inline-anchor threshold so it carries no inline value.
+    expect(sources[0]?.value).toBeNull();
+    expect(sources[1]?.value).toBe("12 rows");
+    expect(sources[2]?.value).toBeNull();
+  });
+
+  it("returns nothing when the reply carries no grounding", () => {
+    expect(buildSources(undefined, [])).toEqual([]);
+  });
+});
+
+describe("citationMarks", () => {
+  it("keeps values of two or more characters and dedupes", () => {
+    const marks = citationMarks([
+      { n: 1, badge: "ID", tone: "identifier", title: "correlation_id", meta: "corr-9", path: null, value: "corr-9" },
+      { n: 2, badge: "NUM", tone: "metric", title: "count", meta: "3", path: null, value: "3" },
+      { n: 3, badge: "NUM", tone: "metric", title: "dup", meta: "corr-9", path: null, value: "corr-9" },
+      { n: 4, badge: "SCREEN", tone: "screen", title: "screen", meta: "", path: null, value: null },
+    ]);
+    // "3" is one char -> dropped; "corr-9" deduped -> one mark; null -> dropped.
+    expect(marks).toEqual([{ n: 1, value: "corr-9", title: "correlation_id - corr-9" }]);
+  });
+});
+
+describe("pillStats", () => {
+  it("emits only stats with real values", () => {
+    expect(
+      pillStats({ sourceCount: 7, checksCompleted: 2, checksTotal: 2, agentCount: 0 }),
+    ).toEqual([
+      { value: "7", label: "sources" },
+      { value: "2/2", label: "checks" },
+    ]);
+  });
+
+  it("uses singular labels and drops empty groups", () => {
+    expect(
+      pillStats({ sourceCount: 1, checksCompleted: 0, checksTotal: 0, agentCount: 1 }),
+    ).toEqual([
+      { value: "1", label: "source" },
+      { value: "1", label: "agent" },
+    ]);
+  });
+});
+
+describe("groundingStages", () => {
+  it("reconstructs stages from reply metadata", () => {
+    const verification = manifestVerification([
+      {
+        ref: "e-1",
+        path: "/incident/id",
+        field: "id",
+        kind: "id",
+        raw_value: "inc-1",
+        normalized_value: "inc-1",
+        anchors: [],
+      },
+    ]);
+    const sources = buildSources(verification, []);
+    const stages = groundingStages({
+      sources,
+      source: "llm:gpt-4o-mini - 120ms",
+      verification,
+      agents: ["Forseti"],
+    });
+    expect(stages.map((s) => s.side)).toEqual(["read", "route", "read", "ground", "verify"]);
+    expect(stages[1]).toMatchObject({ label: "Routed to gpt-4o-mini", detail: "120ms" });
+    expect(stages[2]).toMatchObject({ label: "Consulted agents", detail: "Forseti" });
+  });
+
+  it("returns nothing when the reply carries no grounding metadata", () => {
+    expect(
+      groundingStages({ sources: [], source: undefined, verification: undefined, agents: [] }),
+    ).toEqual([]);
+  });
+});

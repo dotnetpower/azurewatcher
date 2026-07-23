@@ -27,6 +27,15 @@ import type {
 } from "./backend";
 import { RichContent } from "./rich-content";
 import { relevantCitations, type Citation } from "./citations";
+import {
+  buildSources,
+  citationMarks,
+  groundingStages,
+  parseReplySource,
+  pillStats,
+  type GroundedSource,
+  type TraceStage,
+} from "./grounded-sources";
 
 export function GroundedReply({
   turnId,
@@ -61,6 +70,15 @@ export function GroundedReply({
   const cites = relevantCitations(citations ?? [], text);
   const evidenceReferences = cites.every((citation) =>
     citation.label.startsWith("evidence."));
+  const showEvidence = verification?.status !== "unverified";
+  const sources = showEvidence ? buildSources(verification, cites) : [];
+  const marks = citationMarks(sources);
+  const parsedSource = parseReplySource(source);
+  const replyModel = parsedSource?.kind === "llm"
+    ? parsedSource.timing
+      ? `${parsedSource.model} \u00b7 ${parsedSource.timing}`
+      : parsedSource.model
+    : null;
   const boundedCorrection = verification?.status === "corrected" && (
     verification.reason_code === "screen_unsupported_sentences_removed" ||
     verification.reason_code === "concept_scope_claims_removed"
@@ -128,6 +146,7 @@ export function GroundedReply({
           text={text}
           streaming={streaming}
           suppressCode={!streaming && (codeArtifacts?.length ?? 0) > 0}
+          citeMarks={marks}
         />
       </div>
 
@@ -201,12 +220,12 @@ export function GroundedReply({
             </>
           ) : null}
 
-          {cites.length > 0 && verification?.status !== "unverified" ? (
+          {sources.length > 0 ? (
             <Tooltip
               content={
                 evidenceReferences
-                  ? t("deck.tooltip.evidenceReferences", { count: cites.length })
-                  : t("deck.tooltip.groundedSources", { count: cites.length })
+                  ? t("deck.tooltip.evidenceReferences", { count: sources.length })
+                  : t("deck.tooltip.groundedSources", { count: sources.length })
               }
             >
               <button
@@ -216,23 +235,38 @@ export function GroundedReply({
                 aria-expanded={open}
               >
                 <span class="deck-gr-check" aria-hidden="true">{"\u2713"}</span>
-                <span>
-                  <strong>{cites.length}</strong>{" "}
-                  {evidenceReferences
-                    ? "evidence"
-                    : cites.length === 1
-                      ? "source"
-                      : "sources"}
+                {pillStats({
+                  sourceCount: sources.length,
+                  checksCompleted: verification?.checks_completed ?? 0,
+                  checksTotal: verification?.checks_total ?? 0,
+                  agentCount: answerPlanning?.consulted_agents.length ?? 0,
+                }).map((stat, i) => (
+                  <span key={`${stat.label}-${i}`} class="deck-gr-stat">
+                    <strong>{stat.value}</strong> {stat.label}
+                  </span>
+                ))}
+                {replyModel ? <span class="deck-gr-stat is-model">{replyModel}</span> : null}
+                <span class="deck-gr-more">
+                  {open ? t("deck.grounded.hideTrace") : t("deck.grounded.showTrace")}
                 </span>
-                <span class="deck-gr-more">{open ? "hide" : "show"}</span>
               </button>
             </Tooltip>
           ) : null}
         </div>
       ) : null}
 
-      {!streaming && open && cites.length > 0 && verification?.status !== "unverified" ? (
-        <SourceDetail verification={verification} cites={cites} />
+      {!streaming && open && sources.length > 0 ? (
+        <div class="deck-gr-panel">
+          <GroundingTrace
+            stages={groundingStages({
+              sources,
+              source,
+              verification,
+              agents: answerPlanning?.consulted_agents ?? [],
+            })}
+          />
+          <SourceDetail sources={sources} />
+        </div>
       ) : null}
     </div>
   );
@@ -259,39 +293,43 @@ function shortVerificationStatus(
   }
 }
 
-/** Expanded "show sources" detail. Prefers the evidence manifest (field, value,
- *  path, anchors) so the operator sees exactly what each claim was grounded in;
- *  falls back to plain citation labels when no manifest is attached. */
-function SourceDetail({
-  verification,
-  cites,
-}: {
-  readonly verification: AnswerVerification | undefined;
-  readonly cites: readonly Citation[];
-}) {
-  const entries = verification?.evidence_manifest?.entries ?? [];
-  if (entries.length > 0) {
-    return (
-      <ul class="deck-gr-list">
-        {entries.map((e, i) => (
-          <li key={`${e.ref}-${i}`} class="deck-gr-item">
-            <span class="deck-gr-k">{e.field || e.kind}</span>
-            <span class="deck-gr-v">{e.raw_value}</span>
-            {e.path ? <span class="deck-gr-path muted">{e.path}</span> : null}
-            {e.anchors.length > 0 ? (
-              <span class="deck-gr-anchors muted">{e.anchors.join(", ")}</span>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    );
-  }
+/** The reconstructed retrieval trace: how this reply was grounded, shown when
+ *  the operator expands the grounded pill. Mirrors the source-streaming mock's
+ *  "show trace" affordance (mocks/ui/deck-sources.html). */
+function GroundingTrace({ stages }: { readonly stages: readonly TraceStage[] }) {
+  if (stages.length === 0) return null;
+  return (
+    <ol class="deck-gr-trace" aria-label={t("deck.grounded.traceLabel")}>
+      {stages.map((stage, i) => (
+        <li key={`${stage.label}-${i}`} class="deck-gr-trace-row">
+          <span class="deck-gr-trace-mark" aria-hidden="true">{"\u2713"}</span>
+          <span class="deck-gr-trace-label">{stage.label}</span>
+          <span class="deck-gr-trace-detail muted">{stage.detail}</span>
+          <span class={`deck-gr-trace-side is-${stage.side}`}>{stage.side}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** Expanded "show sources" cards. Each grounding source renders as a typed card
+ *  with a coloured category badge, a bold title, and its cited value - the
+ *  clean presentation from the source-streaming mock. Every card is a real
+ *  evidence entry or citation the backend returned; nothing is fabricated. */
+function SourceDetail({ sources }: { readonly sources: readonly GroundedSource[] }) {
   return (
     <ul class="deck-gr-list">
-      {cites.map((c, i) => (
-        <li key={`${c.label}-${i}`} class="deck-gr-item">
-          <span class="deck-gr-k">{c.label}</span>
-          {c.value !== undefined ? <span class="deck-gr-v">{c.value}</span> : null}
+      {sources.map((source) => (
+        <li key={`${source.n}-${source.title}`} class="deck-src-row">
+          <span class={`deck-src-badge is-${source.tone}`} aria-hidden="true">
+            {source.badge}
+          </span>
+          <span class="deck-src-num" aria-hidden="true">{source.n}</span>
+          <span class="deck-src-text">
+            <span class="deck-src-title">{source.title}</span>
+            {source.meta ? <span class="deck-src-meta">{source.meta}</span> : null}
+            {source.path ? <span class="deck-src-path muted">{source.path}</span> : null}
+          </span>
         </li>
       ))}
     </ul>

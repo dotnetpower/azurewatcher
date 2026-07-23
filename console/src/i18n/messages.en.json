@@ -1557,6 +1557,12 @@
         "verticalsUnknown": "Events not yet classified into a vertical."
       }
     },
+    "grounded": {
+      "showTrace": "show trace",
+      "hideTrace": "hide trace",
+      "traceLabel": "Retrieval trace",
+      "sourceAria": "Source"
+    },
     "retrieval": {
       "readScreen": "Read this screen",
       "routeChosen": "Route - chose {deployment}",

@@ -218,10 +218,67 @@ export function parseAnswer(text: string): Segment[] {
   return segments;
 }
 
-/** One inline run within a prose line. */
+/** One inline run within a prose line. The `cite` variant is never produced by
+ *  `parseInline`; it is injected afterwards by `injectCiteMarks` to render a
+ *  numbered `[n]` grounding chip after a cited value. */
 export type InlineRun =
   | { readonly t: "text" | "code" | "strong" | "emphasis" | "strike"; readonly s: string }
-  | { readonly t: "link"; readonly s: string; readonly href: string };
+  | { readonly t: "link"; readonly s: string; readonly href: string }
+  | { readonly t: "cite"; readonly n: number; readonly title: string };
+
+/** One inline citation anchor: place a `[n]` chip after the first occurrence
+ *  of `value` in the answer text. Mirrors `CiteMark` in grounded-sources.ts
+ *  (kept local so rich-parse stays dependency-free). */
+export interface InlineCiteMark {
+  readonly n: number;
+  readonly value: string;
+  readonly title: string;
+}
+
+/**
+ * Weave numbered `[n]` citation chips into already-parsed inline runs. Only
+ * plain `text` runs are scanned (never inside code / links), each mark is
+ * placed at most once at its first occurrence, and the surrounding text is
+ * preserved verbatim. Pure; returns the input unchanged when no mark matches.
+ */
+export function injectCiteMarks(
+  runs: readonly InlineRun[],
+  marks: readonly InlineCiteMark[],
+): InlineRun[] {
+  if (marks.length === 0) return [...runs];
+  const placed = new Set<number>();
+  const out: InlineRun[] = [];
+  for (const run of runs) {
+    if (run.t !== "text") {
+      out.push(run);
+      continue;
+    }
+    let rest = run.s;
+    let guard = 0;
+    while (guard++ < 64) {
+      let bestIdx = -1;
+      let bestEnd = -1;
+      let best: InlineCiteMark | null = null;
+      for (const mark of marks) {
+        if (placed.has(mark.n)) continue;
+        const idx = rest.indexOf(mark.value);
+        if (idx < 0) continue;
+        if (best === null || idx < bestIdx) {
+          bestIdx = idx;
+          bestEnd = idx + mark.value.length;
+          best = mark;
+        }
+      }
+      if (best === null) break;
+      out.push({ t: "text", s: rest.slice(0, bestEnd) });
+      out.push({ t: "cite", n: best.n, title: best.title });
+      placed.add(best.n);
+      rest = rest.slice(bestEnd);
+    }
+    if (rest.length > 0) out.push({ t: "text", s: rest });
+  }
+  return out;
+}
 
 // Inline markdown: `code`, **strong**, or [label](safe-url). Non-greedy, no nesting.
 const INLINE = /(`[^`]+`|\*\*[^*]+\*\*|~~[^~]+~~|\[[^\]]+\]\((?:[^()]|\([^()]*\))*\)|\*[^*]+\*|_[^_]+_)/g;

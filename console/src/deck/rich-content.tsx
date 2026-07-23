@@ -29,12 +29,15 @@ import yaml from "highlight.js/lib/languages/yaml";
 import { useTransientFlag } from "../hooks/use-transient-flag";
 import { t } from "../i18n";
 import {
+  injectCiteMarks,
   parseAnswer,
   parseInline,
   type ChartDatum,
   type ChartSpec,
+  type InlineCiteMark,
   type ListItem,
 } from "./rich-parse";
+import { Tooltip } from "../components/tooltip";
 
 // Register the languages that plausibly appear in FDAI answers (config, IaC,
 // policy, glue). Unregistered languages fall back to auto-detect, then plain.
@@ -55,13 +58,21 @@ hljs.registerLanguage("dockerfile", dockerfile);
 hljs.registerLanguage("xml", xml);
 hljs.registerLanguage("html", xml);
 
-function TextBlock({ text, caret = false }: { readonly text: string; readonly caret?: boolean }) {
+function TextBlock({
+  text,
+  caret = false,
+  citeMarks,
+}: {
+  readonly text: string;
+  readonly caret?: boolean;
+  readonly citeMarks?: readonly InlineCiteMark[] | undefined;
+}) {
   const lines = text.split("\n");
   return (
     <>
       {lines.map((line, i) => (
         <p key={i} class="deck-turn-line">
-          <InlineContent text={line} />
+          <InlineContent text={line} citeMarks={citeMarks} />
           {caret && i === lines.length - 1 ? (
             <span class="deck-gr-caret" aria-hidden="true" />
           ) : null}
@@ -78,10 +89,29 @@ function HeadingBlock({ level, text }: { readonly level: number; readonly text: 
   return <h5 class="deck-rich-heading is-level-3">{content}</h5>;
 }
 
-function InlineContent({ text }: { readonly text: string }) {
+function CiteChip({ n, hint }: { readonly n: number; readonly hint: string }) {
+  return (
+    <Tooltip content={hint}>
+      <span class="deck-cite-chip" role="note" aria-label={`${t("deck.grounded.sourceAria")} ${n}`}>
+        {n}
+      </span>
+    </Tooltip>
+  );
+}
+
+function InlineContent({
+  text,
+  citeMarks,
+}: {
+  readonly text: string;
+  readonly citeMarks?: readonly InlineCiteMark[] | undefined;
+}) {
+  const runs = citeMarks && citeMarks.length > 0
+    ? injectCiteMarks(parseInline(text), citeMarks)
+    : parseInline(text);
   return (
     <>
-      {parseInline(text).map((run, index) =>
+      {runs.map((run, index) =>
         run.t === "code" ? (
           <code key={index} class="deck-inline-code">{run.s}</code>
         ) : run.t === "strong" ? (
@@ -90,6 +120,8 @@ function InlineContent({ text }: { readonly text: string }) {
           <em key={index}>{run.s}</em>
         ) : run.t === "strike" ? (
           <del key={index}>{run.s}</del>
+        ) : run.t === "cite" ? (
+          <CiteChip key={index} n={run.n} hint={run.title} />
         ) : run.t === "link" ? (
           <a
             key={index}
@@ -409,22 +441,29 @@ export function RichContent({
   text,
   streaming = false,
   suppressCode = false,
+  citeMarks,
 }: {
   readonly text: string;
   readonly streaming?: boolean;
   readonly suppressCode?: boolean;
+  /** Numbered inline citation anchors. Injected only into settled prose (never
+   *  while streaming, to avoid chips flickering mid-token). */
+  readonly citeMarks?: readonly InlineCiteMark[] | undefined;
 }) {
   const segments = parseAnswer(text);
   if (segments.length === 0) {
     return streaming ? <span class="deck-gr-caret" aria-hidden="true" /> : null;
   }
+  const marks = streaming ? undefined : citeMarks;
   const lastIsText = segments[segments.length - 1]?.kind === "text";
   return (
     <div class="deck-rich">
       {segments.map((seg, i) => {
         const isLast = i === segments.length - 1;
         if (seg.kind === "text") {
-          return <TextBlock key={i} text={seg.text} caret={streaming && isLast} />;
+          return (
+            <TextBlock key={i} text={seg.text} caret={streaming && isLast} citeMarks={marks} />
+          );
         }
         if (seg.kind === "heading") {
           return <HeadingBlock key={i} level={seg.level} text={seg.text} />;

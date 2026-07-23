@@ -1557,6 +1557,12 @@
         "verticalsUnknown": "아직 영역으로 분류되지 않은 이벤트입니다."
       }
     },
+    "grounded": {
+      "showTrace": "추적 보기",
+      "hideTrace": "추적 숨기기",
+      "traceLabel": "검색 추적",
+      "sourceAria": "출처"
+    },
     "retrieval": {
       "readScreen": "현재 화면 읽기",
       "routeChosen": "라우팅 - {deployment} 선택",

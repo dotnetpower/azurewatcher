@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAnswer, parseInline, type Segment } from "./rich-parse";
+import { injectCiteMarks, parseAnswer, parseInline, type Segment } from "./rich-parse";
 
 function kinds(segs: Segment[]): string[] {
   return segs.map((s) => s.kind);
@@ -386,5 +386,43 @@ describe("parseInline", () => {
 
   it("never returns empty (blank line -> one text run)", () => {
     expect(parseInline("")).toEqual([{ t: "text", s: "" }]);
+  });
+});
+
+describe("injectCiteMarks", () => {
+  it("places a numbered chip after the first occurrence of a cited value", () => {
+    const runs = parseInline("PITR is disabled on postgres-flex-prod.");
+    const out = injectCiteMarks(runs, [
+      { n: 1, value: "postgres-flex-prod", title: "resource - postgres-flex-prod" },
+    ]);
+    expect(out).toEqual([
+      { t: "text", s: "PITR is disabled on postgres-flex-prod" },
+      { t: "cite", n: 1, title: "resource - postgres-flex-prod" },
+      { t: "text", s: "." },
+    ]);
+  });
+
+  it("places each mark once, earliest value first", () => {
+    const runs = parseInline("3 rules agree; 3 is the count.");
+    const out = injectCiteMarks(runs, [
+      { n: 2, value: "count", title: "count" },
+      { n: 1, value: "3", title: "three" },
+    ]);
+    // "3" placed at its first occurrence (n:1), then "count" later (n:2).
+    expect(out).toEqual([
+      { t: "text", s: "3" },
+      { t: "cite", n: 1, title: "three" },
+      { t: "text", s: " rules agree; 3 is the count" },
+      { t: "cite", n: 2, title: "count" },
+      { t: "text", s: "." },
+    ]);
+  });
+
+  it("never injects into code or link runs, and leaves runs unchanged with no marks", () => {
+    const runs = parseInline("`3` and text");
+    expect(injectCiteMarks(runs, [])).toEqual(runs);
+    const out = injectCiteMarks(runs, [{ n: 1, value: "3", title: "three" }]);
+    // the "3" inside code is untouched; no text run contains "3" so nothing is placed.
+    expect(out).toEqual(runs);
   });
 });
