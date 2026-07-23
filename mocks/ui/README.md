@@ -63,7 +63,7 @@ Report and kit:
 | File | Purpose |
 |------|---------|
 | [report.html](report.html) | Weekly review layout: numbered sections, KPI grid, AS-IS / TO-BE compare, critique table |
-| [components.html](components.html) | Component gallery: KPI cards, tables, tags, severity, alerts, forms, tabs, tier chips, meters |
+| [components.html](components.html) | Component gallery: metrics, tables, tokens, alerts, forms, selection controls, date and time inputs, sliders, filters, navigation, feedback states, overlays, and structured summaries |
 | [index.html](index.html) | Kit landing: palette, page index, design principles |
 
 ## Assets
@@ -71,8 +71,9 @@ Report and kit:
 - [assets/calm-slate.css](assets/calm-slate.css) - the whole theme: CSS variables (palette),
   layout container (max-width 1160px), section number badges, cards, KPI grid, AS-IS/TO-BE
   comparison, critique table, pill tags, severity badges, trust-tier chips, buttons, forms,
-  alerts, tabs, meters, and the Live cockpit (activity swarm, sparkline strip, audit ticker).
-  All classes are prefixed `cs-`.
+  selection controls, native date and time inputs, range controls, alerts, tabs, pagination,
+  loading and empty states, tooltips, dialogs, meters, and the Live cockpit (activity swarm,
+  sparkline strip, audit ticker). All classes are prefixed `cs-`.
 - [assets/calm-slate.js](assets/calm-slate.js) - shared left navigation, tab switching, and
   chart detail modals; no privileged calls. Direct page loads render the full navigation.
   Pages embedded by the kit landing suppress their local shell so the navigation is not nested.

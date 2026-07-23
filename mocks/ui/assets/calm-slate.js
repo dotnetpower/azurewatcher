@@ -107,6 +107,61 @@
 
   document.addEventListener("DOMContentLoaded", createNavigation);
 
+  document.addEventListener("click", function (event) {
+    var dismissButton = event.target.closest("[data-cs-dismiss]");
+    if (!dismissButton) return;
+    var dismissible = dismissButton.closest("[data-cs-dismissible]");
+    if (dismissible) dismissible.remove();
+  });
+
+  document.addEventListener("click", function (event) {
+    var selection = event.target.closest("[data-cs-segmented] button");
+    if (selection) {
+      selection.closest("[data-cs-segmented]").querySelectorAll("button").forEach(function (button) {
+        var active = button === selection;
+        button.classList.toggle("is-active", active);
+        button.classList.toggle("cs-active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+    }
+
+    var pageButton = event.target.closest("[data-cs-pagination] .cs-page-button:not(:disabled)");
+    if (pageButton && /^\d+$/.test(pageButton.textContent.trim())) {
+      pageButton.closest("[data-cs-pagination]").querySelectorAll(".cs-page-button").forEach(function (button) {
+        var active = button === pageButton;
+        button.classList.toggle("is-active", active);
+        if (active) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      });
+    }
+
+    var dialogOpen = event.target.closest("[data-cs-dialog-open]");
+    if (dialogOpen) {
+      var dialog = document.getElementById(dialogOpen.getAttribute("data-cs-dialog-open"));
+      if (dialog && typeof dialog.showModal === "function") dialog.showModal();
+    }
+
+    var dialogClose = event.target.closest("[data-cs-dialog-close]");
+    if (dialogClose) {
+      var containingDialog = dialogClose.closest("dialog");
+      if (containingDialog) containingDialog.close();
+    }
+  });
+
+  document.addEventListener("input", function (event) {
+    var range = event.target.closest("[data-cs-range]");
+    if (!range) return;
+    var output = range.parentElement.querySelector("output");
+    if (output) output.value = range.value + "%";
+  });
+
+  document.addEventListener("click", function (event) {
+    if (event.target.tagName !== "DIALOG") return;
+    var bounds = event.target.getBoundingClientRect();
+    var inside = event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+    if (!inside) event.target.close();
+  });
+
   // ---- Tabs (unchanged) -----------------------------------------------------
   document.addEventListener("click", function (event) {
     var tab = event.target.closest("[data-cs-tab]");

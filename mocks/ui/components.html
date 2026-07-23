@@ -108,6 +108,11 @@
         <div class="cs-alert is-success"><div class="cs-alert-bar"></div><div><h4>Promoted</h4><p>Action passed shadow evaluation with zero policy escapes.</p></div></div>
         <div class="cs-alert is-warn"><div class="cs-alert-bar"></div><div><h4>Awaiting HIL</h4><p>High-risk change queued for human approval.</p></div></div>
         <div class="cs-alert is-danger"><div class="cs-alert-bar"></div><div><h4>Regression</h4><p>Assignment auto-demoted back to shadow mode.</p></div></div>
+        <div class="cs-alert is-info" role="status" data-cs-dismissible>
+          <div class="cs-alert-bar"></div>
+          <div class="cs-alert-content"><h4>Dismissible guidance</h4><p>This local notice can be closed after it has been read.</p></div>
+          <button class="cs-alert-dismiss" type="button" aria-label="Dismiss guidance" data-cs-dismiss>&times;</button>
+        </div>
       </div>
     </section>
 
@@ -167,6 +172,152 @@
             <dt>T2</dt><dd>seconds to tens of seconds - frontier models</dd>
           </dl>
         </div>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">7</span>
+        <div class="cs-section-title"><h2>Selection controls</h2><p class="cs-desc">Switches, segmented buttons, checkboxes, and radio groups with disabled states.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-2">
+        <div class="cs-card">
+          <p class="cs-label">Segmented button</p>
+          <div class="cs-segmented cs-mb-24" role="group" aria-label="Time window" data-cs-segmented>
+            <button type="button" aria-pressed="false">24 hours</button>
+            <button type="button" class="is-active" aria-pressed="true">7 days</button>
+            <button type="button" aria-pressed="false">30 days</button>
+          </div>
+          <p class="cs-label">Toggle switches</p>
+          <div class="cs-flex cs-wrap cs-gap-12">
+            <label class="cs-switch"><input type="checkbox" checked /><span class="cs-switch-track" aria-hidden="true"></span>Live updates</label>
+            <label class="cs-switch"><input type="checkbox" /><span class="cs-switch-track" aria-hidden="true"></span>Compact rows</label>
+            <label class="cs-switch"><input type="checkbox" disabled /><span class="cs-switch-track" aria-hidden="true"></span>Unavailable</label>
+          </div>
+        </div>
+        <div class="cs-card">
+          <p class="cs-label">Checkboxes</p>
+          <div class="cs-choice-group cs-mb-24">
+            <label class="cs-choice"><input type="checkbox" checked /><span class="cs-choice-mark" aria-hidden="true"></span>Resilience</label>
+            <label class="cs-choice"><input type="checkbox" /><span class="cs-choice-mark" aria-hidden="true"></span>Change safety</label>
+            <label class="cs-choice"><input type="checkbox" disabled /><span class="cs-choice-mark" aria-hidden="true"></span>Unavailable</label>
+          </div>
+          <p class="cs-label">Radio group</p>
+          <div class="cs-choice-group" role="radiogroup" aria-label="Density">
+            <label class="cs-choice is-radio"><input type="radio" name="density" checked /><span class="cs-choice-mark" aria-hidden="true"></span>Comfortable</label>
+            <label class="cs-choice is-radio"><input type="radio" name="density" /><span class="cs-choice-mark" aria-hidden="true"></span>Compact</label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">8</span>
+        <div class="cs-section-title"><h2>Date, time &amp; values</h2><p class="cs-desc">Native pickers and a range control styled for filtering and local preferences.</p></div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-form-grid">
+          <div class="cs-field"><label class="cs-label" for="date-start">Start date</label><input class="cs-input" id="date-start" type="date" value="2026-07-01" /></div>
+          <div class="cs-field"><label class="cs-label" for="date-end">End date</label><input class="cs-input" id="date-end" type="date" value="2026-07-23" /></div>
+          <div class="cs-field"><label class="cs-label" for="time-at">Time</label><input class="cs-input" id="time-at" type="time" value="09:30" /></div>
+          <div class="cs-field"><label class="cs-label" for="date-time">Date and time</label><input class="cs-input" id="date-time" type="datetime-local" value="2026-07-23T09:30" /></div>
+          <div class="cs-field is-wide">
+            <label class="cs-label" for="confidence-range">Confidence threshold</label>
+            <div class="cs-range-row"><input class="cs-range" id="confidence-range" type="range" min="0" max="100" value="72" data-cs-range /><output class="cs-range-output" for="confidence-range">72%</output></div>
+            <div class="cs-help">Keyboard arrows adjust the threshold in one-point increments.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">9</span>
+        <div class="cs-section-title"><h2>Text &amp; search inputs</h2><p class="cs-desc">Search, multiline notes, validation help, and disabled state.</p></div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-form-grid">
+          <div class="cs-field"><label class="cs-label" for="search-events">Search events</label><input class="cs-input" id="search-events" type="search" placeholder="Rule, resource, or correlation id" /></div>
+          <div class="cs-field"><label class="cs-label" for="readonly-scope">Locked scope</label><input class="cs-input" id="readonly-scope" type="text" value="subscription-wide" disabled /><div class="cs-help">Disabled values are unavailable in the current context.</div></div>
+          <div class="cs-field is-wide"><label class="cs-label" for="operator-note">Operator note</label><textarea class="cs-textarea" id="operator-note" placeholder="Add context without changing the recorded decision"></textarea></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">10</span>
+        <div class="cs-section-title"><h2>Navigation &amp; filters</h2><p class="cs-desc">Sub-navigation, filter chips, search, and pagination.</p></div>
+      </div>
+      <div class="cs-card">
+        <nav class="cs-subnav" aria-label="Example views">
+          <a class="cs-active" href="#" aria-current="page">Overview</a><a href="#">Evidence</a><a href="#">History</a>
+        </nav>
+        <div class="cs-filterbar">
+          <span class="cs-fb-label">Risk</span>
+          <div class="cs-chipset" data-cs-segmented><button class="cs-chip cs-active" type="button" aria-pressed="true">All</button><button class="cs-chip" type="button" aria-pressed="false">High</button><button class="cs-chip" type="button" aria-pressed="false">Critical</button></div>
+          <label class="cs-fb-search"><span aria-hidden="true">&#128269;</span><input type="search" aria-label="Filter examples" placeholder="Filter examples" /></label>
+        </div>
+        <nav class="cs-pagination" aria-label="Example pagination" data-cs-pagination>
+          <button class="cs-page-button" type="button" disabled aria-label="Previous page">&lsaquo;</button>
+          <button class="cs-page-button is-active" type="button" aria-current="page">1</button>
+          <button class="cs-page-button" type="button">2</button>
+          <button class="cs-page-button" type="button">3</button>
+          <button class="cs-page-button" type="button" aria-label="Next page">&rsaquo;</button>
+        </nav>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">11</span>
+        <div class="cs-section-title"><h2>Status &amp; decision tokens</h2><p class="cs-desc">Operational status, risk, execution mode, action category, and vertical labels.</p></div>
+      </div>
+      <div class="cs-card">
+        <p class="cs-label">Lifecycle status</p>
+        <div class="cs-flex cs-wrap cs-gap-12 cs-mb-24"><span class="cs-status ok">healthy</span><span class="cs-status wait">waiting</span><span class="cs-status err">failed</span><span class="cs-status idle">idle</span></div>
+        <p class="cs-label">Risk &amp; execution mode</p>
+        <div class="cs-flex cs-wrap cs-gap-8 cs-mb-24"><span class="cs-risk low">low</span><span class="cs-risk medium">medium</span><span class="cs-risk high">high</span><span class="cs-risk critical">critical</span><span class="cs-mode shadow">shadow</span><span class="cs-mode enforce">enforce</span><span class="cs-mode hil">approval</span><span class="cs-mode abstain">abstain</span><span class="cs-mode deny">deny</span></div>
+        <p class="cs-label">Category &amp; vertical</p>
+        <div class="cs-flex cs-wrap cs-gap-8"><span class="cs-cat remediation">remediation</span><span class="cs-cat ops">operations</span><span class="cs-cat governance">governance</span><span class="cs-vert resilience">Resilience</span><span class="cs-vert change">Change Safety</span><span class="cs-vert cost">Cost Governance</span></div>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">12</span>
+        <div class="cs-section-title"><h2>Feedback &amp; overlays</h2><p class="cs-desc">Read-only guidance, empty and loading states, tooltip, and modal dialog.</p></div>
+      </div>
+      <div class="cs-readonly-banner"><strong>Read-only view</strong><span>This surface explains recorded state and does not execute actions.</span></div>
+      <div class="cs-grid cs-grid-2 cs-mb-24">
+        <div class="cs-empty"><strong>No matching evidence</strong>Adjust the filters or widen the time window.</div>
+        <div class="cs-skeleton" aria-label="Loading evidence" aria-busy="true"><span class="cs-skeleton-line is-title"></span><span class="cs-skeleton-line"></span><span class="cs-skeleton-line is-short"></span></div>
+      </div>
+      <div class="cs-flex cs-wrap cs-gap-8">
+        <span class="cs-tooltip"><button class="cs-btn" type="button">Hover or focus</button><span class="cs-tooltip-content" role="tooltip">Explains an unfamiliar control without changing state.</span></span>
+        <button class="cs-btn is-navy" type="button" data-cs-dialog-open="component-dialog">Open dialog</button>
+      </div>
+      <dialog class="cs-dialog" id="component-dialog">
+        <div class="cs-dialog-head"><div><h3>Evidence details</h3><p class="cs-muted cs-mb-0">Modal dialog</p></div><button class="cs-alert-dismiss" type="button" aria-label="Close dialog" data-cs-dialog-close>&times;</button></div>
+        <div class="cs-dialog-body"><p>Dialogs keep focused context above the page. Escape and backdrop click both close this sample.</p></div>
+        <div class="cs-dialog-actions"><button class="cs-btn is-primary" type="button" data-cs-dialog-close>Done</button></div>
+      </dialog>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">13</span>
+        <div class="cs-section-title"><h2>Structured summaries</h2><p class="cs-desc">Before/after comparison, compact metadata, and stacked distribution.</p></div>
+      </div>
+      <div class="cs-compare cs-mb-24">
+        <div class="cs-compare-col is-asis"><h4>Before</h4><ul><li>Manual triage queue</li><li>Unmeasured response time</li></ul></div>
+        <div class="cs-compare-col is-tobe"><h4>After</h4><ul><li>Deterministic first routing</li><li>Evidence-qualified outcomes</li></ul></div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-meta"><div><span>Window</span><span>7 days</span></div><div><span>Events</span><span>12,480</span></div><div><span>Policy escapes</span><span>0</span></div></div>
+        <div class="cs-stackbar" aria-label="Decision mix: 76 percent auto, 17 percent approval, 7 percent abstain"><span class="is-auto" style="width:76%"></span><span class="is-hil" style="width:17%"></span><span class="is-abstain" style="width:7%"></span></div>
+        <div class="cs-stackbar-legend"><span><i class="dot" style="background:var(--cs-sage)"></i>Auto 76%</span><span><i class="dot" style="background:var(--cs-terracotta)"></i>Approval 17%</span><span><i class="dot" style="background:var(--cs-plum)"></i>Abstain 7%</span></div>
       </div>
     </section>
   </main>
