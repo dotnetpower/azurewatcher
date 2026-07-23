@@ -34,7 +34,10 @@ export {
 import {
   conversationUserScope,
 } from "./conversation-sessions";
-import { selectConversationWithRoute } from "./conversation-navigation";
+import {
+  runConversationRouteNavigation,
+  selectConversationWithRoute,
+} from "./conversation-navigation";
 import { useViewContext } from "./context";
 import { getDeckUser } from "./deck-user";
 import { DEFAULT_NARRATOR, type Turn } from "./command-deck-presenters";
@@ -114,6 +117,7 @@ export function CommandDeck() {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const contextTimersRef = useRef(new Set<number>());
+  const conversationRouteNavigationRef = useRef(false);
   const streamContextTurn = useContextTurnStream({
     turnsRef,
     contextTimersRef,
@@ -198,6 +202,7 @@ export function CommandDeck() {
     sessionKeyRef,
     turnsRef,
     openingBriefingLoadedRef,
+    conversationRouteNavigationRef,
     historyRef,
     setDraft,
     setSearchQuery,
@@ -322,7 +327,11 @@ export function CommandDeck() {
       onRemoveConversation={removeCachedConversation}
       onSelectConversation={(conversation) => {
         selectConversationWithRoute(conversation, currentPathname(), sessionKey, {
-          navigate,
+          navigate: (path) => runConversationRouteNavigation(
+            path,
+            conversationRouteNavigationRef,
+            navigate,
+          ),
           activate: (selected) => switchSession(
             selected.key,
             selected.agent ?? null,
@@ -330,7 +339,6 @@ export function CommandDeck() {
             selected.label,
             selected.kind,
           ),
-          reopen: openDeck,
           focus: focusInput,
         });
       }}

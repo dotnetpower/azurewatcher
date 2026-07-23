@@ -14,8 +14,9 @@ Selecting an Activity Bar domain opens its Explorer and navigates to the first v
 the operator's local order and visibility preferences. This navigation remains active when the
 Command Deck is closed or floating; a full-workspace Deck closes before the route changes.
 Selecting a cached conversation from another screen is the bounded exception: the console navigates
-to that conversation's origin, activates its transcript, and reopens the Deck after the synchronous
-route-close policy runs. Same-screen and agent conversations switch without route navigation.
+to that conversation's origin while suppressing only the synchronous conversation-owned route
+event, then activates its transcript. The Deck remains open without a transient default-session
+switch or close/reopen focus cycle. Same-screen and agent conversations switch without navigation.
 Reselecting the already active same-screen conversation is focus-only; it does not reload the
 sessionStorage transcript over newer in-memory turns.
 

@@ -33,6 +33,7 @@ interface EventsOptions {
   readonly sessionKeyRef: { current: string };
   readonly turnsRef: { current: readonly Turn[] };
   readonly openingBriefingLoadedRef: { current: Set<string> };
+  readonly conversationRouteNavigationRef: { current: boolean };
   readonly historyRef: { current: DraftHistory };
   readonly setDraft: (value: string) => void;
   readonly setSearchQuery: (value: string) => void;
@@ -72,6 +73,7 @@ export function useCommandDeckEvents(options: EventsOptions) {
     sessionKeyRef,
     turnsRef,
     openingBriefingLoadedRef,
+    conversationRouteNavigationRef,
     historyRef,
     setDraft,
     setSearchQuery,
@@ -257,6 +259,7 @@ export function useCommandDeckEvents(options: EventsOptions) {
   ), [closeDeck]);
   useEffect(() => {
     const switchToCurrentRoute = () => {
+      if (conversationRouteNavigationRef.current) return;
       if (layoutModeRef.current === "workspace" || layoutModeRef.current === "dock") {
         closeDeck();
         return;
@@ -279,7 +282,7 @@ export function useCommandDeckEvents(options: EventsOptions) {
       window.removeEventListener("popstate", switchToCurrentRoute);
       window.removeEventListener("fdai:route-changed", switchToCurrentRoute);
     };
-  }, [closeDeck, sessionKeyRef, switchSession, userScope]);
+  }, [closeDeck, conversationRouteNavigationRef, sessionKeyRef, switchSession, userScope]);
 
   useEffect(() => {
     if (!open || layoutMode !== "workspace") return;
