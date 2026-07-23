@@ -103,10 +103,12 @@ async def test_explicit_search_can_fill_gap_after_internal_evidence() -> None:
 def test_natural_korean_public_discovery_requests_search_the_web() -> None:
     assert _web_novelty("유사한 서비스가 있는지 검색해줄래?") == 1.0
     assert _web_novelty("인터넷에서 유사한 서비스를 검색해줄래?") == 1.0
+    assert _web_novelty("MTTR 과 관련된 솔루션에 대해서 검색해봐") == 1.0
 
 
 def test_current_screen_search_does_not_search_the_web() -> None:
     assert _web_novelty("이 화면에서 실패한 작업을 검색해줄래?") == 0.0
+    assert _web_novelty("이 화면에서 MTTR 솔루션을 검색해줄래?") == 0.0
 
 
 async def test_sensitive_query_is_blocked_before_provider_call() -> None:

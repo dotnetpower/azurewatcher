@@ -46,15 +46,20 @@ _EXPLICIT_WEB_SEARCH = re.compile(
     re.IGNORECASE,
 )
 _PUBLIC_DISCOVERY_SUBJECT = re.compile(
-    r"\b(?:similar|comparable|alternative|competing|competitor)\b.{0,40}"
+    r"(?:\b(?:similar|comparable|alternative|competing|competitor)\b.{0,40})?"
     r"\b(?:service|product|tool|solution)s?\b"
-    "|(?:\uc720\uc0ac\ud55c|\ube44\uc2b7\ud55c|\ub300\uc548|\uacbd\uc7c1).{0,24}"
+    "|(?:(?:\uc720\uc0ac\ud55c|\ube44\uc2b7\ud55c|\ub300\uc548|\uacbd\uc7c1).{0,24})?"
     "(?:\uc11c\ube44\uc2a4|\uc81c\ud488|\ub3c4\uad6c|\uc194\ub8e8\uc158)",
     re.IGNORECASE,
 )
 _DISCOVERY_REQUEST = re.compile(
     r"\b(?:search|find|look\s+up|research|discover)\b"
     "|\uac80\uc0c9|\ucc3e\uc544|\uc54c\uc544\ubd10|\uc870\uc0ac",
+    re.IGNORECASE,
+)
+_SCREEN_LOCAL_SEARCH = re.compile(
+    r"\b(?:this|current)\s+(?:screen|page|table|list)\b"
+    "|(?:\uc774|\ud604\uc7ac)\\s*(?:\ud654\uba74|\ud398\uc774\uc9c0|\ud45c|\ubaa9\ub85d)",
     re.IGNORECASE,
 )
 _FRESHNESS = re.compile(
@@ -300,7 +305,11 @@ def chat_web_search_from_env(
 def _web_novelty(prompt: str) -> float:
     if _EXPLICIT_WEB_SEARCH.search(prompt):
         return 1.0
-    if _PUBLIC_DISCOVERY_SUBJECT.search(prompt) and _DISCOVERY_REQUEST.search(prompt):
+    if (
+        _PUBLIC_DISCOVERY_SUBJECT.search(prompt)
+        and _DISCOVERY_REQUEST.search(prompt)
+        and not _SCREEN_LOCAL_SEARCH.search(prompt)
+    ):
         return 1.0
     if _FRESHNESS.search(prompt) and _PUBLIC_SUBJECT.search(prompt):
         return 0.8

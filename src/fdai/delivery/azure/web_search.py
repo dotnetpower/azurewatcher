@@ -201,6 +201,7 @@ class LatencyRoutedWebSearchProvider:
     async def search(self, query: WebSearchQuery) -> WebSearchResult:
         attempted: set[str] = set()
         last_error: Exception | None = None
+        last_empty_result: WebSearchResult | None = None
         while len(attempted) < len(self._candidates):
             name, candidate = self._pick(exclude=attempted)
             self._in_flight[name] += 1
@@ -220,12 +221,31 @@ class LatencyRoutedWebSearchProvider:
                 self._in_flight[name] = max(0, self._in_flight[name] - 1)
 
             latency_ms = int((time.monotonic() - started) * 1000)
+            if not result.snippets:
+                self._samples[name].append(_FAILURE_PENALTY_MS)
+                attempted.add(name)
+                last_empty_result = WebSearchResult(
+                    query=result.query,
+                    reasons=(
+                        *result.reasons,
+                        f"model:{name}",
+                        f"latency_ms:{latency_ms}",
+                        "no_snippets",
+                    ),
+                )
+                _LOG.warning(
+                    "web_search_router.candidate_empty",
+                    extra={"candidate": name},
+                )
+                continue
             self._samples[name].append(latency_ms)
             return WebSearchResult(
                 query=result.query,
                 snippets=result.snippets,
                 reasons=(*result.reasons, f"model:{name}", f"latency_ms:{latency_ms}"),
             )
+        if last_empty_result is not None:
+            return last_empty_result
         if last_error is not None:
             raise last_error
         raise RuntimeError("web search router exhausted candidates")

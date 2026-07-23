@@ -25,9 +25,16 @@ class _Identity:
 
 
 class _Candidate:
-    def __init__(self, *, delay_ms: int, fail_search: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        delay_ms: int,
+        fail_search: bool = False,
+        empty_search: bool = False,
+    ) -> None:
         self.delay_ms = delay_ms
         self.fail_search = fail_search
+        self.empty_search = empty_search
         self.search_calls = 0
         self.probe_calls = 0
 
@@ -40,6 +47,8 @@ class _Candidate:
         await asyncio.sleep(self.delay_ms / 1000)
         if self.fail_search:
             raise RuntimeError("candidate failed")
+        if self.empty_search:
+            return WebSearchResult(query=query, reasons=("no_search_citations",))
         snippet = WebSnippet(
             url="https://docs.example.com/release",
             domain="docs.example.com",
@@ -80,6 +89,21 @@ async def test_latency_router_fails_over_when_fastest_candidate_errors() -> None
     )
 
     assert failing.search_calls == 1
+    assert healthy.search_calls == 1
+    assert "model:healthy" in result.reasons
+
+
+async def test_latency_router_fails_over_when_fastest_candidate_has_no_snippets() -> None:
+    empty = _Candidate(delay_ms=1, empty_search=True)
+    healthy = _Candidate(delay_ms=15)
+    provider = LatencyRoutedWebSearchProvider(candidates=[("empty", empty), ("healthy", healthy)])
+    await provider.benchmark()
+
+    result = await provider.search(
+        WebSearchQuery(text="MTTR solutions", allowed_domains=("docs.example.com",))
+    )
+
+    assert empty.search_calls == 1
     assert healthy.search_calls == 1
     assert "model:healthy" in result.reasons
 
