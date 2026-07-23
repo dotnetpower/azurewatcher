@@ -29,3 +29,23 @@ test("the deterministic diagram font matches its provenance lock", async () => {
   const font = await readFile(new URL(`fonts/${lock.subset}`, assets));
   assert.equal(sha256(font), lock.subsetSha256);
 });
+
+test("the fixed pantheon manifest resolves 15 safe agent icons", async () => {
+  const iconDirectory = new URL(
+    "../../../console/public/agent-icons/",
+    import.meta.url,
+  );
+  const manifest = JSON.parse(
+    await readFile(new URL("manifest.json", iconDirectory), "utf8"),
+  ) as {
+    agents: Array<{ name: string; file: string }>;
+  };
+
+  assert.equal(manifest.agents.length, 15);
+  assert.equal(new Set(manifest.agents.map((agent) => agent.name)).size, 15);
+  for (const agent of manifest.agents) {
+    const source = await readFile(new URL(agent.file, iconDirectory), "utf8");
+    assert.match(source, /^<svg [^>]*viewBox="0 0 24 24"/);
+    assert.doesNotMatch(source, /<(?:script|foreignObject)\b|\b(?:href|src)\s*=/iu);
+  }
+});

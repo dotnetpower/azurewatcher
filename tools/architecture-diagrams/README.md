@@ -52,8 +52,10 @@ Each `.diagram.yaml` file contains:
 - Nested groups that represent system, cloud, network, subnet, cluster, or
   logical layer boundaries.
 - Nodes with stable ASCII ids and localized labels.
-- Agent nodes use the shared Lucide Bot icon. Non-agent nodes without an
-  explicit product icon render as text-only cards rather than profile initials.
+- Agent nodes use their named glyph from the canonical
+  `console/public/agent-icons/manifest.json` pantheon set. Non-agent nodes
+  without an explicit product icon render as text-only cards rather than
+  profile initials.
 - Single-direction edges with an explicit semantic kind.
 - A legend whenever line styles carry meaning.
 

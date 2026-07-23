@@ -29,10 +29,10 @@ nodes:
     parent: core
     kind: process
     label: { en: Processor, ko: Processor }
-  - id: worker
+  - id: thor
     parent: core
     kind: agent
-    label: { en: Worker agent, ko: Worker agent }
+    label: { en: Thor agent, ko: Thor agent }
   - id: sink
     parent: core
     kind: store
@@ -79,7 +79,13 @@ test("lays out nested groups and renders accessible SVG", async () => {
     assert.ok(start >= 0);
     return svg.slice(start, next >= 0 ? next : undefined);
   };
-  assert.match(nodeMarkup("worker"), /class="agent-icon"/);
+  assert.match(nodeMarkup("thor"), /<image class="agent-icon"/);
+  const thorIcon = nodeMarkup("thor").match(/href="data:image\/svg\+xml;base64,([^"]+)"/);
+  assert.ok(thorIcon);
+  const thorSvg = Buffer.from(thorIcon[1]!, "base64").toString("utf8");
+  assert.match(thorSvg, /aria-label="Thor \(Responder\)"/);
+  assert.match(thorSvg, /#f5a623/);
+  assert.doesNotMatch(thorSvg, /currentColor/);
   for (const id of ["source", "processor", "sink"]) {
     assert.doesNotMatch(nodeMarkup(id), /class="(?:agent|generic)-icon"|<image /);
   }
@@ -90,6 +96,15 @@ test("lays out nested groups and renders accessible SVG", async () => {
   const core = layout.groups.get("core");
   assert.ok(internalStart && core);
   assert.ok(Number(internalStart[1]) >= core.x + 48);
+});
+
+test("rejects an agent node outside the fixed pantheon", async () => {
+  const spec = parseDiagram(source.replaceAll("id: thor", "id: worker"));
+  const layout = await layoutDiagram(spec);
+  await assert.rejects(
+    renderSvg(spec, layout, "en"),
+    /Unknown pantheon agent icon 'worker'/,
+  );
 });
 
 test("rounds orthogonal corners without changing endpoints", () => {

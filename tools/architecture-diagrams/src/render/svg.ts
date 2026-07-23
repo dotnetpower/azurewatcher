@@ -7,7 +7,6 @@ import type {
   ElkLabel,
   ElkPoint,
 } from "elkjs/lib/elk-api.js";
-import { Bot, type IconNode } from "lucide";
 
 import type { DiagramLayout, PositionedShape } from "../layout/elk.js";
 import { cubicCurve } from "../layout/curve.js";
@@ -55,12 +54,30 @@ interface IconLock {
   icons: Record<string, { file: string; productName: string; sha256: string }>;
 }
 
+interface PantheonIconManifest {
+  agents: Array<{
+    name: string;
+    role: string;
+    accent: string;
+    file: string;
+  }>;
+}
+
 const iconDirectory = fileURLToPath(
   new URL("../../assets/azure/", import.meta.url),
 );
 const iconLock = JSON.parse(
   await readFile(new URL("../../assets/azure/icons.lock.json", import.meta.url), "utf8"),
 ) as IconLock;
+const pantheonIconDirectory = fileURLToPath(
+  new URL("../../../../console/public/agent-icons/", import.meta.url),
+);
+const pantheonIconManifest = JSON.parse(
+  await readFile(`${pantheonIconDirectory}/manifest.json`, "utf8"),
+) as PantheonIconManifest;
+const pantheonIconById = new Map(
+  pantheonIconManifest.agents.map((agent) => [agent.name.toLowerCase(), agent]),
+);
 
 function escapeXml(value: string): string {
   return value
@@ -100,32 +117,21 @@ async function iconDataUri(icon: string | undefined): Promise<string | undefined
   return `data:image/svg+xml;base64,${source.toString("base64")}`;
 }
 
-function iconNodeMarkup(icon: IconNode): string {
-  return icon
-    .map(([tag, attributes]) => {
-      const serialized = Object.entries(attributes)
-        .filter(([name]) => name !== "key")
-        .map(([name, value]) => {
-          const attributeName = name.replace(
-            /[A-Z]/gu,
-            (character) => `-${character.toLowerCase()}`,
-          );
-          return `${attributeName}="${escapeXml(String(value))}"`;
-        })
-        .join(" ");
-      return `<${tag}${serialized ? ` ${serialized}` : ""}/>`;
-    })
-    .join("");
-}
-
-function agentIcon(
-  shape: PositionedShape,
-  size: number,
-  top: number,
-): string {
-  const x = shape.x + (shape.width - size) / 2;
-  const y = shape.y + top;
-  return `<g class="agent-icon" transform="translate(${x} ${y}) scale(${size / 24})" aria-hidden="true">${iconNodeMarkup(Bot)}</g>`;
+async function pantheonIconDataUri(node: DiagramNode): Promise<string> {
+  const entry = pantheonIconById.get(node.id);
+  if (!entry) {
+    throw new Error(`Unknown pantheon agent icon '${node.id}'`);
+  }
+  const source = await readFile(`${pantheonIconDirectory}/${entry.file}`, "utf8");
+  if (
+    !source.startsWith("<svg ") ||
+    /<(?:script|foreignObject)\b|\b(?:href|src)\s*=/iu.test(source)
+  ) {
+    throw new Error(`Pantheon agent icon '${node.id}' contains unsupported SVG content`);
+  }
+  return `data:image/svg+xml;base64,${Buffer.from(
+    source.replaceAll("currentColor", entry.accent),
+  ).toString("base64")}`;
 }
 
 async function renderNode(
@@ -134,15 +140,15 @@ async function renderNode(
   locale: Locale,
 ): Promise<string> {
   const geometry = nodeGeometry(node);
-  const icon = await iconDataUri(node.icon);
+  const icon = node.kind === "agent"
+    ? await pantheonIconDataUri(node)
+    : await iconDataUri(node.icon);
   const x = shape.x + shape.width / 2;
   const labelLines = wrapText(node.label[locale], geometry.maxLabelUnits);
   const labelStart = shape.y + geometry.labelTop + NODE_FONT_SIZE;
   const iconMarkup = icon
-    ? `<image href="${icon}" x="${x - geometry.iconSize / 2}" y="${shape.y + geometry.iconTop}" width="${geometry.iconSize}" height="${geometry.iconSize}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`
-    : node.kind === "agent"
-      ? agentIcon(shape, geometry.iconSize, geometry.iconTop)
-      : "";
+    ? `<image${node.kind === "agent" ? ' class="agent-icon"' : ""} href="${icon}" x="${x - geometry.iconSize / 2}" y="${shape.y + geometry.iconTop}" width="${geometry.iconSize}" height="${geometry.iconSize}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`
+    : "";
   const description = node.description?.[locale] ?? node.label[locale];
   return `<g class="diagram-node node-${node.kind}" data-node-id="${node.id}" role="button" tabindex="0" aria-label="${escapeXml(`${node.label[locale]}. ${description}`)}"><rect x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" rx="8"/>${iconMarkup}${textLines(labelLines, x, labelStart, "node-label")}</g>`;
 }
@@ -372,7 +378,6 @@ export async function renderSvg(
     .diagram-node:hover > rect, .diagram-node:focus > rect, .diagram-node.is-active > rect { stroke: var(--fdai-diagram-azure-dark, #005a9e); stroke-width: 3; }
     .diagram-node:focus { outline: none; }
     .node-label { font-size: 13px; font-weight: 650; fill: var(--fdai-diagram-text, #323130); letter-spacing: 0; }
-    .agent-icon { fill: none; stroke: var(--fdai-diagram-azure, #0078d4); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .edge-label rect { fill: var(--fdai-diagram-label-surface, #ffffff); stroke: var(--fdai-diagram-border, #a19f9d); }
     .edge-label-text, .legend-item text { font-size: 12px; font-weight: 600; fill: var(--fdai-diagram-muted, #605e5c); }
     .diagram-edge.is-muted { opacity: 0.12; }
