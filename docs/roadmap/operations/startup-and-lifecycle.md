@@ -55,6 +55,66 @@ The following rules apply to future deployments that enable scale-to-zero:
 
 **TBD**: the concrete cold-start deadline and the exact cold-start-metric name / definition.
 
+## Startup Environment Preflight
+
+Before `/ready` opens, the runtime should evaluate a dependency-specific startup preflight, separate from provisioning-focused deployment preflight and active post-deploy smoke tests.
+
+> **Implementation status**: The individual checks exist, but the coordinator that assembles one
+> `StartupReadinessReport` and applies the rules below is not wired yet.
+
+### Phases and decisions
+
+| Phase | Checks | Mutation policy |
+|-------|--------|-----------------|
+| Static load | release manifest, config hash, catalog version, model bindings, migration expectation | no network and no mutation |
+| Required reachability | identity token, private DNS, TLS, PostgreSQL, Kafka, catalog and policy engine | bounded and read-only |
+| Capability warm-up | each enabled model, embedding, search, notification, and telemetry adapter | minimal requests with explicit cost limits |
+| Active smoke | Kafka probe-topic round trip, database probe transaction, canary, Human approval dry run | dedicated synthetic scope only |
+
+The report uses three decisions. `blocked` keeps `/ready` closed. `degraded` may open observation or read-only
+work but lowers the unavailable capability's authority. `ready` means all required checks passed without a
+lower authority ceiling. Results record the check id, dependency or capability, required/optional class,
+decision, latency, evidence time, sanitized failure class, and next retry.
+
+### Required probe inventory
+
+| Area | Startup evidence |
+|------|------------------|
+| Release and config | image digest, release version, config hash, catalog version, `resolved-models.json` schema and freshness |
+| Host trust | clock skew within the configured token/TLS tolerance, certificate chain and expiry, proxy and custom CA configuration |
+| Identity and secrets | audience-scoped token acquisition, required role observation, native secret/reference injection |
+| State and policy | PostgreSQL connect, migration head, audit availability, kill-switch read, catalog load, OPA compile |
+| Event path | Kafka DNS/TCP/TLS/auth, required topics, consumer groups, DLQs, and Diagnostic Settings forwarder state |
+| Model capabilities | deployment readiness, auth, quota headroom, feature flags, mixed-publisher invariant, verifier and grounding availability |
+| Optional adapters | web search, notifications, Human approval channels, OTLP export, and any fork-registered provider |
+
+There is no single `internet_available` decision. Each enabled destination is checked through DNS,
+TCP, TLS, authentication, and one bounded protocol operation. Package and image registries remain
+build-time evidence. Private endpoints are tested from the runtime subnet.
+
+### Model latency and recovery
+
+Each model candidate receives at least two bounded startup samples. Streaming records time to first token
+(TTFT), total latency, output-token rate, sample count, and sanitized failure class. Embeddings prove latency
+and vector shape; structured-output and tool-calling candidates prove those features. Probes use minimal
+prompts and capped output, avoid unrelated tool charges, and discard error text.
+
+The narrator target remains TTFT p95 within 2.5 seconds
+([operator-console-view-snapshot.md](../interfaces/operator-console-view-snapshot.md)). Startup
+samples do not claim a percentile before the minimum sample count. A target miss is `degraded`; no valid first
+token before the deadline is unavailable. T2 still requires mixed-model and verifier gates, and a deadline
+miss lowers the case to Human approval.
+
+Evidence expires after the configured interval. Periodic probes refresh the report and append only
+transitions. Recovery can restore `ready`, never authority above the deployment's promotion state.
+
+### Failure and authority rules
+
+- **Process-critical**: invalid config, token/secret failure, PostgreSQL/audit failure, policy compile failure, or required Kafka failure keeps `/ready` closed.
+- **Authority-critical**: unreadable kill-switch, missing T2 verification, or unavailable approval forces shadow or Human approval. It never enables an unverified automatic action.
+- **Optional capability**: narrator, search, notification, or telemetry failure is `degraded` with a deterministic fallback or disabled state, never healthy.
+- **Probe safety**: checks are bounded, safe to retry, sanitized, and read-only except on dedicated synthetic resources. A partial required probe produces `blocked`, never `ready`.
+
 ## Initial Rule Catalog State
 
 The upstream repo ships **no customer-specific rules**. On day zero of a fork's deployment

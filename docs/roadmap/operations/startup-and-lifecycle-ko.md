@@ -1,8 +1,8 @@
 ---
 title: 시작과 라이프사이클(Startup and Lifecycle)
 translation_of: startup-and-lifecycle.md
-translation_source_sha: 4a09a3b7e50d8b62186232f506302e5d27e34c03
-translation_revised: 2026-07-22
+translation_source_sha: a8b5a35c7c5c6ca50fa8dd48012e74aada796f12
+translation_revised: 2026-07-23
 ---
 
 # 시작과 라이프사이클(Startup and Lifecycle)
@@ -56,6 +56,67 @@ lag 기반 scale rule을 추가한 뒤에만 `min_replicas = 0`으로 낮춰 sca
    container topology에는 적용되지 않습니다.
 
 **TBD**: 구체적 콜드-스타트 데드라인과 정확한 콜드-스타트-메트릭 이름/정의.
+
+## 시작 환경 Preflight
+
+`/ready`가 열리기 전에 runtime은 dependency별 startup preflight를 평가하는 것이 좋습니다. 이는
+provisioning 중심 deployment preflight 및 active post-deploy smoke test와 구분됩니다.
+
+> **구현 상태**: 개별 check는 존재하지만 하나의 `StartupReadinessReport`를 조립하고 아래 규칙을
+> 적용하는 coordinator는 아직 연결되지 않았습니다.
+
+### 단계와 결정
+
+| 단계 | 검사 | 변경 정책 |
+|------|------|-----------|
+| Static load | release manifest, config hash, catalog version, model binding, migration expectation | network와 변경 없음 |
+| Required reachability | identity token, private DNS, TLS, PostgreSQL, Kafka, catalog와 policy engine | bounded read-only |
+| Capability warm-up | 활성화된 각 model, embedding, search, notification 및 telemetry adapter | 명시적 비용 한도가 있는 최소 요청 |
+| Active smoke | Kafka probe topic round trip, database probe transaction, canary, 사람 승인 dry run | 전용 synthetic scope만 사용 |
+
+Report는 세 가지 결정을 사용합니다. `blocked`는 `/ready`를 닫습니다. `degraded`는 관찰 또는 read-only
+작업을 열 수 있지만 unavailable capability의 권한을 낮춥니다. `ready`는 낮은 권한 상한 없이 필수
+검사가 통과했음을 뜻합니다. 결과는 check id, dependency 또는 capability, required/optional 분류,
+결정, latency, evidence time, 정제된 failure class 및 다음 retry를 기록합니다.
+
+### 필수 Probe Inventory
+
+| 영역 | Startup evidence |
+|------|------------------|
+| Release와 config | image digest, release version, config hash, catalog version, `resolved-models.json` schema와 freshness |
+| Host trust | 설정된 token/TLS 허용 범위 이내의 clock skew, certificate chain과 expiry, proxy와 custom CA config |
+| Identity와 secret | audience-scoped token 획득, 필수 role 관찰, native secret/reference injection |
+| State와 policy | PostgreSQL 연결, migration head, audit 가용성, kill-switch 읽기, catalog load, OPA compile |
+| Event path | Kafka DNS/TCP/TLS/auth, 필수 topic, consumer group, DLQ 및 Diagnostic Settings forwarder 상태 |
+| Model capability | deployment readiness, auth, quota headroom, feature flag, mixed-publisher 불변식, verifier와 grounding 가용성 |
+| Optional adapter | web search, notification, 사람 승인 channel, OTLP export 및 fork가 등록한 provider |
+
+단일 `internet_available` 결정은 사용하지 않습니다. 활성화된 각 destination을 DNS, TCP, TLS,
+authentication 및 하나의 bounded protocol operation으로 검사합니다. Package와 image registry는
+build-time evidence로 유지합니다. Private endpoint는 runtime subnet에서 검사합니다.
+
+### Model Latency와 Recovery
+
+각 model candidate는 최소 두 개의 bounded startup sample을 받습니다. Streaming은 time to first token
+(TTFT), total latency, output-token rate, sample count 및 정제된 failure class를 기록합니다. Embedding은
+latency와 vector shape를, structured-output과 tool-calling candidate는 해당 feature를 증명합니다.
+Probe는 최소 prompt와 capped output을 사용하고 무관한 tool 비용과 error 저장을 피합니다.
+
+Narrator target은 TTFT p95 2.5초 이내로 유지합니다
+([operator-console-view-snapshot-ko.md](../interfaces/operator-console-view-snapshot-ko.md)). Startup
+sample은 minimum sample count 전에는 percentile을 주장하지 않습니다. Target miss는 `degraded`,
+deadline 전 valid first token 부재는 unavailable입니다. T2는 계속 mixed-model과 verifier gate를
+요구하며 deadline miss는 case를 사람 승인으로 낮춥니다.
+
+Evidence는 설정된 interval 이후 만료됩니다. Periodic probe는 report를 refresh하고 transition만
+append합니다. Recovery는 `ready`를 복원할 수 있지만 promotion state보다 권한을 높일 수 없습니다.
+
+### 실패와 권한 규칙
+
+- **Process-critical**: 잘못된 config, token/secret failure, PostgreSQL/audit failure, policy compile failure 또는 필수 Kafka failure는 `/ready`를 닫습니다.
+- **Authority-critical**: 읽을 수 없는 kill-switch, 누락된 T2 verification 또는 unavailable approval은 shadow나 사람 승인을 강제합니다. 검증되지 않은 자동 action을 활성화하지 않습니다.
+- **Optional capability**: narrator, search, notification 또는 telemetry failure는 deterministic fallback 또는 disabled 상태와 함께 `degraded`로 보고하며 healthy로 가장하지 않습니다.
+- **Probe safety**: Check는 bounded, safe to retry, sanitized이며 전용 synthetic resource 외에는 read-only입니다. Partial required probe는 `ready`가 아니라 `blocked`가 됩니다.
 
 ## 초기 규칙 카탈로그 상태
 
