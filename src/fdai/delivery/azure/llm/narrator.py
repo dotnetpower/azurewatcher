@@ -45,6 +45,7 @@ from typing import Any, Final, Protocol
 
 import httpx
 
+from fdai.core.conversation.answer_plan import AnswerPlan, answer_plan_directive
 from fdai.core.conversation.narrator import (
     ToolSchema,
     format_prompt_tool_list,
@@ -72,7 +73,7 @@ _SYSTEM_PROMPT_TEMPLATE: Final[str] = (
     "{tool_list}\n\n"
     "Respond with exactly the verb line (or ABSTAIN)."
 )
-_ANSWER_SYSTEM_PROMPT: Final[str] = """You are the FDAI operator answer narrator.
+_ANSWER_SYSTEM_PROMPT_BASE: Final[str] = """You are the FDAI operator answer narrator.
 Your job is to turn one completed console-tool result into a clear, grounded answer.
 
 Authority and safety rules:
@@ -210,6 +211,7 @@ class AzureOpenAINarratorModel:
         utterance: str,
         tool: ToolSchema,
         result: ToolResult,
+        answer_plan: AnswerPlan,
         prior_turns: Sequence[Turn],
         principal_role: str,
     ) -> str | None:
@@ -228,7 +230,15 @@ class AzureOpenAINarratorModel:
             return None
         content = self._complete(
             messages=[
-                {"role": "system", "content": _ANSWER_SYSTEM_PROMPT},
+                {
+                    "role": "system",
+                    "content": _compose_answer_system_prompt(
+                        answer_plan=answer_plan,
+                        tool=tool,
+                        result=result,
+                        has_prior_context=bool(prior_turns),
+                    ),
+                },
                 {"role": "user", "content": user_payload},
             ],
             max_tokens=self._config.answer_max_tokens,
@@ -272,6 +282,50 @@ class AzureOpenAINarratorModel:
             return None
         content = _extract_content(envelope)
         return content
+
+
+def _compose_answer_system_prompt(
+    *,
+    answer_plan: AnswerPlan,
+    tool: ToolSchema,
+    result: ToolResult,
+    has_prior_context: bool,
+) -> str:
+    """Compose deterministic presentation layers around the authority base."""
+
+    layers = [_ANSWER_SYSTEM_PROMPT_BASE, answer_plan_directive(answer_plan)]
+    if tool.side_effect_class == "read":
+        layers.append(
+            "Tool effect: this is a read-only result. Do not imply that any resource, policy, "
+            "approval, or runtime state changed."
+        )
+    elif tool.side_effect_class == "simulate":
+        layers.append(
+            "Tool effect: this is a simulation result. Describe predicted behavior only and do "
+            "not claim that a live change occurred."
+        )
+    else:
+        layers.append(
+            f"Tool effect: this is a governed {tool.side_effect_class} result. Report only the "
+            "completed result state and never infer execution beyond its explicit receipt."
+        )
+    evidence_count = len(result.evidence_refs)
+    if evidence_count:
+        layers.append(
+            f"Evidence contract: include all {evidence_count} required evidence reference(s) "
+            "verbatim and attach each factual statement to the most relevant reference."
+        )
+    else:
+        layers.append(
+            "Evidence contract: no evidence references were supplied. State that limitation and "
+            "avoid presenting the result as independently verified."
+        )
+    if has_prior_context:
+        layers.append(
+            "Conversation context: use recent turns only to resolve wording and references such as "
+            "'that result'. They are not additional factual authority."
+        )
+    return "\n\n".join(layers)
 
 
 def _answer_user_payload(

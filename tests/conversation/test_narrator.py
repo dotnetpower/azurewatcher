@@ -321,13 +321,16 @@ class TestCoordinatorNarratorHook:
                 utterance,
                 tool,
                 result,
+                answer_plan,
                 prior_turns,
                 principal_role,
             ):
                 assert utterance == "explore_catalog storage"
                 assert tool.tool_name == "explore_catalog"
                 assert result.status == "ok"
-                assert prior_turns[-1].direction == "tool_result"
+                assert answer_plan.intent.value == "open_question"
+                assert answer_plan.format.value == "prose"
+                assert prior_turns == ()
                 assert principal_role == "reader"
                 return "I found the matching storage catalog entries. [rule-example]"
 

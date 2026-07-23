@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 76fd2116843c070ccd7ed4fc5e0f0ddd5cdb32dc
+translation_source_sha: 7d59578aa11d1f3f8eb7d56137feae1778dda718
 translation_revised: 2026-07-23
 ---
 
@@ -107,8 +107,10 @@ flowchart TD
   Protocol을 사용합니다. `GroundedAnswerNarrator`도 구현하는 narrator는 완료된 성공
   `ToolResult`를 presentation-only 2차 pass에서 받습니다. Coordinator는 원본 tool-result turn을
   보존하고 새 tool call을 허용하지 않으며 rendering 실패, 응답 한도 초과 또는 `evidence_ref`
-  누락 시 deterministic preview로 fallback합니다. Web generation은 read API backend seam이므로
-  deployment가 provider를 바인딩할 수 있습니다.
+  누락 시 deterministic preview로 fallback합니다. System prompt는 `AnswerPlan`, tool side-effect
+  class, evidence-reference count 및 prior conversation context 유무에서 결정론적으로 조립합니다.
+  현재 inbound/tool/result transaction은 prior context에서 제외합니다. Web generation은 read API
+  backend seam이므로 deployment가 provider를 바인딩할 수 있습니다.
 - **Layer 1 (Core)**은 이미 shipping 중인 deterministic core 그대로.
   콘솔은 새 판단 경로, 새 지속성 저장소, 새 execution vector를 추가하지
   않는다. 콘솔 tool call은 기존 pipeline이 이미 만드는 법을 아는 call

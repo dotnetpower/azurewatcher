@@ -46,6 +46,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from fdai.core.conversation.answer_plan import AnswerPlan
     from fdai.core.conversation.session import Turn
     from fdai.core.conversation.tools import ToolResult
 
@@ -112,6 +113,7 @@ class GroundedAnswerNarrator(Protocol):
         utterance: str,
         tool: ToolSchema,
         result: ToolResult,
+        answer_plan: AnswerPlan,
         prior_turns: Sequence[Turn],
         principal_role: str,
     ) -> str | None: ...

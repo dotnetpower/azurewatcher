@@ -31,6 +31,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
+from fdai.core.conversation.answer_plan import build_answer_plan
 from fdai.core.conversation.narrator import GroundedAnswerNarrator, Narrator, ToolSchema
 from fdai.core.conversation.session import (
     ConversationSession,
@@ -205,6 +206,7 @@ class ConversationCoordinator:
         :class:`ToolResult` or :class:`AbstainResult` instead.
         """
 
+        prior_turns = session.snapshot()
         inbound = Turn(
             turn_id=str(uuid.uuid4()),
             direction="inbound",
@@ -315,6 +317,7 @@ class ConversationCoordinator:
             utterance=message,
             tool_name=tool.name,
             result=result,
+            prior_turns=prior_turns,
         )
 
     def _render_grounded_answer(
@@ -324,6 +327,7 @@ class ConversationCoordinator:
         utterance: str,
         tool_name: str,
         result: ToolResult,
+        prior_turns: Sequence[Turn],
     ) -> ToolResult:
         """Improve a successful preview while preserving deterministic output."""
 
@@ -340,7 +344,8 @@ class ConversationCoordinator:
                 utterance=utterance,
                 tool=schema,
                 result=result,
-                prior_turns=session.snapshot(),
+                answer_plan=build_answer_plan(utterance),
+                prior_turns=prior_turns,
                 principal_role=session.principal.role.value,
             )
         except Exception:  # noqa: BLE001 - presentation failure keeps deterministic result

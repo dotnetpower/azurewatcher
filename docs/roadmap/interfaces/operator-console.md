@@ -109,8 +109,11 @@ flowchart TD
   Protocol. A narrator that also implements `GroundedAnswerNarrator` receives a completed
   successful `ToolResult` in a second presentation-only pass. The coordinator retains the
   original tool-result turn, accepts no new tool call, and falls back to the deterministic preview
-  when rendering fails, exceeds the response bound, or omits an `evidence_ref`. Web generation uses
-  the read API backend seam, so deployments can bind providers.
+  when rendering fails, exceeds the response bound, or omits an `evidence_ref`. Its system prompt is
+  assembled deterministically from `AnswerPlan`, tool side-effect class, evidence-reference count,
+  and the presence of prior conversation context. The current inbound/tool/result transaction is
+  excluded from that prior context. Web generation uses the read API backend seam, so deployments
+  can bind providers.
 - **Layer 1 (Core)** is exactly the deterministic core that already ships.
   The console adds no new judgment path, no new persistence store, and no
   new execution vector. A console tool call resolves to a call the
