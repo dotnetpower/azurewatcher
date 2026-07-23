@@ -301,6 +301,47 @@ def test_forseti_emits_verdict_auto_on_rule_match() -> None:
     assert verdicts[0].payload["action_type"] == "remediate.disable-public-access"
 
 
+def test_forseti_emits_document_admission_without_action_type() -> None:
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    f = Forseti(bus=bus)
+    asyncio.run(
+        f.on_typed_message(
+            "object.event",
+            {
+                "producer_principal": "Huginn",
+                "kind": "document_ingestion",
+                "event_type": "document.received",
+                "correlation_id": "upload-1",
+                "idempotency_key": "document.received:version-1",
+                "resource_id": "doc-1",
+                "document_id": "doc-1",
+                "record": {"upload_id": "upload-1"},
+            },
+        )
+    )
+
+    verdict = bus.messages_on("object.verdict")[0].payload
+    assert verdict["producer_principal"] == "Forseti"
+    assert verdict["kind"] == "document_ingestion"
+    assert verdict["stage"] == "received"
+    assert verdict["decision"] == "admit"
+    assert "action_type" not in verdict
+
+
+def test_forseti_holds_malformed_document_ingress() -> None:
+    f = Forseti(bus=None)
+
+    verdict = asyncio.run(
+        f.judge_document_ingestion(
+            {"kind": "document_ingestion", "document_id": "doc-1", "record": {}}
+        )
+    )
+
+    assert verdict["decision"] == "hold"
+    assert verdict["reason"] == "invalid_ingress_envelope"
+
+
 def test_forseti_rbac_deny_emits_security_event() -> None:
     reg = load_pantheon()
     bus = InMemoryBus(registry=reg)
@@ -556,6 +597,30 @@ def test_thor_auto_verdict_executes_and_publishes_action_runs() -> None:
     assert [m.payload["idempotency_key"] for m in action_runs] == [
         f"c:{state}" for state in states_seen
     ]
+
+
+def test_thor_ignores_document_admission_verdict() -> None:
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    thor = Thor(bus=bus)
+
+    asyncio.run(
+        thor.on_typed_message(
+            "object.verdict",
+            {
+                "producer_principal": "Forseti",
+                "kind": "document_ingestion",
+                "stage": "received",
+                "decision": "admit",
+                "correlation_id": "upload-1",
+                "document_id": "doc-1",
+            },
+        )
+    )
+
+    assert thor.action_runs == {}
+    assert bus.messages_on("object.action-run") == []
+    assert thor.behavior_snapshot()["document_verdict_ignored"] == 1
 
 
 def test_thor_hil_verdict_waits_for_approval_then_executes() -> None:

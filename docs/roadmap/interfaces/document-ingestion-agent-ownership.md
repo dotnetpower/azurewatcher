@@ -55,10 +55,13 @@ a bad or superseded version retains a Vidar rollback path.
 The ingress step is wired first. The gateway composition wraps the durable activity sink with a
 `PantheonDocumentActivitySink` that promotes the `document.received` transition onto the pantheon
 bus as Huginn's owned `object.event`. The `EventBusDocumentIngestionIntake` claims the Huginn
-`producer_principal`, partitions by `document_id`, and marks the payload `kind = document_ingestion`
-so Forseti and Heimdall (already `object.event` subscribers) receive the upload as a first-class
-event. The delivery layer never holds Thor's executor identity. Later stage transitions stay on the
-durable audit trail until their owning agents drive them; wiring Forseti admissibility, Var
+`producer_principal`, partitions by `document_id`, and supplies canonical `event_type`,
+`correlation_id`, `idempotency_key`, and `resource_id` fields so Forseti and Heimdall (already
+`object.event` subscribers) receive an actionable first-class event. Forseti emits a
+`kind = document_ingestion` admissibility verdict with no action type; malformed ingress is held.
+Thor explicitly ignores this non-action verdict, so an upload can never create an `ActionRun`.
+The delivery layer never holds Thor's executor identity. Later stage transitions stay on the
+durable audit trail until their owning agents drive them; wiring the verdict consumer, Var
 approval, Muninn indexing, and the Saga audit-entry seal as typed objects is the next increment.
 
 ## Related docs

@@ -17,7 +17,12 @@ async def test_intake_publishes_huginn_owned_object_event() -> None:
     await intake.submit(
         action="document.received",
         document_id="doc-1",
-        record={"state": "received", "collection_id": "col-1"},
+        record={
+            "state": "received",
+            "collection_id": "col-1",
+            "upload_id": "upload-1",
+            "version_id": "version-1",
+        },
     )
     envelope = await anext(iterator)
 
@@ -26,6 +31,11 @@ async def test_intake_publishes_huginn_owned_object_event() -> None:
     assert envelope.payload["producer_principal"] == "Huginn"
     assert envelope.payload["kind"] == "document_ingestion"
     assert envelope.payload["action"] == "document.received"
+    assert envelope.payload["event_type"] == "document.received"
+    assert envelope.payload["correlation_id"] == "upload-1"
+    assert envelope.payload["idempotency_key"] == "document.received:version-1"
+    assert envelope.payload["resource_id"] == "doc-1"
+    assert envelope.payload["resource_type"] == "document"
     assert envelope.payload["document_id"] == "doc-1"
     assert envelope.payload["record"]["collection_id"] == "col-1"
 

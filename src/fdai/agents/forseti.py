@@ -104,6 +104,9 @@ class Forseti(Agent):
 
     async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
         if topic in ("object.event", "object.anomaly", "object.drift"):
+            if topic == "object.event" and payload.get("kind") == "document_ingestion":
+                await self.judge_document_ingestion(payload)
+                return
             await self.maybe_request_arbitration(payload)
             await self.judge(payload)
         elif topic == "object.cost-anomaly":
@@ -216,6 +219,37 @@ class Forseti(Agent):
             self.arbitrations.pop(next(iter(self.arbitrations)))
 
     # ---- judgment ------------------------------------------------------
+
+    async def judge_document_ingestion(self, event: dict[str, Any]) -> dict[str, Any]:
+        """Admit a validated upload into the mandatory safety pipeline.
+
+        This is not an action verdict: it carries a kind discriminator and no
+        action type. Thor ignores it, while the ingestion gateway consumes it
+        to unlock the scan phase. Later gates issue their own document verdicts.
+        """
+        correlation_id = str(event.get("correlation_id") or "")
+        document_id = str(event.get("document_id") or event.get("resource_id") or "")
+        record = event.get("record")
+        upload_id = str(record.get("upload_id") or "") if isinstance(record, dict) else ""
+        complete = bool(correlation_id and document_id and upload_id)
+        decision = "admit" if complete else "hold"
+        reason = "ingress_validated" if complete else "invalid_ingress_envelope"
+        self.record_behavior(f"document_ingestion:{decision}")
+        verdict = {
+            "producer_principal": "Forseti",
+            "kind": "document_ingestion",
+            "stage": "received",
+            "decision": decision,
+            "reason": reason,
+            "correlation_id": correlation_id or document_id,
+            "resource_id": document_id,
+            "document_id": document_id,
+            "upload_id": upload_id,
+            "idempotency_key": str(event.get("idempotency_key") or ""),
+        }
+        if self.bus is not None:
+            await self.bus.publish("Forseti", "object.verdict", verdict)
+        return verdict
 
     async def judge(self, event: dict[str, Any]) -> dict[str, Any] | None:
         """Emit a Verdict on the bus. Returns the verdict payload."""

@@ -1,8 +1,8 @@
 ---
 title: 에이전트 판테온
 translation_of: agent-pantheon.md
-translation_source_sha: e400862b99a422f4ee5967df00a82f52c97719dc
-translation_revised: 2026-07-22
+translation_source_sha: 9807896f452703caea0167921ca981fc1a054a92
+translation_revised: 2026-07-23
 ---
 
 # 에이전트 판테온
@@ -98,12 +98,11 @@ graph TD
 
 ## 3. 런타임 관계도
 
-조직도는 보고 라인이다. 관계도는 데이터 흐름이다. Sensing 과 specialist 는
-Forseti 를 feed 하고, Forseti 의 verdict 는 Thor 를 feed 하며, Thor 는
-Vidar (recovery), Var (사람 승인) 로 dispatch 하거나 직접 실행한다. Saga 는
-모든 terminal 상태를 감사하고, Norns 는 Saga 로부터 학습하고, Norns 는
-Mimir 에 제안하며, Odin 은 Forseti 가 최종 결정을 내리기 전 vertical 간 충돌을
-조정한다.
+조직도는 보고 라인이고 관계도는 데이터 흐름입니다. Sensing과 specialist가
+Forseti에 신호를 전달합니다. Action verdict는 Thor가 Vidar (recovery), Var (사람 승인),
+또는 실행으로 dispatch합니다. Document-ingestion verdict는 ingestion plane으로 돌아가며
+Thor는 이를 무시합니다. Saga는 terminal 상태를 감사하고, Norns는 Mimir에 제안하며,
+Odin은 판단 전에 충돌을 조정합니다.
 
 ```mermaid
 graph LR

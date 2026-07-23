@@ -28,6 +28,8 @@ class EventBusDocumentIngestionIntake:
         self._topic: Final = topic
 
     async def submit(self, *, action: str, document_id: str, record: Mapping[str, object]) -> None:
+        correlation_id = str(record.get("upload_id") or document_id)
+        version_id = str(record.get("version_id") or "")
         await self._bus.publish(
             self._topic,
             document_id,
@@ -35,6 +37,11 @@ class EventBusDocumentIngestionIntake:
                 "producer_principal": "Huginn",
                 "kind": "document_ingestion",
                 "action": action,
+                "event_type": action,
+                "correlation_id": correlation_id,
+                "idempotency_key": f"{action}:{version_id or correlation_id}",
+                "resource_id": document_id,
+                "resource_type": "document",
                 "document_id": document_id,
                 "record": dict(record),
             },

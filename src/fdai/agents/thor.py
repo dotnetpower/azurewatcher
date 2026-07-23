@@ -213,6 +213,9 @@ class Thor(Agent):
 
     async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
         if topic == "object.verdict":
+            if payload.get("kind") == "document_ingestion":
+                self.record_behavior("document_verdict_ignored")
+                return
             await self.dispatch_verdict(payload)
         elif topic == "object.approval":
             await self._handle_approval(payload)

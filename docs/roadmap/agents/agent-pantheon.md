@@ -99,10 +99,10 @@ graph TD
 ## 3. Runtime relationship diagram
 
 The org chart is reporting lines. The relationship diagram is data flow.
-Sensing and specialists feed Forseti; Forseti's verdict feeds Thor; Thor
-dispatches to Vidar (recovery), Var (human approval), or executes directly;
-Saga audits every terminal state; Norns learns from Saga; Norns proposes to
-Mimir; Odin arbitrates cross-vertical conflicts before Forseti finalizes.
+Sensing and specialists feed Forseti. Action verdicts feed Thor for dispatch to
+Vidar (recovery), Var (human approval), or execution; document-ingestion verdicts
+return to the ingestion plane and Thor ignores them. Saga audits terminal states;
+Norns proposes to Mimir, and Odin arbitrates conflicts before judgment.
 
 ```mermaid
 graph LR
