@@ -383,6 +383,35 @@ def test_metric_question_does_not_get_screen_walkthrough_directive() -> None:
     assert "at most 120 words" not in system
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "Tell me about this screen",
+        "What does this screen show?",
+        "Explain\nthis screen",
+        "\uc774 \ud654\uba74\uc5d0 \ub300\ud574\uc11c\n\uc124\uba85\ud574\uc918",
+    ],
+)
+def test_screen_walkthrough_intent_accepts_common_and_multiline_requests(prompt: str) -> None:
+    system = _system_of(_build_messages(prompt, {"routeId": "dashboard", "facts": []}, []))
+
+    assert "at most 120 words" in system
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "Do not explain this screen",
+        "Never summarize the current page",
+        "\uc774 \ud654\uba74 \uc124\uba85\ud558\uc9c0 \ub9c8",
+    ],
+)
+def test_screen_walkthrough_intent_rejects_explicit_negation(prompt: str) -> None:
+    system = _system_of(_build_messages(prompt, {"routeId": "dashboard", "facts": []}, []))
+
+    assert "at most 120 words" not in system
+
+
 def test_current_turn_language_takes_precedence_over_history() -> None:
     system = _system_of(_build_messages("What is Forseti doing?", {}, []))
     assert "current turn's language, not history" in system

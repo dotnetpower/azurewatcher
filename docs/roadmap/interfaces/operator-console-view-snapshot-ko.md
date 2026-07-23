@@ -1,7 +1,7 @@
 ---
 title: Operator Console - View Snapshot Contract
 translation_of: operator-console-view-snapshot.md
-translation_source_sha: f6408064363e40f1369ac90ee312d3aaa32c10c1
+translation_source_sha: e8484c26d669ce6076ee683e57840895191facb5
 translation_revised: 2026-07-23
 ---
 
@@ -193,11 +193,13 @@ Incremental SSE delta는 client-side delay 없이 render됩니다. 큰 single fr
 같은 tick의 queue burst만 paint-sized chunk와 짧은 cosmetic cadence로 묶습니다.
 Deterministic fallback prose는 별도의 더 느린 typewriter cadence를 유지합니다.
 
-현재 화면 설명을 명시적으로 요청하는 영어 또는 한국어 질문에는 최대 120단어의
-간결한 operator walkthrough를 제공합니다. Purpose, current status, 가장 중요한 visible
+현재 화면의 설명, 묘사, 요약 또는 walkthrough를 명시적으로 요청하는 영어 또는 한국어 질문에는
+최대 120단어의 간결한 operator walkthrough를 제공합니다. Purpose, current status, 가장 중요한 visible
 evidence를 먼저 다루고 snapshot에 있는 경우에만 control, constraint 또는 safety
 boundary를 설명합니다. Narrator는 raw snapshot field를 반복하거나 control-loop stage를
-추측하거나 별도 example interpretation을 추가하지 않습니다.
+추측하거나 별도 example interpretation을 추가하지 않습니다. 감지는 제한된 줄바꿈과 "이 화면에
+대해 알려줘" 같은 일반 표현을 허용하지만 명시적으로 부정된 요청에는 walkthrough directive를
+활성화하지 않습니다.
 
 Screen-only provisional answer는 두 번째 model call 없이 atomic claim artifact도
 생성. Deterministic extractor는 ID, number, percentage, timestamp, causal assertion,

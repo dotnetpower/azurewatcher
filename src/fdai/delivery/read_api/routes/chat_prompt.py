@@ -109,12 +109,24 @@ _AGENT_NAME_TOKEN: Final = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
 
 
 _SCREEN_EXPLANATION_QUERY: Final = re.compile(
-    r"\b(?:explain|describe|summarize|walk me through)\b.{0,40}\b(?:this|current)\s+"
+    r"\b(?:explain|describe|summarize|walk me through|tell me about)\b[\s\S]{0,40}"
+    r"\b(?:this|current)\s+"
     r"(?:screen|page|view)\b"
-    r"|\bwhat(?:'s| is)\b.{0,20}\b(?:on|in)\s+(?:this|the current)\s+"
+    r"|\bwhat(?:'s| is)\b[\s\S]{0,20}\b(?:on|in)\s+(?:this|the current)\s+"
     r"(?:screen|page|view)\b"
-    r"|(?:\uc774|\ud604\uc7ac)\s*(?:\ud654\uba74|\ud398\uc774\uc9c0|\ubdf0).{0,40}"
+    r"|\bwhat\s+does\s+(?:this|the current)\s+(?:screen|page|view)\s+show\b"
+    r"|(?:\uc774|\ud604\uc7ac)\s*(?:\ud654\uba74|\ud398\uc774\uc9c0|\ubdf0)[\s\S]{0,40}"
     r"(?:\uc124\uba85|\uc694\uc57d|\uc54c\ub824|\ubb34\uc5c7|\ubb50)",
+    re.IGNORECASE,
+)
+
+
+_SCREEN_EXPLANATION_NEGATION: Final = re.compile(
+    r"\b(?:do not|don't|never|no need to)\s+"
+    r"(?:explain|describe|summarize|walk me through|tell me about)\b[\s\S]{0,40}"
+    r"\b(?:this|current)\s+(?:screen|page|view)\b"
+    r"|(?:\uc774|\ud604\uc7ac)\s*(?:\ud654\uba74|\ud398\uc774\uc9c0|\ubdf0)[\s\S]{0,40}"
+    r"(?:\uc124\uba85|\uc694\uc57d)[\s\S]{0,12}(?:\ud558\uc9c0\s*\ub9c8|\ud558\uc9c0\s*\ub9d0)",
     re.IGNORECASE,
 )
 
@@ -149,7 +161,9 @@ def _is_concept_query(prompt: str) -> bool:
 def _is_screen_explanation_query(prompt: str) -> bool:
     """Return whether the operator explicitly asks for a current-view walkthrough."""
 
-    return bool(_SCREEN_EXPLANATION_QUERY.search(prompt))
+    return not _SCREEN_EXPLANATION_NEGATION.search(prompt) and bool(
+        _SCREEN_EXPLANATION_QUERY.search(prompt)
+    )
 
 
 def _glossary_matches(prompt: str) -> list[dict[str, str]]:
