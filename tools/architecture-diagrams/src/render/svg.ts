@@ -7,6 +7,7 @@ import type {
   ElkLabel,
   ElkPoint,
 } from "elkjs/lib/elk-api.js";
+import { Bot, type IconNode } from "lucide";
 
 import type { DiagramLayout, PositionedShape } from "../layout/elk.js";
 import { cubicCurve } from "../layout/curve.js";
@@ -99,29 +100,32 @@ async function iconDataUri(icon: string | undefined): Promise<string | undefined
   return `data:image/svg+xml;base64,${source.toString("base64")}`;
 }
 
-function genericIcon(
-  node: DiagramNode,
+function iconNodeMarkup(icon: IconNode): string {
+  return icon
+    .map(([tag, attributes]) => {
+      const serialized = Object.entries(attributes)
+        .filter(([name]) => name !== "key")
+        .map(([name, value]) => {
+          const attributeName = name.replace(
+            /[A-Z]/gu,
+            (character) => `-${character.toLowerCase()}`,
+          );
+          return `${attributeName}="${escapeXml(String(value))}"`;
+        })
+        .join(" ");
+      return `<${tag}${serialized ? ` ${serialized}` : ""}/>`;
+    })
+    .join("");
+}
+
+function agentIcon(
   shape: PositionedShape,
   size: number,
   top: number,
 ): string {
-  const x = shape.x + shape.width / 2;
-  const y = shape.y + top + size / 2;
-  const radius = size / 2;
-  const abbreviation = node.label.en
-    .split(/\s+/u)
-    .map((word) => word[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-  if (node.kind === "store") {
-    const rx = radius * 0.82;
-    return `<g class="generic-icon" aria-hidden="true"><ellipse cx="${x}" cy="${y - radius * 0.35}" rx="${rx}" ry="${radius * 0.3}"/><path d="M${x - rx} ${y - radius * 0.35}v${radius * 0.95}c0 ${radius * 0.2} ${radius * 0.4} ${radius * 0.34} ${rx} ${radius * 0.34}s${rx} ${-radius * 0.14} ${rx} ${-radius * 0.34}v${-radius * 0.95}"/><path d="M${x - rx} ${y + radius * 0.05}c0 ${radius * 0.2} ${radius * 0.4} ${radius * 0.34} ${rx} ${radius * 0.34}s${rx} ${-radius * 0.14} ${rx} ${-radius * 0.34}"/></g>`;
-  }
-  if (node.kind === "decision") {
-    return `<g class="generic-icon" aria-hidden="true"><path d="M${x} ${y - radius}l${radius} ${radius}-${radius} ${radius}-${radius}-${radius}z"/><text x="${x}" y="${y + 4}" text-anchor="middle">${escapeXml(abbreviation)}</text></g>`;
-  }
-  return `<g class="generic-icon" aria-hidden="true"><circle cx="${x}" cy="${y}" r="${radius}"/><text x="${x}" y="${y + 4}" text-anchor="middle">${escapeXml(abbreviation)}</text></g>`;
+  const x = shape.x + (shape.width - size) / 2;
+  const y = shape.y + top;
+  return `<g class="agent-icon" transform="translate(${x} ${y}) scale(${size / 24})" aria-hidden="true">${iconNodeMarkup(Bot)}</g>`;
 }
 
 async function renderNode(
@@ -136,7 +140,9 @@ async function renderNode(
   const labelStart = shape.y + geometry.labelTop + NODE_FONT_SIZE;
   const iconMarkup = icon
     ? `<image href="${icon}" x="${x - geometry.iconSize / 2}" y="${shape.y + geometry.iconTop}" width="${geometry.iconSize}" height="${geometry.iconSize}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`
-    : genericIcon(node, shape, geometry.iconSize, geometry.iconTop);
+    : node.kind === "agent"
+      ? agentIcon(shape, geometry.iconSize, geometry.iconTop)
+      : "";
   const description = node.description?.[locale] ?? node.label[locale];
   return `<g class="diagram-node node-${node.kind}" data-node-id="${node.id}" role="button" tabindex="0" aria-label="${escapeXml(`${node.label[locale]}. ${description}`)}"><rect x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" rx="8"/>${iconMarkup}${textLines(labelLines, x, labelStart, "node-label")}</g>`;
 }
@@ -362,12 +368,11 @@ export async function renderSvg(
     .diagram-group[data-group-id="operator-console-layer"] .group-header { fill: var(--fdai-diagram-delivery-header, #d9f8ff); }
     .diagram-group.group-network .group-surface, .diagram-group.group-subnet .group-surface { fill: var(--fdai-diagram-delivery-surface, #f0fbfd); stroke: #008272; }
     .group-label { font-size: 14px; font-weight: 650; fill: var(--fdai-diagram-muted, #605e5c); }
-    .diagram-node rect { fill: var(--fdai-diagram-node, #ffffff); stroke: var(--fdai-diagram-border, #a19f9d); stroke-width: 1.25; filter: url(#node-shadow); }
-    .diagram-node:hover rect, .diagram-node:focus rect, .diagram-node.is-active rect { stroke: var(--fdai-diagram-azure-dark, #005a9e); stroke-width: 3; }
+    .diagram-node > rect { fill: var(--fdai-diagram-node, #ffffff); stroke: var(--fdai-diagram-border, #a19f9d); stroke-width: 1.25; filter: url(#node-shadow); }
+    .diagram-node:hover > rect, .diagram-node:focus > rect, .diagram-node.is-active > rect { stroke: var(--fdai-diagram-azure-dark, #005a9e); stroke-width: 3; }
     .diagram-node:focus { outline: none; }
     .node-label { font-size: 13px; font-weight: 650; fill: var(--fdai-diagram-text, #323130); letter-spacing: 0; }
-    .generic-icon circle, .generic-icon path { fill: var(--fdai-diagram-azure-soft, #deecf9); stroke: var(--fdai-diagram-azure, #0078d4); stroke-width: 1.8; }
-    .generic-icon text { font-size: 12px; font-weight: 700; fill: var(--fdai-diagram-azure-dark, #005a9e); }
+    .agent-icon { fill: none; stroke: var(--fdai-diagram-azure, #0078d4); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .edge-label rect { fill: var(--fdai-diagram-label-surface, #ffffff); stroke: var(--fdai-diagram-border, #a19f9d); }
     .edge-label-text, .legend-item text { font-size: 12px; font-weight: 600; fill: var(--fdai-diagram-muted, #605e5c); }
     .diagram-edge.is-muted { opacity: 0.12; }

@@ -29,6 +29,10 @@ nodes:
     parent: core
     kind: process
     label: { en: Processor, ko: Processor }
+  - id: worker
+    parent: core
+    kind: agent
+    label: { en: Worker agent, ko: Worker agent }
   - id: sink
     parent: core
     kind: store
@@ -65,8 +69,20 @@ test("lays out nested groups and renders accessible SVG", async () => {
   assert.match(svg, /var\(--fdai-diagram-canvas, #faf9f8\)/);
   assert.match(svg, /var\(--fdai-diagram-azure, #0078d4\)/);
   assert.match(svg, /var\(--fdai-diagram-text, #323130\)/);
+  assert.match(svg, /\.diagram-node > rect/);
+  assert.doesNotMatch(svg, /\.diagram-node rect \{/);
   assert.match(svg, /<title id="diagram-title">Render sample<\/title>/);
   assert.match(svg, /data-node-id="processor"/);
+  const nodeMarkup = (id: string): string => {
+    const start = svg.indexOf(`data-node-id="${id}"`);
+    const next = svg.indexOf('<g class="diagram-node', start + 1);
+    assert.ok(start >= 0);
+    return svg.slice(start, next >= 0 ? next : undefined);
+  };
+  assert.match(nodeMarkup("worker"), /class="agent-icon"/);
+  for (const id of ["source", "processor", "sink"]) {
+    assert.doesNotMatch(nodeMarkup(id), /class="(?:agent|generic)-icon"|<image /);
+  }
   assert.match(svg, /marker-end="url\(#arrow-event\)"/);
   const internalStart = svg.match(
     /data-edge-id="internal-flow"[\s\S]*?<path d="M([\d.]+) ([\d.]+)/,

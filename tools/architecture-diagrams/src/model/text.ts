@@ -80,6 +80,7 @@ function maxLocaleLineCount(
 export interface NodeGeometry {
   width: number;
   height: number;
+  hasIcon: boolean;
   iconSize: number;
   iconTop: number;
   labelTop: number;
@@ -90,15 +91,18 @@ export function nodeGeometry(node: DiagramNode): NodeGeometry {
   const width = Math.max(148, node.width ?? 0);
   const maxLabelUnits = (width - 20) / NODE_FONT_SIZE;
   const lineCount = maxLocaleLineCount(node.label, maxLabelUnits);
-  const labelTop = NODE_ICON_TOP + NODE_ICON_SIZE + NODE_LABEL_GAP;
-  const requiredHeight =
-    labelTop + lineCount * NODE_LINE_HEIGHT + NODE_BOTTOM_PADDING;
+  const hasIcon = Boolean(node.icon) || node.kind === "agent";
+  const textHeight = lineCount * NODE_LINE_HEIGHT;
+  const iconLabelTop = NODE_ICON_TOP + NODE_ICON_SIZE + NODE_LABEL_GAP;
+  const requiredHeight = iconLabelTop + textHeight + NODE_BOTTOM_PADDING;
+  const height = Math.max(requiredHeight, node.height ?? 0);
   return {
     width,
-    height: Math.max(requiredHeight, node.height ?? 0),
-    iconSize: NODE_ICON_SIZE,
-    iconTop: NODE_ICON_TOP,
-    labelTop,
+    height,
+    hasIcon,
+    iconSize: hasIcon ? NODE_ICON_SIZE : 0,
+    iconTop: hasIcon ? NODE_ICON_TOP : 0,
+    labelTop: hasIcon ? iconLabelTop : (height - textHeight) / 2,
     maxLabelUnits,
   };
 }

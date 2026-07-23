@@ -21,17 +21,30 @@ test("wrapping never truncates long unbroken labels", () => {
   assert.ok(lines.length > 3);
 });
 
-test("node geometry reserves separate icon and text zones for both locales", () => {
-  const geometry = nodeGeometry({
-    id: "sample",
-    kind: "process",
-    label: {
-      en: "Verification and architecture safety check",
-      ko: "근거 및 아키텍처 안전성 검토",
-    },
+test("node geometry reserves icon space only for visual node kinds", () => {
+  const label = {
+    en: "Verification and architecture safety check",
+    ko: "근거 및 아키텍처 안전성 검토",
+  };
+  const agentGeometry = nodeGeometry({
+    id: "agent",
+    kind: "agent",
+    label,
   });
-  assert.ok(geometry.labelTop >= geometry.iconTop + NODE_ICON_SIZE + NODE_LABEL_GAP);
-  assert.ok(geometry.height > 96);
+  const processGeometry = nodeGeometry({
+    id: "process",
+    kind: "process",
+    label,
+  });
+  assert.equal(agentGeometry.hasIcon, true);
+  assert.ok(
+    agentGeometry.labelTop >=
+      agentGeometry.iconTop + NODE_ICON_SIZE + NODE_LABEL_GAP,
+  );
+  assert.equal(processGeometry.hasIcon, false);
+  assert.equal(processGeometry.iconSize, 0);
+  assert.equal(processGeometry.height, agentGeometry.height);
+  assert.ok(processGeometry.labelTop < agentGeometry.labelTop);
 });
 
 test("edge labels reserve the widest bilingual text", () => {
