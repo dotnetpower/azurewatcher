@@ -205,10 +205,12 @@
     var copyButton = event.target.closest("[data-cs-code-copy]");
     if (!copyButton) return;
     var viewer = copyButton.closest("[data-cs-code-viewer]");
-    var activeCode = viewer.querySelector(".cs-code-panel:not([hidden]) code");
-    var text = Array.prototype.map.call(activeCode.querySelectorAll(".cs-code-line"), function (line) {
+    var surface = copyButton.closest("[data-cs-code-surface]");
+    var activeCode = viewer ? viewer.querySelector(".cs-code-panel:not([hidden]) code") : surface.querySelector("code");
+    var lines = activeCode.querySelectorAll(".cs-code-line");
+    var text = lines.length ? Array.prototype.map.call(lines, function (line) {
       return line.textContent;
-    }).join("\n");
+    }).join("\n") : activeCode.textContent;
     copyCodeText(text).then(function (copied) {
       if (!copied) return;
       copyButton.classList.add("is-copied");

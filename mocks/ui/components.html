@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Components - Calm Slate</title>
-  <link rel="stylesheet" href="assets/calm-slate.css?v=components-v4" />
+  <link rel="stylesheet" href="assets/calm-slate.css?v=components-v5" />
 </head>
 <body>
   <main class="cs-container cs-page">
@@ -376,12 +376,41 @@
         </div>
       </div>
       <div class="cs-code-caption"><span>Token colors remain readable without changing the copied source.</span><span>Keyboard: Tab to language or Copy.</span></div>
+      <div class="cs-code-variants">
+        <div class="cs-code-variants-head">
+          <h3>Compact code patterns</h3>
+          <p>Use the smallest format that preserves the code's meaning.</p>
+        </div>
+        <div class="cs-code-variants-grid">
+          <div>
+            <span class="cs-code-variant-label">Chat compact</span>
+            <div class="cs-code-chat-demo">
+              <span class="cs-code-chat-avatar" aria-hidden="true">Br</span>
+              <div class="cs-code-chat-bubble">
+                <p>The focused verification command is ready:</p>
+                <div class="cs-code-compact" data-cs-code-surface>
+                  <div class="cs-code-compact-head"><span class="cs-code-compact-lang">shell</span><button class="cs-code-copy" type="button" aria-live="polite" data-cs-code-copy>Copy</button></div>
+                  <div class="cs-code-scroll"><pre class="cs-code-block"><code><span class="cs-code-line"><span class="cs-code-token is-command">uv run pytest</span> <span class="cs-code-token is-flag">-q --no-cov</span> \</span><span class="cs-code-line">  tests/core/control_loop</span><span class="cs-code-line"><span class="cs-code-token is-command">uv run mypy</span> <span class="cs-code-token is-flag">--strict</span> src/fdai/core/control_loop</span></code></pre></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cs-code-inline">
+            <span class="cs-code-variant-label">Single-line simple</span>
+            <div class="cs-code-inline-row" data-cs-code-surface>
+              <span class="cs-code-inline-lang">CLI</span>
+              <code><span class="cs-code-token is-command">scripts/verify.sh</span> <span class="cs-code-token is-flag">--full</span></code>
+              <button class="cs-code-copy" type="button" aria-live="polite" data-cs-code-copy>Copy</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
   <footer class="cs-footer">
     <div class="cs-container"><span>FDAI UI kit - Calm Slate theme.</span></div>
   </footer>
-  <script src="assets/calm-slate.js?v=components-v4"></script>
+  <script src="assets/calm-slate.js?v=components-v5"></script>
 </body>
 </html>
