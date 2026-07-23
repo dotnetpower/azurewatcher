@@ -41,8 +41,20 @@ _RESOLVED_MODELS_ENV: Final[str] = "LLM_RESOLVED_MODELS_PATH"
 _EXPLICIT_WEB_SEARCH = re.compile(
     r"\b(?:search|browse)\s+(?:the\s+)?(?:web|internet|online)\b"
     r"|\b(?:web|internet)\s+search\b"
-    "|(?:\uc778\ud130\ub137|\uc6f9).{0,8}\uac80\uc0c9"
-    "|\uac80\uc0c9.{0,8}(?:\uc778\ud130\ub137|\uc6f9)",
+    "|(?:\uc778\ud130\ub137|\uc6f9).{0,80}(?:\uac80\uc0c9|\ucc3e\uc544|\uc870\uc0ac)"
+    "|(?:\uac80\uc0c9|\ucc3e\uc544|\uc870\uc0ac).{0,80}(?:\uc778\ud130\ub137|\uc6f9)",
+    re.IGNORECASE,
+)
+_PUBLIC_DISCOVERY_SUBJECT = re.compile(
+    r"\b(?:similar|comparable|alternative|competing|competitor)\b.{0,40}"
+    r"\b(?:service|product|tool|solution)s?\b"
+    "|(?:\uc720\uc0ac\ud55c|\ube44\uc2b7\ud55c|\ub300\uc548|\uacbd\uc7c1).{0,24}"
+    "(?:\uc11c\ube44\uc2a4|\uc81c\ud488|\ub3c4\uad6c|\uc194\ub8e8\uc158)",
+    re.IGNORECASE,
+)
+_DISCOVERY_REQUEST = re.compile(
+    r"\b(?:search|find|look\s+up|research|discover)\b"
+    "|\uac80\uc0c9|\ucc3e\uc544|\uc54c\uc544\ubd10|\uc870\uc0ac",
     re.IGNORECASE,
 )
 _FRESHNESS = re.compile(
@@ -287,6 +299,8 @@ def chat_web_search_from_env(
 
 def _web_novelty(prompt: str) -> float:
     if _EXPLICIT_WEB_SEARCH.search(prompt):
+        return 1.0
+    if _PUBLIC_DISCOVERY_SUBJECT.search(prompt) and _DISCOVERY_REQUEST.search(prompt):
         return 1.0
     if _FRESHNESS.search(prompt) and _PUBLIC_SUBJECT.search(prompt):
         return 0.8

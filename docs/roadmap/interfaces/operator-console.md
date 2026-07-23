@@ -242,6 +242,22 @@ Each tool declares:
 `RuntimeToolDiscovery` and `tools.search`/`tools.describe` return descriptors without handlers or
 invocation capability. The narrator sees only the same descriptors allowed by the principal role.
 
+### 3.5 Public web evidence
+
+Public web evidence is a deployment-level, read-only capability. It stays unavailable until the
+deployment enables `FDAI_WEB_SEARCH_ENABLED` and configures an approved domain allowlist.
+
+- **Eligibility:** The coordinator deterministically recognizes explicit web or internet search,
+  freshness questions about public technologies, and public discovery requests such as "find
+  similar services." A request to search the current screen doesn't leave FDAI.
+- **Retrieval:** An eligible turn routes to a search-capable Azure Responses model candidate. The
+  provider sends the bounded operator query and domain allowlist, then returns a sanitized evidence
+  snapshot. Bragi renders the answer with source URLs; it doesn't invent a replacement when search
+  is unavailable.
+- **Safety boundary:** Sensitive identifiers block retrieval before any provider call. Web snippets
+  remain untrusted data, can't grant execution eligibility, and don't satisfy rule-catalog evidence
+  requirements for an action.
+
 ## 4-6. Runtime model (Narrator, DI seams, session model)
 
 Moved to a focused owner document: [operator-console-runtime-model.md](operator-console-runtime-model.md). It covers the Narrator LLM tier model (section 4), DI seams (section 5), and the session model and memory (section 6).

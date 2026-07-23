@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 17d0adafa9cad1495b1c68f84a3867d11b08720b
+translation_source_sha: fca609d062cfe47f8dfd8679c1497ed13567e9ff
 translation_revised: 2026-07-23
 ---
 
@@ -234,6 +234,22 @@ correlator는 Layer 1에 살고, narrator 안에 살지 않는다.
 
 `RuntimeToolDiscovery`와 `tools.search`/`tools.describe`는 handler나 invocation capability 없이
 descriptor만 반환합니다. Narrator는 principal role에 허용된 같은 descriptor 목록만 봅니다.
+
+### 3.5 공개 웹 근거
+
+공개 웹 근거는 배포 수준의 read-only capability입니다. 배포에서
+`FDAI_WEB_SEARCH_ENABLED`를 활성화하고 승인된 domain allowlist를 구성하기 전에는 사용할 수
+없습니다.
+
+- **대상 판별:** Coordinator는 명시적인 웹 또는 인터넷 검색, 공개 기술의 최신 정보 질문,
+  "유사한 서비스를 찾아줘" 같은 공개 탐색 요청을 결정론적으로 인식합니다. 현재 화면을 검색해
+  달라는 요청은 FDAI 밖으로 전송되지 않습니다.
+- **검색:** 대상 turn은 검색 가능한 Azure Responses model candidate로 route됩니다. Provider는
+  제한된 operator query와 domain allowlist를 전송하고 정제된 evidence snapshot을 반환합니다.
+  Bragi는 source URL과 함께 답변하며 검색을 사용할 수 없을 때 대체 내용을 만들어 내지 않습니다.
+- **안전 경계:** 민감한 identifier가 있으면 provider 호출 전에 검색을 차단합니다. Web snippet은
+  계속 untrusted data로 취급되며 execution eligibility를 부여하거나 action의 rule-catalog evidence
+  요구를 충족할 수 없습니다.
 
 ## 4-6. 런타임 모델 (Narrator, DI seam, 세션 모델)
 
