@@ -26,9 +26,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Final
 
-_ALLOWED_MEDIA_TYPES: Final = frozenset(
-    {"image/png", "image/jpeg", "image/gif", "image/webp"}
-)
+_ALLOWED_MEDIA_TYPES: Final = frozenset({"image/png", "image/jpeg", "image/gif", "image/webp"})
 
 # Max decoded bytes per image (~4 MiB) and max images per turn. Together they
 # bound the vision payload a single authenticated turn can carry.
@@ -130,13 +128,9 @@ def parse_vision_attachments(
         if not decoded:
             raise ValueError("attachment is empty")
         if len(decoded) > max_image_bytes:
-            raise ValueError(
-                f"attachment exceeds size cap ({len(decoded)} > {max_image_bytes})"
-            )
+            raise ValueError(f"attachment exceeds size cap ({len(decoded)} > {max_image_bytes})")
         if not _magic_matches(media_type, decoded):
-            raise ValueError(
-                f"attachment content does not match declared type {media_type}"
-            )
+            raise ValueError(f"attachment content does not match declared type {media_type}")
         parsed.append(
             VisionAttachment(
                 name=_clean_name(item.get("name"), index),
