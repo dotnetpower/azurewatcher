@@ -153,6 +153,31 @@ async def test_state_store_legal_hold_is_not_due_or_deletable() -> None:
         )
 
 
+async def test_state_store_list_closed_filters_before_limit() -> None:
+    store = StateStoreCaseHistoryMetadataStore(store=InMemoryStateStore())
+    relevant = replace(_record(), case_id="case-relevant")
+    unrelated = replace(
+        _record(),
+        case_id="case-unrelated",
+        detector_id="latency-seasonal",
+        metric="latency_ms",
+        sealed_at=T0 + timedelta(hours=2),
+    )
+    await store.append_revision(relevant)
+    await store.append_revision(unrelated)
+
+    records = await store.list_closed(
+        access_scope_digest=relevant.access_scope_digest,
+        purpose=relevant.purpose,
+        outcome_labels=("false_positive",),
+        detector_id=relevant.detector_id,
+        metric=relevant.metric,
+        limit=1,
+    )
+
+    assert records == (relevant,)
+
+
 def test_case_history_legal_hold_requires_non_empty_authority_reference() -> None:
     with pytest.raises(ValueError, match="reference its authority"):
         replace(_record(), legal_hold=True, legal_hold_ref="")

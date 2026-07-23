@@ -1,7 +1,7 @@
 ---
 title: 코드 맵
 translation_of: code-map.md
-translation_source_sha: 509c0a2441ab8874454495a85c8f5e9a8fb2c340
+translation_source_sha: 6937685554a99f7ae6e6cf97ac9759c67c898cc8
 translation_revised: 2026-07-23
 ---
 # 코드 맵
@@ -55,7 +55,7 @@ shared 패키지를 커버한다.
 | 서브시스템 | 책임 | 소스 | 테스트 |
 |-----------|------|------|--------|
 | detection | 이상치, 예측, 50개 카탈로그 기반 운영 insight 발견자 (event-ingest 재진입) | [src/fdai/core/detection/](../../../src/fdai/core/detection/) | [tests/core/detection/](../../../tests/core/detection/) |
-| case_history | Canonical case revision, scoped failure/control retrieval, governed Norns 분석 ([설계](../rules-and-detection/prediction-learning-and-case-history-ko.md)) | [src/fdai/core/case_history/](../../../src/fdai/core/case_history/) 및 [src/fdai/shared/providers/case_history.py](../../../src/fdai/shared/providers/case_history.py) | [tests/core/case_history/](../../../tests/core/case_history/), [tests/persistence/test_state_store_case_history.py](../../../tests/persistence/test_state_store_case_history.py), [tests/agents/test_forecast_learning_chain.py](../../../tests/agents/test_forecast_learning_chain.py) |
+| case_history | Canonical case revision, detector 범위 failure/control limit, governed Norns 분석 ([설계](../rules-and-detection/prediction-learning-and-case-history-ko.md)) | [src/fdai/core/case_history/](../../../src/fdai/core/case_history/) 및 [src/fdai/shared/providers/case_history.py](../../../src/fdai/shared/providers/case_history.py) | [tests/core/case_history/](../../../tests/core/case_history/), [tests/persistence/test_state_store_case_history.py](../../../tests/persistence/test_state_store_case_history.py), [tests/agents/test_forecast_learning_chain.py](../../../tests/agents/test_forecast_learning_chain.py) |
 | rca | 근본원인 분석 (T0 + T2 seam 뒤) | [src/fdai/core/rca/](../../../src/fdai/core/rca/) | [tests/core/rca/](../../../tests/core/rca/) |
 | incident | 인시던트 라이프사이클 레지스트리 + 상태 머신 | [src/fdai/core/incident/](../../../src/fdai/core/incident/) | [tests/core/incident/](../../../tests/core/incident/) |
 | slo | 워크로드 SLO / burn-rate 평가자 | [src/fdai/core/slo/](../../../src/fdai/core/slo/) | [tests/core/slo/](../../../tests/core/slo/) |

@@ -16,7 +16,13 @@ from fdai.shared.contracts.models import ForecastOutcome
 T0 = datetime(2026, 7, 1, tzinfo=UTC)
 
 
-def _outcome(index: int, label: str) -> ForecastOutcome:
+def _outcome(
+    index: int,
+    label: str,
+    *,
+    detector_id: str = "capacity-linear",
+    metric: str = "capacity_percent",
+) -> ForecastOutcome:
     breach = T0 + timedelta(minutes=30) if label == "true_positive" else None
     return ForecastOutcome.model_validate(
         {
@@ -25,11 +31,11 @@ def _outcome(index: int, label: str) -> ForecastOutcome:
             "idempotency_key": f"outcome-{index}",
             "correlation_id": f"corr-{index}",
             "prediction_id": UUID(int=index + 100),
-            "detector_id": "capacity-linear",
+            "detector_id": detector_id,
             "detector_version": "1.0.0",
             "access_scope_digest": "a" * 64,
             "target_digest": "b" * 64,
-            "metric": "capacity_percent",
+            "metric": metric,
             "feature_cutoff": T0,
             "horizon_started_at": T0,
             "horizon_ended_at": T0 + timedelta(hours=1),
@@ -116,6 +122,46 @@ async def test_analyzer_supplies_failure_and_control_cases_with_evidence() -> No
     assert '"cohort":"failure"' in body
     assert '"cohort":"control"' in body
     assert set(hint.evidence_refs) == set(reviewer.inputs[0].evidence_refs)
+
+
+async def test_analyzer_limits_after_detector_and_metric_filters() -> None:
+    metadata = InMemoryCaseHistoryMetadataStore()
+    artifacts = InMemoryCaseHistoryArtifactStore()
+    materializer = CaseHistoryMaterializer(metadata=metadata, artifacts=artifacts)
+    for outcome in (
+        _outcome(0, "false_positive"),
+        _outcome(1, "true_positive"),
+        _outcome(2, "false_positive", detector_id="latency-seasonal", metric="latency_ms"),
+    ):
+        await materializer.seal_forecast_outcome(
+            outcome,
+            purpose="forecast-error-analysis",
+            redaction_policy_version="1.0.0",
+            retention_until=T0 + timedelta(days=30),
+            deletion_due_at=T0 + timedelta(days=60),
+        )
+    reviewer = _Reviewer()
+    analyzer = CaseHistoryAnalyzer(
+        metadata=metadata,
+        artifacts=artifacts,
+        reviewer=reviewer,
+        failure_limit=1,
+        control_limit=1,
+    )
+
+    hint = await analyzer.analyze(
+        {
+            "kind": "forecast_case_history",
+            "access_scope_digest": "a" * 64,
+            "purpose": "forecast-error-analysis",
+            "detector_id": "capacity-linear",
+            "metric": "capacity_percent",
+        }
+    )
+
+    assert hint is not None
+    assert len(reviewer.inputs) == 1
+    assert '"detector_id":"latency-seasonal"' not in (reviewer.inputs[0].assistant_body or "")
 
 
 async def test_analyzer_denies_cross_scope_history() -> None:
@@ -307,9 +353,11 @@ async def test_analyzer_abstains_when_projection_returns_tombstone() -> None:
             access_scope_digest: str,
             purpose: str,
             outcome_labels: tuple[str, ...],
+            detector_id: str | None = None,
+            metric: str | None = None,
             limit: int,
         ):
-            del access_scope_digest, purpose, limit
+            del access_scope_digest, purpose, detector_id, metric, limit
             return (tombstone,) if "false_positive" in outcome_labels else ()
 
     class _NoCall:

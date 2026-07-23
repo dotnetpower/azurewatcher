@@ -72,6 +72,8 @@ class StateStoreCaseHistoryMetadataStore:
         access_scope_digest: str,
         purpose: str,
         outcome_labels: tuple[str, ...],
+        detector_id: str | None = None,
+        metric: str | None = None,
         limit: int,
     ) -> tuple[CaseHistoryRevisionRecord, ...]:
         if not 1 <= limit <= 500:
@@ -85,6 +87,8 @@ class StateStoreCaseHistoryMetadataStore:
                 _from_mapping(raw)
                 for raw in raw_records
                 if raw.get("purpose") == purpose
+                and (detector_id is None or raw.get("detector_id") == detector_id)
+                and (metric is None or raw.get("metric") == metric)
                 and raw.get("deleted_at") is None
                 and raw.get("deletion_started_at") is None
                 and (not outcome_labels or raw.get("outcome_label") in outcome_labels)

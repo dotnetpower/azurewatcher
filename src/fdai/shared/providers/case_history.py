@@ -128,6 +128,8 @@ class CaseHistoryMetadataStore(Protocol):
         access_scope_digest: str,
         purpose: str,
         outcome_labels: tuple[str, ...],
+        detector_id: str | None = None,
+        metric: str | None = None,
         limit: int,
     ) -> tuple[CaseHistoryRevisionRecord, ...]: ...
 

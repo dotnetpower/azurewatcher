@@ -122,8 +122,9 @@ legal hold. Customer-scoped artifacts never enter Git.
 Retrieval authorizes purpose and access scope before searching and verifies the artifact's case,
 revision, correlation, purpose, scope, and parent identity against metadata. It applies
 deterministic filters for resource type, metric, detector version, outcome label, and time before
-pgvector ranking. The retriever returns bounded case cards plus source digests; a model cannot
-treat an embedding as source evidence.
+pgvector ranking. Detector and metric filters also run before failure and control cohort limits, so
+newer unrelated detector records cannot hide eligible cases. The retriever returns bounded case
+cards plus source digests; a model cannot treat an embedding as source evidence.
 
 Norns receives failure cases together with matched correct and censored controls. This prevents
 survivorship bias and overly conservative threshold changes. Every analysis claim cites a case id,

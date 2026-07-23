@@ -52,6 +52,8 @@ class InMemoryCaseHistoryMetadataStore:
         access_scope_digest: str,
         purpose: str,
         outcome_labels: tuple[str, ...],
+        detector_id: str | None = None,
+        metric: str | None = None,
         limit: int,
     ) -> tuple[CaseHistoryRevisionRecord, ...]:
         if not 1 <= limit <= 500:
@@ -62,6 +64,8 @@ class InMemoryCaseHistoryMetadataStore:
             for record in latest
             if record.access_scope_digest == access_scope_digest
             and record.purpose == purpose
+            and (detector_id is None or record.detector_id == detector_id)
+            and (metric is None or record.metric == metric)
             and record.deleted_at is None
             and record.deletion_started_at is None
             and (not outcome_labels or record.outcome_label in outcome_labels)

@@ -78,19 +78,19 @@ class CaseHistoryAnalyzer:
             access_scope_digest=scope,
             purpose=purpose,
             outcome_labels=_FAILURE_LABELS,
+            detector_id=detector_id,
+            metric=metric,
             limit=self._failure_limit,
         )
         controls = await self._metadata.list_closed(
             access_scope_digest=scope,
             purpose=purpose,
             outcome_labels=_CONTROL_LABELS,
+            detector_id=detector_id,
+            metric=metric,
             limit=self._control_limit,
         )
-        selected = tuple(
-            record
-            for record in (*failures, *controls)
-            if record.detector_id == detector_id and record.metric == metric
-        )
+        selected = (*failures, *controls)
         if not failures or not selected:
             return None
         semaphore = asyncio.Semaphore(self._artifact_concurrency)
