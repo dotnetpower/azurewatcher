@@ -10,8 +10,8 @@ import math
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
-from typing import Any, Final, Protocol
+from datetime import UTC, datetime
+from typing import Any, Final
 
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -30,7 +30,6 @@ from fdai.core.read_investigation import (
     MAX_READ_INVESTIGATION_ATTEMPTS,
     InvestigationExecutionPolicy,
     PlanLatencyEstimate,
-    ReadInvestigationBudget,
     ReadInvestigationExecutionMode,
     ReadInvestigationPlan,
     ReadInvestigationProgressKind,
@@ -50,14 +49,58 @@ from fdai.core.read_investigation import (
     read_tool_spec,
 )
 from fdai.delivery.read_api.routes.background_tasks import BackgroundTaskRoutesConfig
-from fdai.shared.providers.read_investigation import (
-    ReadInvestigationIntent,
-    ReadLatencyProfileStore,
-    ResourceSelector,
+from fdai.delivery.read_api.routes.read_investigation_execution import (
+    ReadInvestigationDirectExecution,
+    ReadInvestigationRunRejectedError,
 )
+from fdai.delivery.read_api.routes.read_investigation_execution import (
+    ReadInvestigationExecutionConfig as _ReadInvestigationExecutionConfig,
+)
+from fdai.delivery.read_api.routes.read_investigation_execution import (
+    effective_lease_seconds as _effective_lease_seconds,
+)
+from fdai.delivery.read_api.routes.read_investigation_execution import (
+    execute_direct_idempotent as _execute_direct_idempotent,
+)
+from fdai.delivery.read_api.routes.read_investigation_execution import (
+    lease_ceiling_at as _lease_ceiling_at,
+)
+from fdai.delivery.read_api.routes.read_investigation_execution import (
+    make_lease_token as _lease_token,
+)
+from fdai.delivery.read_api.routes.read_investigation_execution import (
+    preflight_run_ledger as _preflight_run_ledger,
+)
+from fdai.delivery.read_api.routes.read_investigation_execution import (
+    run_mode as _run_mode,
+)
+from fdai.delivery.read_api.routes.read_investigation_payload import (
+    canonical_prompt as _canonical_prompt,
+)
+from fdai.delivery.read_api.routes.read_investigation_payload import (
+    estimate_payload as _estimate,
+)
+from fdai.delivery.read_api.routes.read_investigation_payload import (
+    integer as _integer,
+)
+from fdai.delivery.read_api.routes.read_investigation_payload import (
+    optional_string as _optional_string,
+)
+from fdai.delivery.read_api.routes.read_investigation_payload import (
+    read_body as _body,
+)
+from fdai.delivery.read_api.routes.read_investigation_payload import (
+    request_from_body as _request,
+)
+from fdai.delivery.read_api.routes.read_investigation_payload import (
+    required_string as _string,
+)
+from fdai.delivery.read_api.routes.read_investigation_payload import (
+    result_payload as _result,
+)
+from fdai.shared.providers.read_investigation import ReadLatencyProfileStore
 
 AuthorizePrincipal = Callable[[Request], Awaitable[Principal]]
-_MAX_BODY: Final = 16_000
 _SSE_HEARTBEAT_INTERVAL_SECONDS: Final = 15.0
 _DIRECT_REPLAY_HEADER: Final = "X-FDAI-Read-Investigation-Replay"
 _LOG = logging.getLogger(__name__)
@@ -114,23 +157,6 @@ class ReadInvestigationRoutesConfig:
             raise ValueError("read investigation scope_ref MUST be bounded")
 
 
-class _ReadInvestigationExecutionConfig(Protocol):
-    @property
-    def service(self) -> ReadInvestigationService: ...
-
-    @property
-    def run_store(self) -> ReadInvestigationRunStore: ...
-
-    @property
-    def run_ledger(self) -> ReadInvestigationRunLedgerConfig: ...
-
-    @property
-    def clock(self) -> Callable[[], datetime]: ...
-
-    @property
-    def monotonic(self) -> Callable[[], float]: ...
-
-
 @dataclass(frozen=True, slots=True)
 class ReadInvestigationExecutorConfig:
     service: ReadInvestigationService
@@ -138,19 +164,6 @@ class ReadInvestigationExecutorConfig:
     run_ledger: ReadInvestigationRunLedgerConfig = ReadInvestigationRunLedgerConfig()
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
     monotonic: Callable[[], float] = time.monotonic
-
-
-@dataclass(frozen=True, slots=True)
-class ReadInvestigationDirectExecution:
-    result: ReadInvestigationResult
-    replayed: bool
-
-
-class ReadInvestigationRunRejectedError(RuntimeError):
-    def __init__(self, detail: str, *, retry_after_seconds: int | None = None) -> None:
-        super().__init__(detail)
-        self.detail = detail
-        self.retry_after_seconds = retry_after_seconds
 
 
 class IdempotentReadInvestigationExecutor:
@@ -174,6 +187,7 @@ class IdempotentReadInvestigationExecutor:
             self._config,
             plan,
             owner_principal_id=owner_principal_id,
+            execute_claimed=_execute_claimed,
             progress_observer=progress_observer,
         )
 
@@ -320,126 +334,6 @@ def make_read_investigation_routes(
         raise RuntimeError("streamed investigation did not return a streaming response")
 
     return (Route("/read-investigations", start, methods=["POST"]),)
-
-
-async def _execute_direct_idempotent(
-    config: _ReadInvestigationExecutionConfig,
-    plan: ReadInvestigationPlan,
-    *,
-    owner_principal_id: str,
-    progress_observer: Callable[[ReadInvestigationProgressKind], Awaitable[None]] | None = None,
-) -> ReadInvestigationDirectExecution:
-    request = plan.request
-    if request.requester_ref != owner_principal_id:
-        raise ReadInvestigationRunRejectedError(
-            "read investigation requester does not match the authenticated principal"
-        )
-    now = config.clock()
-    await _preflight_run_ledger(config, now=now)
-    lease_seconds = _effective_lease_seconds(config, request=request)
-    lease_ceiling_at = _lease_ceiling_at(config, request=request, now=now)
-    lease_token = _lease_token(request, now=now)
-    try:
-        claimed, created = await config.run_store.claim(
-            owner_principal_id=owner_principal_id,
-            request=request,
-            mode=ReadInvestigationRunMode.DIRECT,
-            lease_owner="read-api",
-            lease_token=lease_token,
-            now=now,
-            lease_seconds=lease_seconds,
-            retention_seconds=config.run_ledger.retention_seconds,
-        )
-    except ReadInvestigationRunConflictError as exc:
-        raise ReadInvestigationRunRejectedError(
-            "idempotency key conflicts with another request payload"
-        ) from exc
-
-    if (
-        not created
-        and claimed.state in {ReadInvestigationRunState.FAILED, ReadInvestigationRunState.EXPIRED}
-        and claimed.attempt_count < MAX_READ_INVESTIGATION_ATTEMPTS
-    ):
-        try:
-            claimed = await config.run_store.reclaim(
-                owner_principal_id=owner_principal_id,
-                idempotency_key=request.idempotency_key,
-                request_digest=claimed.request_digest,
-                mode=ReadInvestigationRunMode.DIRECT,
-                expected_revision=claimed.revision,
-                lease_owner="read-api",
-                lease_token=lease_token,
-                now=now,
-                lease_seconds=lease_seconds,
-                retention_seconds=config.run_ledger.retention_seconds,
-            )
-            created = True
-        except (LookupError, ReadInvestigationRunConflictError) as exc:
-            latest = await config.run_store.get(
-                owner_principal_id=owner_principal_id,
-                idempotency_key=request.idempotency_key,
-            )
-            if latest is None:
-                raise ReadInvestigationRunRejectedError(
-                    "read investigation run could not be reclaimed"
-                ) from exc
-            claimed = latest
-
-    if not created:
-        if claimed.state is ReadInvestigationRunState.COMPLETED and claimed.result is not None:
-            return ReadInvestigationDirectExecution(result=claimed.result, replayed=True)
-        _reject_existing_direct(
-            claimed,
-            now=now,
-            retry_after_seconds=config.run_ledger.retry_after_seconds,
-        )
-
-    result = await _execute_claimed(
-        config=config,
-        plan=plan,
-        claimed=claimed,
-        lease_token=lease_token,
-        lease_seconds=lease_seconds,
-        lease_ceiling_at=lease_ceiling_at,
-        failure_state=ReadInvestigationRunState.FAILED,
-        cancellation_state=ReadInvestigationRunState.EXPIRED,
-        progress_observer=progress_observer,
-    )
-    return ReadInvestigationDirectExecution(result=result, replayed=False)
-
-
-def _reject_existing_direct(
-    claimed: ReadInvestigationRunRecord,
-    *,
-    now: datetime,
-    retry_after_seconds: int,
-) -> None:
-    if claimed.state in {ReadInvestigationRunState.CLAIMED, ReadInvestigationRunState.RUNNING}:
-        retry_after = retry_after_seconds
-        if claimed.lease is not None:
-            remaining = max(1, math.ceil((claimed.lease.expires_at - now).total_seconds()))
-            retry_after = min(retry_after_seconds, remaining)
-        raise ReadInvestigationRunRejectedError(
-            "read investigation with this idempotency key is already in progress",
-            retry_after_seconds=retry_after,
-        )
-    if claimed.state in {ReadInvestigationRunState.FAILED, ReadInvestigationRunState.EXPIRED}:
-        if claimed.attempt_count >= MAX_READ_INVESTIGATION_ATTEMPTS:
-            retention_remaining = max(
-                1,
-                math.ceil((claimed.retention_until - now).total_seconds()),
-            )
-            raise ReadInvestigationRunRejectedError(
-                "read investigation retry attempts are exhausted for this idempotency key",
-                retry_after_seconds=min(retry_after_seconds, retention_remaining),
-            )
-        raise ReadInvestigationRunRejectedError(
-            "read investigation idempotency key is terminal and pending reclaim",
-            retry_after_seconds=retry_after_seconds,
-        )
-    raise ReadInvestigationRunRejectedError(
-        "read investigation idempotency key is terminal and not replayable"
-    )
 
 
 async def _detach(
@@ -822,45 +716,6 @@ def _stream_existing_terminal(
     return StreamingResponse(events(), media_type="text/event-stream")
 
 
-async def _preflight_run_ledger(
-    config: _ReadInvestigationExecutionConfig,
-    *,
-    now: datetime,
-) -> None:
-    try:
-        await config.run_store.reconcile_expired(
-            now=now,
-            limit=config.run_ledger.reconcile_limit,
-        )
-        await config.run_store.purge_retained(
-            now=now,
-            limit=config.run_ledger.purge_limit,
-        )
-    except Exception:
-        # Opportunistic cleanup MUST NOT block read investigations.
-        return
-
-
-def _run_mode(mode: ReadInvestigationExecutionMode) -> ReadInvestigationRunMode:
-    return {
-        ReadInvestigationExecutionMode.DIRECT: ReadInvestigationRunMode.DIRECT,
-        ReadInvestigationExecutionMode.STREAMED: ReadInvestigationRunMode.STREAMED,
-    }[mode]
-
-
-def _lease_token(request: ReadInvestigationRequest, *, now: datetime) -> str:
-    material = json.dumps(
-        {
-            "idempotency_key": request.idempotency_key,
-            "correlation_ref": request.correlation_ref,
-            "created_at": now.isoformat(),
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:64]
-
-
 def _duration_ms(seconds: float) -> int:
     return max(0, int(round(seconds * 1_000)))
 
@@ -885,185 +740,10 @@ def _run_usage(
     )
 
 
-def _effective_lease_window_seconds(
-    config: _ReadInvestigationExecutionConfig,
-    *,
-    request: ReadInvestigationRequest,
-) -> int:
-    budget_window = request.budget.max_wall_seconds + config.run_ledger.lease_budget_margin_seconds
-    return max(1, min(config.run_ledger.lease_max_window_seconds, budget_window))
-
-
-def _effective_lease_seconds(
-    config: _ReadInvestigationExecutionConfig,
-    *,
-    request: ReadInvestigationRequest,
-) -> int:
-    return min(
-        config.run_ledger.lease_seconds, _effective_lease_window_seconds(config, request=request)
-    )
-
-
-def _lease_ceiling_at(
-    config: _ReadInvestigationExecutionConfig,
-    *,
-    request: ReadInvestigationRequest,
-    now: datetime,
-) -> datetime:
-    return now + timedelta(seconds=_effective_lease_window_seconds(config, request=request))
-
-
-def _request(
-    body: dict[str, Any],
-    *,
-    principal: Principal,
-    scope_ref: str,
-) -> ReadInvestigationRequest:
-    try:
-        intent = ReadInvestigationIntent(_string(body, "intent"))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="intent is unsupported") from exc
-    budget = body.get("budget") or {}
-    if not isinstance(budget, dict):
-        raise HTTPException(status_code=400, detail="budget MUST be an object")
-    explicit_deep = body.get("explicit_deep", False)
-    if not isinstance(explicit_deep, bool):
-        raise HTTPException(status_code=400, detail="explicit_deep MUST be boolean")
-    return ReadInvestigationRequest(
-        requester_ref=principal.oid,
-        conversation_ref=_string(body, "conversation_id"),
-        correlation_ref=_string(body, "correlation_id"),
-        intent=intent,
-        selector=ResourceSelector(
-            name=_string(body, "resource_name", maximum=128),
-            scope_ref=scope_ref,
-            resource_type=_optional_string(body, "resource_type"),
-            resource_group=_optional_string(body, "resource_group"),
-        ),
-        lookback_seconds=_integer(body, "lookback_seconds", default=3_600),
-        requested_evidence=(),
-        budget=ReadInvestigationBudget(
-            max_wall_seconds=_mapping_int(budget, "max_wall_seconds", 60),
-            max_cost_microusd=_mapping_int(budget, "max_cost_microusd", 100_000),
-            max_tool_calls=_mapping_int(budget, "max_tool_calls", 5),
-            max_results=_mapping_int(budget, "max_results", 32),
-            max_output_bytes=_mapping_int(budget, "max_output_bytes", 256_000),
-        ),
-        idempotency_key=_string(body, "idempotency_key"),
-        created_at=datetime.now(UTC),
-        explicit_deep=explicit_deep,
-    )
-
-
-async def _body(request: Request) -> dict[str, Any]:
-    raw = await request.body()
-    if len(raw) > _MAX_BODY:
-        raise HTTPException(status_code=413, detail="request body exceeds cap")
-    try:
-        value = json.loads(raw)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=400, detail="request body MUST be JSON") from exc
-    if not isinstance(value, dict):
-        raise HTTPException(status_code=400, detail="request body MUST be an object")
-    return value
-
-
-def _canonical_prompt(request: ReadInvestigationRequest) -> str:
-    phrase = {
-        ReadInvestigationIntent.RESOURCE_STATE: "Check the current state of",
-        ReadInvestigationIntent.CHANGE_ATTRIBUTION: "Who changed or stopped",
-        ReadInvestigationIntent.RESOURCE_CHANGE_HISTORY: "Show the change history of",
-        ReadInvestigationIntent.PLATFORM_HEALTH: "Check the platform health of",
-        ReadInvestigationIntent.GUEST_SHUTDOWN: "Find guest OS shutdown events for",
-    }[request.intent]
-    suffix = " with deep analysis" if request.explicit_deep else ""
-    return f"{phrase} {request.selector.name}{suffix}."
-
-
-def _result(result: ReadInvestigationResult) -> dict[str, object]:
-    return {
-        "outcome": result.outcome.value,
-        "resolution": {
-            "status": result.resolution.status.value,
-            "resource": (
-                {
-                    "resource_ref": result.resolution.resource.resource_ref,
-                    "name": result.resolution.resource.name,
-                    "resource_type": result.resolution.resource.resource_type,
-                    "resource_group": result.resolution.resource.resource_group,
-                }
-                if result.resolution.resource is not None
-                else None
-            ),
-            "candidates": [
-                {
-                    "resource_ref": item.resource_ref,
-                    "name": item.name,
-                    "resource_type": item.resource_type,
-                    "resource_group": item.resource_group,
-                }
-                for item in result.resolution.candidates
-            ],
-        },
-        "evidence": [
-            {
-                "status": item.status.value,
-                "authority": item.authority,
-                "resource_ref": item.resource_ref,
-                "observed_at": item.observed_at.isoformat(),
-                "freshness": item.freshness.value,
-                "truncated": item.truncated,
-                "records": len(item.records),
-                "evidence_refs": list(item.evidence_refs),
-            }
-            for item in result.evidence
-        ],
-        "evidence_refs": list(result.evidence_refs),
-        "started_at": result.started_at.isoformat(),
-        "finished_at": result.finished_at.isoformat(),
-    }
-
-
-def _estimate(value: PlanLatencyEstimate) -> dict[str, object]:
-    return {
-        "lower_ms": value.lower_ms,
-        "upper_ms": value.upper_ms,
-        "measured": value.measured,
-        "sample_count": value.sample_count,
-    }
-
-
-def _string(body: dict[str, Any], key: str, *, maximum: int = 256) -> str:
-    value = body.get(key)
-    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
-        raise HTTPException(status_code=400, detail=f"{key} MUST be a bounded string")
-    return value.strip()
-
-
-def _optional_string(body: dict[str, Any], key: str) -> str | None:
-    value = body.get(key)
-    if value is None:
-        return None
-    if not isinstance(value, str) or not value.strip() or len(value) > 256:
-        raise HTTPException(status_code=400, detail=f"{key} MUST be a bounded string")
-    return value.strip()
-
-
-def _integer(body: dict[str, Any], key: str, *, default: int) -> int:
-    value = body.get(key, default)
-    if not isinstance(value, int) or isinstance(value, bool):
-        raise HTTPException(status_code=400, detail=f"{key} MUST be an integer")
-    return value
-
-
-def _mapping_int(body: dict[str, Any], key: str, default: int) -> int:
-    value = body.get(key, default)
-    if not isinstance(value, int) or isinstance(value, bool):
-        raise HTTPException(status_code=400, detail=f"budget.{key} MUST be an integer")
-    return value
-
-
 __all__ = [
+    "ReadInvestigationDirectExecution",
+    "ReadInvestigationRunRejectedError",
+    "ReadInvestigationRunMode",
     "ReadInvestigationRoutesConfig",
     "ReadInvestigationRunLedgerConfig",
     "make_read_investigation_routes",

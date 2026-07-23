@@ -94,18 +94,9 @@ from fdai.delivery.persistence.postgres_principal_binding import (
     PostgresPrincipalConversationBindingStore,
     PostgresPrincipalConversationBindingStoreConfig,
 )
-from fdai.delivery.persistence.postgres_scheduler_store import (
-    PostgresScheduleStore,
-    PostgresScheduleStoreConfig,
-)
 from fdai.delivery.persistence.postgres_task_worker import (
     PostgresTaskWorkerStore,
     PostgresTaskWorkerStoreConfig,
-)
-from fdai.delivery.persistence.postgres_vm_task import (
-    PostgresPythonTaskArtifactStore,
-    PostgresVmTaskConfig,
-    PostgresVmTaskTargetResolver,
 )
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.production import env_contract as _env
@@ -121,6 +112,7 @@ from fdai.delivery.read_api.production.identity import build_production_identity
 from fdai.delivery.read_api.production.onboarding import build_production_onboarding
 from fdai.delivery.read_api.production.panels import build_production_panels
 from fdai.delivery.read_api.production.persistence import build_production_persistence
+from fdai.delivery.read_api.production.python_tasks import build_production_python_tasks
 from fdai.delivery.read_api.production.runtime_wiring import build_production_runtime
 from fdai.delivery.read_api.production.scope import build_production_scope_source
 from fdai.delivery.read_api.production.skill_sources import build_production_skill_sources
@@ -134,10 +126,6 @@ from fdai.delivery.read_api.routes.chat import backend_from_env
 from fdai.delivery.read_api.routes.chat_web_search import chat_web_search_from_env
 from fdai.delivery.read_api.routes.post_turn_event_bus import EventBusPostTurnReviewIntake
 from fdai.delivery.read_api.routes.post_turn_review import PostTurnReviewQueue
-from fdai.delivery.read_api.routes.python_tasks import (
-    PythonTaskRoutesConfig,
-    PythonTaskRunSubmitter,
-)
 from fdai.delivery.stewardship import (
     HumanIdentityLivenessDirectory,
     StewardshipHealthMonitor,
@@ -295,63 +283,18 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
             ),
             enforce_workflows=enforce_workflows,
         )
-    from fdai.delivery.vm_task import PlanningVmTaskRunner
-
-    vm_task_store_config = PostgresVmTaskConfig(
+    python_task_services = build_production_python_tasks(
+        env=env,
         dsn=read_model._config.dsn,
         statement_timeout_ms=read_model._config.statement_timeout_ms,
         connect_timeout_s=read_model._config.connect_timeout_s,
-    )
-    task_author = None
-    author_endpoint = env.get(_env.PYTHON_TASK_AUTHOR_ENDPOINT_ENV, "").strip()
-    author_deployment = env.get(_env.PYTHON_TASK_AUTHOR_DEPLOYMENT_ENV, "").strip()
-    if bool(author_endpoint) != bool(author_deployment):
-        raise ProdReadApiConfigError(
-            f"{_env.PYTHON_TASK_AUTHOR_ENDPOINT_ENV} and "
-            f"{_env.PYTHON_TASK_AUTHOR_DEPLOYMENT_ENV} MUST be configured together"
-        )
-    if author_endpoint:
-        from fdai.delivery.azure.llm.python_task_author import (
-            AzureOpenAIPythonTaskAuthor,
-            AzureOpenAIPythonTaskAuthorConfig,
-        )
-        from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
-
-        author_http = httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0)
-        )
-        task_author = AzureOpenAIPythonTaskAuthor(
-            identity=ManagedIdentityWorkloadIdentity(http_client=author_http),
-            http_client=author_http,
-            config=AzureOpenAIPythonTaskAuthorConfig(
-                endpoint=author_endpoint,
-                deployment=author_deployment,
-            ),
-        )
-
-        async def _close_task_author_http() -> None:
-            await author_http.aclose()
-
-        shutdown_callbacks = (*shutdown_callbacks, _close_task_author_http)
-    python_tasks = PythonTaskRoutesConfig(
-        artifacts=PostgresPythonTaskArtifactStore(config=vm_task_store_config),
-        targets=PostgresVmTaskTargetResolver(config=vm_task_store_config),
-        runner=PlanningVmTaskRunner(),
-        submitter=(
-            PythonTaskRunSubmitter(event_bus=runtime.event_bus, topic=runtime.event_topic)
-            if runtime.event_bus is not None and runtime.event_topic
-            else None
-        ),
-        schedule_store=PostgresScheduleStore(
-            config=PostgresScheduleStoreConfig(
-                dsn=read_model._config.dsn,
-                statement_timeout_ms=read_model._config.statement_timeout_ms,
-                connect_timeout_s=read_model._config.connect_timeout_s,
-            )
-        ),
+        event_bus=runtime.event_bus,
+        event_topic=runtime.event_topic,
         workflows=workflows,
-        author=task_author,
+        shutdown_callbacks=shutdown_callbacks,
     )
+    python_tasks = python_task_services.routes
+    shutdown_callbacks = python_task_services.shutdown_callbacks
     onboarding = build_production_onboarding(
         env=env,
         shutdown_callbacks=shutdown_callbacks,

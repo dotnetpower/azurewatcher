@@ -8,23 +8,17 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Final, NoReturn
+from typing import Any, NoReturn
 
 import psycopg
 from psycopg.rows import dict_row
 
 from fdai.core.background_task import (
-    MAX_COMPLETION_ATTEMPTS,
     TERMINAL_BACKGROUND_STATUSES,
     BackgroundTask,
     BackgroundTaskAttempt,
-    BackgroundTaskBudget,
     BackgroundTaskCompletion,
-    BackgroundTaskCompletionState,
     BackgroundTaskConflictError,
-    BackgroundTaskKind,
-    BackgroundTaskLease,
-    BackgroundTaskOrigin,
     BackgroundTaskProgress,
     BackgroundTaskQuotaPolicy,
     BackgroundTaskQuotaUsage,
@@ -34,17 +28,32 @@ from fdai.core.background_task import (
     background_task_quota_time,
     enforce_background_task_quota,
 )
-
-_ATTEMPT_COLUMNS: Final = (
-    "attempt_id, task_id, owner_principal_id, idempotency_key, task, "
-    "attempt_number, status, revision, created_at, retention_until, updated_at, "
-    "max_progress_events, lease_owner, lease_token, lease_expires_at, usage, "
-    "result, parent_attempt_id"
+from fdai.delivery.persistence.postgres_background_task_completion import (
+    PostgresBackgroundTaskCompletionDelivery,
 )
-_PROGRESS_COLUMNS: Final = "attempt_id, sequence, kind, message, at, usage"
-_COMPLETION_COLUMNS: Final = (
-    "attempt_id, state, created_at, due_at, retention_until, attempt_count, "
-    "lease_owner, lease_token, lease_expires_at, last_error_code, terminal_at"
+from fdai.delivery.persistence.postgres_background_task_serialization import (
+    ATTEMPT_COLUMNS as _ATTEMPT_COLUMNS,
+)
+from fdai.delivery.persistence.postgres_background_task_serialization import (
+    PROGRESS_COLUMNS as _PROGRESS_COLUMNS,
+)
+from fdai.delivery.persistence.postgres_background_task_serialization import (
+    attempt_from_row as _attempt,
+)
+from fdai.delivery.persistence.postgres_background_task_serialization import (
+    progress_from_row as _progress,
+)
+from fdai.delivery.persistence.postgres_background_task_serialization import (
+    qualified_attempt_columns as _qualified_attempt_columns,
+)
+from fdai.delivery.persistence.postgres_background_task_serialization import (
+    result_to_dict as _result_to_dict,
+)
+from fdai.delivery.persistence.postgres_background_task_serialization import (
+    task_to_dict as _task_to_dict,
+)
+from fdai.delivery.persistence.postgres_background_task_serialization import (
+    usage_to_dict as _usage_to_dict,
 )
 
 
@@ -70,6 +79,10 @@ class PostgresBackgroundTaskStore:
     ) -> None:
         self._config = config
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._completion_delivery = PostgresBackgroundTaskCompletionDelivery(
+            connect=self._connect,
+            set_timeout=self._timeout,
+        )
 
     async def create(
         self,
@@ -559,44 +572,12 @@ class PostgresBackgroundTaskStore:
         now: datetime,
         lease_seconds: int,
     ) -> tuple[BackgroundTaskCompletion, BackgroundTaskAttempt] | None:
-        _lease_input(coordinator, lease_token, now, lease_seconds)
-        async with await self._connect() as connection, connection.transaction():
-            await self._timeout(connection)
-            cursor = await connection.execute(
-                "WITH candidate AS ("
-                "SELECT attempt_id FROM background_task_completion "
-                "WHERE state = ANY(%s) AND due_at <= %s AND attempt_count < %s "
-                "ORDER BY due_at, attempt_id FOR UPDATE SKIP LOCKED LIMIT 1"
-                ") UPDATE background_task_completion AS completion SET "
-                "state = %s, attempt_count = completion.attempt_count + 1, "
-                "lease_owner = %s, lease_token = %s, lease_expires_at = %s, "
-                "last_error_code = NULL FROM candidate "
-                "WHERE completion.attempt_id = candidate.attempt_id "
-                f"RETURNING {_qualified_completion_columns('completion')}",
-                (
-                    [
-                        BackgroundTaskCompletionState.PENDING.value,
-                        BackgroundTaskCompletionState.FAILED.value,
-                    ],
-                    now,
-                    MAX_COMPLETION_ATTEMPTS,
-                    BackgroundTaskCompletionState.SENDING.value,
-                    coordinator,
-                    lease_token,
-                    now + timedelta(seconds=lease_seconds),
-                ),
-            )
-            completion_row = await cursor.fetchone()
-            if completion_row is None:
-                return None
-            attempt_cursor = await connection.execute(
-                f"SELECT {_ATTEMPT_COLUMNS} FROM background_task_attempt WHERE attempt_id = %s",
-                (str(completion_row["attempt_id"]),),
-            )
-            attempt_row = await attempt_cursor.fetchone()
-            if attempt_row is None:  # pragma: no cover - foreign key keeps it present
-                raise RuntimeError("background completion references a missing attempt")
-            return _completion(completion_row), _attempt(attempt_row)
+        return await self._completion_delivery.claim(
+            coordinator=coordinator,
+            lease_token=lease_token,
+            now=now,
+            lease_seconds=lease_seconds,
+        )
 
     async def finish_completion(
         self,
@@ -608,60 +589,14 @@ class PostgresBackgroundTaskStore:
         retry_at: datetime | None = None,
         error_code: str | None = None,
     ) -> BackgroundTaskCompletion:
-        async with await self._connect() as connection, connection.transaction():
-            await self._timeout(connection)
-            current = await self._completion_leased(
-                connection,
-                attempt_id,
-                lease_token=lease_token,
-                now=now,
-            )
-            if delivered:
-                if retry_at is not None or error_code is not None:
-                    raise ValueError("delivered completion cannot carry retry details")
-                cursor = await connection.execute(
-                    "UPDATE background_task_completion SET "
-                    "state = %s, lease_owner = NULL, lease_token = NULL, "
-                    "lease_expires_at = NULL, last_error_code = NULL, terminal_at = %s "
-                    "WHERE attempt_id = %s RETURNING "
-                    f"{_COMPLETION_COLUMNS}",
-                    (
-                        BackgroundTaskCompletionState.DELIVERED.value,
-                        now,
-                        attempt_id,
-                    ),
-                )
-            else:
-                if retry_at is None or error_code is None:
-                    raise ValueError("failed completion requires retry_at and error_code")
-                if retry_at.tzinfo is None or retry_at.utcoffset() is None:
-                    raise ValueError("completion retry_at MUST be timezone-aware")
-                abandon = (
-                    current.attempt_count >= MAX_COMPLETION_ATTEMPTS
-                    or retry_at >= current.retention_until
-                )
-                cursor = await connection.execute(
-                    "UPDATE background_task_completion SET "
-                    "state = %s, due_at = %s, lease_owner = NULL, lease_token = NULL, "
-                    "lease_expires_at = NULL, last_error_code = %s, terminal_at = %s "
-                    "WHERE attempt_id = %s RETURNING "
-                    f"{_COMPLETION_COLUMNS}",
-                    (
-                        (
-                            BackgroundTaskCompletionState.ABANDONED.value
-                            if abandon
-                            else BackgroundTaskCompletionState.FAILED.value
-                        ),
-                        min(retry_at, current.retention_until),
-                        error_code,
-                        now if abandon else None,
-                        attempt_id,
-                    ),
-                )
-            row = await cursor.fetchone()
-            if row is None:  # pragma: no cover - UPDATE RETURNING yields one row
-                raise RuntimeError("background completion update returned no row")
-            return _completion(row)
+        return await self._completion_delivery.finish(
+            attempt_id,
+            lease_token=lease_token,
+            delivered=delivered,
+            now=now,
+            retry_at=retry_at,
+            error_code=error_code,
+        )
 
     async def reconcile_completion_expired(
         self,
@@ -669,50 +604,7 @@ class PostgresBackgroundTaskStore:
         now: datetime,
         limit: int = 100,
     ) -> tuple[BackgroundTaskCompletion, ...]:
-        _limit(limit, 1_000)
-        async with await self._connect() as connection, connection.transaction():
-            await self._timeout(connection)
-            candidates = await connection.execute(
-                f"SELECT {_COMPLETION_COLUMNS} FROM background_task_completion "
-                "WHERE state = %s AND lease_expires_at <= %s "
-                "ORDER BY lease_expires_at, attempt_id FOR UPDATE SKIP LOCKED LIMIT %s",
-                (
-                    BackgroundTaskCompletionState.SENDING.value,
-                    now,
-                    limit,
-                ),
-            )
-            rows = await candidates.fetchall()
-            reconciled: list[BackgroundTaskCompletion] = []
-            for row in rows:
-                current = _completion(row)
-                abandon = (
-                    current.attempt_count >= MAX_COMPLETION_ATTEMPTS
-                    or now >= current.retention_until
-                )
-                updated = await connection.execute(
-                    "UPDATE background_task_completion SET "
-                    "state = %s, due_at = %s, lease_owner = NULL, lease_token = NULL, "
-                    "lease_expires_at = NULL, last_error_code = %s, terminal_at = %s "
-                    "WHERE attempt_id = %s RETURNING "
-                    f"{_COMPLETION_COLUMNS}",
-                    (
-                        (
-                            BackgroundTaskCompletionState.ABANDONED.value
-                            if abandon
-                            else BackgroundTaskCompletionState.FAILED.value
-                        ),
-                        min(now, current.retention_until),
-                        "process_lost",
-                        now if abandon else None,
-                        current.attempt_id,
-                    ),
-                )
-                updated_row = await updated.fetchone()
-                if updated_row is None:  # pragma: no cover - row lock keeps it present
-                    continue
-                reconciled.append(_completion(updated_row))
-        return tuple(reconciled)
+        return await self._completion_delivery.reconcile_expired(now=now, limit=limit)
 
     async def purge_retained(
         self,
@@ -720,38 +612,7 @@ class PostgresBackgroundTaskStore:
         now: datetime,
         limit: int = 100,
     ) -> tuple[str, ...]:
-        _limit(limit, 1_000)
-        async with await self._connect() as connection, connection.transaction():
-            await self._timeout(connection)
-            cursor = await connection.execute(
-                "WITH candidate AS ("
-                "SELECT attempt.attempt_id, attempt.task_id "
-                "FROM background_task_attempt AS attempt "
-                "JOIN background_task_completion AS completion "
-                "ON completion.attempt_id = attempt.attempt_id "
-                "WHERE attempt.status = ANY(%s) "
-                "AND attempt.retention_until <= %s "
-                "AND completion.state = ANY(%s) "
-                "ORDER BY attempt.retention_until, attempt.attempt_id "
-                "FOR UPDATE OF attempt SKIP LOCKED LIMIT %s"
-                "), deleted AS ("
-                "DELETE FROM background_task_attempt AS attempt "
-                "USING candidate "
-                "WHERE attempt.attempt_id = candidate.attempt_id "
-                "RETURNING candidate.task_id"
-                ") SELECT task_id FROM deleted",
-                (
-                    [status.value for status in TERMINAL_BACKGROUND_STATUSES],
-                    now,
-                    [
-                        BackgroundTaskCompletionState.DELIVERED.value,
-                        BackgroundTaskCompletionState.ABANDONED.value,
-                    ],
-                    limit,
-                ),
-            )
-            rows = await cursor.fetchall()
-        return tuple(str(row["task_id"]) for row in rows)
+        return await self._completion_delivery.purge_retained(now=now, limit=limit)
 
     async def _insert_completion(
         self,
@@ -760,28 +621,7 @@ class PostgresBackgroundTaskStore:
         *,
         now: datetime,
     ) -> None:
-        if attempt.status not in TERMINAL_BACKGROUND_STATUSES:
-            raise ValueError("completion outbox requires a terminal attempt")
-        await connection.execute(
-            "INSERT INTO background_task_completion ("
-            f"{_COMPLETION_COLUMNS}) VALUES ("
-            "%s, %s, %s, %s, GREATEST(%s, %s), %s, %s, %s, %s, %s, %s) "
-            "ON CONFLICT (attempt_id) DO NOTHING",
-            (
-                attempt.attempt_id,
-                BackgroundTaskCompletionState.PENDING.value,
-                now,
-                now,
-                attempt.task.retention_until,
-                now,
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-            ),
-        )
+        await self._completion_delivery.insert(connection, attempt, now=now)
 
     async def _raise_attempt_conflict(
         self,
@@ -795,32 +635,6 @@ class PostgresBackgroundTaskStore:
         if await cursor.fetchone() is not None:
             raise BackgroundTaskConflictError("background task lease or revision conflict")
         raise LookupError(f"background task attempt {attempt_id!r} was not found")
-
-    async def _completion_leased(
-        self,
-        connection: psycopg.AsyncConnection[dict[str, Any]],
-        attempt_id: str,
-        *,
-        lease_token: str,
-        now: datetime,
-    ) -> BackgroundTaskCompletion:
-        cursor = await connection.execute(
-            f"SELECT {_COMPLETION_COLUMNS} FROM background_task_completion "
-            "WHERE attempt_id = %s FOR UPDATE",
-            (attempt_id,),
-        )
-        row = await cursor.fetchone()
-        if row is None:
-            raise LookupError(f"background completion {attempt_id!r} was not found")
-        current = _completion(row)
-        if (
-            current.state is not BackgroundTaskCompletionState.SENDING
-            or current.lease is None
-            or current.lease.token != lease_token
-            or current.lease.expires_at <= now
-        ):
-            raise BackgroundTaskConflictError("background completion lease conflict")
-        return current
 
     async def _leased_update(
         self,
@@ -859,192 +673,6 @@ class PostgresBackgroundTaskStore:
             "SELECT set_config('statement_timeout', %s, true)",
             (str(self._config.statement_timeout_ms),),
         )
-
-
-def _attempt(row: dict[str, Any]) -> BackgroundTaskAttempt:
-    lease_owner = row["lease_owner"]
-    result_raw = row["result"]
-    return BackgroundTaskAttempt(
-        attempt_id=str(row["attempt_id"]),
-        task=_task(_mapping(row["task"])),
-        attempt_number=int(row["attempt_number"]),
-        status=BackgroundTaskStatus(str(row["status"])),
-        revision=int(row["revision"]),
-        updated_at=row["updated_at"],
-        lease=(
-            BackgroundTaskLease(
-                owner=str(lease_owner),
-                token=str(row["lease_token"]),
-                expires_at=row["lease_expires_at"],
-            )
-            if lease_owner is not None
-            else None
-        ),
-        usage=_usage(_mapping(row["usage"])),
-        result=_result(_mapping(result_raw)) if result_raw is not None else None,
-        parent_attempt_id=(
-            str(row["parent_attempt_id"]) if row["parent_attempt_id"] is not None else None
-        ),
-    )
-
-
-def _progress(row: dict[str, Any]) -> BackgroundTaskProgress:
-    return BackgroundTaskProgress(
-        attempt_id=str(row["attempt_id"]),
-        sequence=int(row["sequence"]),
-        kind=str(row["kind"]),
-        message=str(row["message"]),
-        at=row["at"],
-        usage=_usage(_mapping(row["usage"])),
-    )
-
-
-def _completion(row: dict[str, Any]) -> BackgroundTaskCompletion:
-    lease_owner = row["lease_owner"]
-    return BackgroundTaskCompletion(
-        attempt_id=str(row["attempt_id"]),
-        state=BackgroundTaskCompletionState(str(row["state"])),
-        created_at=row["created_at"],
-        due_at=row["due_at"],
-        retention_until=row["retention_until"],
-        attempt_count=int(row["attempt_count"]),
-        lease=(
-            BackgroundTaskLease(
-                owner=str(lease_owner),
-                token=str(row["lease_token"]),
-                expires_at=row["lease_expires_at"],
-            )
-            if lease_owner is not None
-            else None
-        ),
-        last_error_code=(
-            str(row["last_error_code"]) if row["last_error_code"] is not None else None
-        ),
-        terminal_at=row["terminal_at"],
-    )
-
-
-def _task_to_dict(task: BackgroundTask) -> dict[str, Any]:
-    return {
-        "task_id": task.task_id,
-        "owner_principal_id": task.owner_principal_id,
-        "origin": {
-            "conversation_id": task.origin.conversation_id,
-            "channel_kind": task.origin.channel_kind,
-            "channel_id": task.origin.channel_id,
-            "thread_id": task.origin.thread_id,
-            "message_id": task.origin.message_id,
-        },
-        "kind": task.kind.value,
-        "prompt": task.prompt,
-        "context_digest": task.context_digest,
-        "capability_profile_id": task.capability_profile_id,
-        "budget": {
-            "max_wall_seconds": task.budget.max_wall_seconds,
-            "max_tokens": task.budget.max_tokens,
-            "max_cost_microusd": task.budget.max_cost_microusd,
-            "max_tool_calls": task.budget.max_tool_calls,
-            "max_progress_events": task.budget.max_progress_events,
-        },
-        "correlation_id": task.correlation_id,
-        "idempotency_key": task.idempotency_key,
-        "created_at": task.created_at.isoformat(),
-        "retention_until": task.retention_until.isoformat(),
-        "retryable": task.retryable,
-    }
-
-
-def _task(raw: dict[str, Any]) -> BackgroundTask:
-    origin = _mapping(raw["origin"])
-    budget = _mapping(raw["budget"])
-    thread_id = origin.get("thread_id")
-    message_id = origin.get("message_id")
-    return BackgroundTask(
-        task_id=str(raw["task_id"]),
-        owner_principal_id=str(raw["owner_principal_id"]),
-        origin=BackgroundTaskOrigin(
-            conversation_id=str(origin["conversation_id"]),
-            channel_kind=str(origin["channel_kind"]),
-            channel_id=str(origin["channel_id"]),
-            thread_id=str(thread_id) if thread_id is not None else None,
-            message_id=str(message_id) if message_id is not None else None,
-        ),
-        kind=BackgroundTaskKind(str(raw["kind"])),
-        prompt=str(raw["prompt"]),
-        context_digest=str(raw["context_digest"]),
-        capability_profile_id=str(raw["capability_profile_id"]),
-        budget=BackgroundTaskBudget(
-            max_wall_seconds=int(budget["max_wall_seconds"]),
-            max_tokens=int(budget["max_tokens"]),
-            max_cost_microusd=int(budget["max_cost_microusd"]),
-            max_tool_calls=int(budget["max_tool_calls"]),
-            max_progress_events=int(budget["max_progress_events"]),
-        ),
-        correlation_id=str(raw["correlation_id"]),
-        idempotency_key=str(raw["idempotency_key"]),
-        created_at=datetime.fromisoformat(str(raw["created_at"])),
-        retention_until=datetime.fromisoformat(str(raw["retention_until"])),
-        retryable=bool(raw["retryable"]),
-    )
-
-
-def _usage_to_dict(usage: BackgroundTaskUsage) -> dict[str, int]:
-    return {
-        "tokens": usage.tokens,
-        "cost_microusd": usage.cost_microusd,
-        "tool_calls": usage.tool_calls,
-    }
-
-
-def _usage(raw: dict[str, Any]) -> BackgroundTaskUsage:
-    return BackgroundTaskUsage(
-        tokens=int(raw["tokens"]),
-        cost_microusd=int(raw["cost_microusd"]),
-        tool_calls=int(raw["tool_calls"]),
-    )
-
-
-def _result_to_dict(result: BackgroundTaskResult) -> dict[str, Any]:
-    return {
-        "summary": result.summary,
-        "evidence_refs": list(result.evidence_refs),
-        "terminal_reason": result.terminal_reason,
-        "usage": _usage_to_dict(result.usage),
-        "started_at": result.started_at.isoformat(),
-        "finished_at": result.finished_at.isoformat(),
-        "trusted": result.trusted,
-    }
-
-
-def _result(raw: dict[str, Any]) -> BackgroundTaskResult:
-    summary = raw.get("summary")
-    return BackgroundTaskResult(
-        summary=str(summary) if summary is not None else None,
-        evidence_refs=tuple(str(item) for item in raw["evidence_refs"]),
-        terminal_reason=str(raw["terminal_reason"]),
-        usage=_usage(_mapping(raw["usage"])),
-        started_at=datetime.fromisoformat(str(raw["started_at"])),
-        finished_at=datetime.fromisoformat(str(raw["finished_at"])),
-        trusted=bool(raw["trusted"]),
-    )
-
-
-def _mapping(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, str):
-        decoded = json.loads(value)
-        if isinstance(decoded, dict):
-            return decoded
-    raise RuntimeError("background task JSON column is not an object")
-
-
-def _qualified_attempt_columns(alias: str) -> str:
-    return ", ".join(f"{alias}.{column.strip()}" for column in _ATTEMPT_COLUMNS.split(","))
-
-
-def _qualified_completion_columns(alias: str) -> str:
-    return ", ".join(f"{alias}.{column.strip()}" for column in _COMPLETION_COLUMNS.split(","))
 
 
 def _lease_input(coordinator: str, lease_token: str, now: datetime, lease_seconds: int) -> None:

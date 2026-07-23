@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from collections.abc import AsyncIterator, Mapping
@@ -100,6 +99,7 @@ from fdai.delivery.read_api.routes.chat_stream_protocol import (
     _sse_heartbeat,
     _with_sse_heartbeats,
 )
+from fdai.delivery.read_api.routes.chat_stream_request import read_chat_stream_body
 from fdai.delivery.read_api.routes.chat_system_health import render_system_health_answer
 from fdai.delivery.read_api.routes.chat_verification import verify_answer
 from fdai.delivery.read_api.routes.post_turn_review import (
@@ -164,22 +164,7 @@ def make_chat_stream_route(
             else None
         )
 
-        declared_len = request.headers.get("content-length")
-        if declared_len is not None:
-            try:
-                if int(declared_len) > max_body_bytes:
-                    raise HTTPException(status_code=413, detail="chat body too large")
-            except ValueError:
-                pass
-        body_bytes = await request.body()
-        if len(body_bytes) > max_body_bytes:
-            raise HTTPException(status_code=413, detail="chat body too large")
-        try:
-            body = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise HTTPException(status_code=400, detail="chat body MUST be JSON") from exc
-        if not isinstance(body, dict):
-            raise HTTPException(status_code=400, detail="chat body MUST be a JSON object")
+        body = await read_chat_stream_body(request, max_body_bytes=max_body_bytes)
         try:
             document_evidence_refs = await resolve_document_refs(
                 body=body,
