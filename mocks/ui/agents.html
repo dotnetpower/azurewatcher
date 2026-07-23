@@ -8,30 +8,39 @@
   <script src="assets/calm-slate.js?v=page-context-v3" defer></script>
   <style>
     /* Fleet roster: exception-first live status for the fixed pantheon. */
-    body .cs-brand-mark,
-    body .cs-sidebar-brand:hover .cs-brand-mark { background: #5F6368; }
+    body .cs-brand-mark { display: none; }
+    body .cs-sidebar-brand,
+    body .cs-sidebar-brand:hover { color: inherit; }
     body .cs-sidebar-dot,
     body .cs-sidebar-dot.is-sage,
     body .cs-sidebar-dot.is-steel,
     body .cs-sidebar-dot.is-plum,
     body .cs-sidebar-dot.is-teal,
-    body .cs-sidebar-dot.is-terracotta { background: #D8D6D2; }
-    body .cs-sidebar-group a.cs-active { border-color: #D8D6D2; background: #F0EFED; color: var(--cs-text); }
-    body .cs-sidebar-group a.cs-active .cs-sidebar-dot { background: #85888B; }
-    body .cs-page-domain { color: var(--cs-text-soft); }
-    body .cs-subnav a { border: 1px solid transparent; background: transparent; }
-    body .cs-subnav a.cs-active { border-color: #D8D6D2; background: #ECEAE7; color: var(--cs-text); }
+    body .cs-sidebar-dot.is-terracotta { display: none; }
+    body .cs-sidebar-group a,
+    body .cs-sidebar-group a:hover,
+    body .cs-sidebar-group a.cs-active { border-color: transparent; background: transparent; color: inherit; }
+    body .cs-sidebar-group a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    body .cs-sidebar-group a.cs-active { font-weight: 700; }
+    body .cs-page-domain { color: inherit; }
+    body .cs-subnav { gap: 18px; border-bottom: 1px solid var(--cs-hairline); }
+    body .cs-subnav a,
+    body .cs-subnav a:hover,
+    body .cs-subnav a.cs-active { margin-bottom: -1px; padding: 4px 0 7px; border: 0; border-bottom: 1px solid transparent; border-radius: 0; background: transparent; color: inherit; }
+    body .cs-subnav a:hover { text-decoration: none; border-bottom-color: var(--cs-text-soft); }
+    body .cs-subnav a.cs-active { border-bottom-color: currentColor; font-weight: 650; }
 
     .fl-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
     .fl-title-copy { min-width: 0; }
-    .fl-source { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; margin-top: 5px; color: var(--cs-text-soft); font-size: 12.5px; white-space: nowrap; }
-    .fl-source-dot { width: 8px; height: 8px; border-radius: 50%; background: #85888B; box-shadow: 0 0 0 3px rgba(95,99,104,.10); }
+    .fl-source { display: flex; align-items: center; flex: 0 0 auto; margin-top: 5px; color: var(--cs-text-soft); font-size: 12.5px; white-space: nowrap; }
+    .fl-source strong { color: var(--cs-text); }
 
     .fl-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 14px 0 12px; overflow: hidden; border: 1px solid var(--cs-hairline); border-radius: 8px; background: var(--cs-card); }
     .fl-summary button { min-width: 0; padding: 11px 13px; border: 0; border-right: 1px solid var(--cs-hairline); background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
     .fl-summary button:last-child { border-right: 0; }
-    .fl-summary button:hover, .fl-summary button[aria-pressed="true"] { background: var(--cs-shade); }
+    .fl-summary button:hover, .fl-summary button[aria-pressed="true"] { background: transparent; box-shadow: inset 0 -2px 0 currentColor; }
     .fl-summary-label { display: block; color: var(--cs-text-soft); font-size: 11.5px; font-weight: 650; text-transform: uppercase; }
+    .fl-live-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 5px; font-size: 9px; font-weight: 650; letter-spacing: .03em; }
     .fl-summary-value { display: inline-block; margin-top: 3px; font-size: 25px; font-weight: 650; line-height: 1; }
     .fl-summary-note { display: block; overflow: hidden; margin-top: 5px; color: var(--cs-text-soft); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
     .fl-summary button.is-attention .fl-summary-value { color: inherit; }
@@ -41,6 +50,11 @@
     .fl-context-meta { flex: 0 0 auto; }
 
     .fl-filterbar { margin-bottom: 14px; border-radius: 8px; }
+    .fl-filterbar .cs-chipset { gap: 12px; padding: 0; border-radius: 0; background: transparent; }
+    .fl-filterbar .cs-chipset .cs-chip,
+    .fl-filterbar .cs-chipset .cs-chip:hover,
+    .fl-filterbar .cs-chipset .cs-chip.cs-active { padding: 3px 0; border-bottom: 1px solid transparent; border-radius: 0; background: transparent; box-shadow: none; color: inherit; }
+    .fl-filterbar .cs-chipset .cs-chip.cs-active { border-bottom-color: currentColor; font-weight: 650; }
     .fl-results { margin-left: auto; color: var(--cs-text-soft); font-size: 12.5px; white-space: nowrap; }
     .fl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .fl-card { display: flex; min-width: 0; flex-direction: column; padding: 12px; border: 1px solid var(--cs-hairline); border-radius: 8px; background: var(--cs-card); box-shadow: 0 2px 8px rgba(46,54,64,.04); }
@@ -60,6 +74,21 @@
     .fl-state.is-unobserved { color: var(--cs-dusty-red); background: rgba(172,90,90,.11); }
     .fl-mode { color: var(--cs-plum); background: rgba(123,108,156,.12); }
     .fl-alert { color: var(--cs-terracotta); background: rgba(188,116,73,.12); }
+    .fl-state.is-watching::before { animation: fl-watch-pulse 1.5s ease-out infinite; }
+
+    .fl-live { display: inline-flex; align-items: center; gap: 5px; margin-left: 7px; color: var(--cs-text-soft); font-size: 10.5px; font-weight: 500; text-transform: none; }
+    .fl-live-pulse { display: inline-block; width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: currentColor; animation: fl-live-pulse 1.4s ease-out infinite; }
+
+    @keyframes fl-watch-pulse {
+      0% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+      70% { box-shadow: 0 0 0 4px transparent; opacity: .65; }
+      100% { box-shadow: 0 0 0 0 transparent; opacity: 1; }
+    }
+    @keyframes fl-live-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(107,113,120,.32); opacity: 1; }
+      70% { box-shadow: 0 0 0 4px rgba(107,113,120,0); opacity: .6; }
+      100% { box-shadow: 0 0 0 0 rgba(107,113,120,0); opacity: 1; }
+    }
 
     .fl-work { min-height: 43px; margin-top: 9px; }
     .fl-work-label { display: block; color: var(--cs-text-soft); font-size: 10.5px; font-weight: 650; text-transform: uppercase; }
@@ -109,6 +138,10 @@
       .fl-actions { width: 100%; }
       .fl-actions .cs-btn { flex: 1; justify-content: center; }
     }
+    @media (prefers-reduced-motion: reduce) {
+      .fl-state.is-watching::before,
+      .fl-live-pulse { animation: none; }
+    }
   </style>
 </head>
 <body>
@@ -127,8 +160,8 @@
           <p class="cs-lead">Current work and attention across the fixed 15-agent pantheon.</p>
         </div>
         <div class="fl-source" aria-label="Runtime data is current">
-          <span class="fl-source-dot" aria-hidden="true"></span>
-          <span><strong>Runtime observed</strong> - updated 12s ago</span>
+          <span class="fl-live-pulse" aria-hidden="true"></span>
+          <span><strong>Live stream</strong> - <span id="streamAge">signal now</span></span>
         </div>
       </div>
     </header>
@@ -140,9 +173,9 @@
         <span class="fl-summary-note">handling work now</span>
       </button>
       <button type="button" data-summary-state="watching" aria-pressed="false">
-        <span class="fl-summary-label">Watching</span>
+        <span class="fl-summary-label">Watching <span class="fl-live-tag"><span class="fl-live-pulse" aria-hidden="true"></span> Live</span></span>
         <span class="fl-summary-value">8</span>
-        <span class="fl-summary-note">sensing signals</span>
+        <span class="fl-summary-note"><span id="watchSignalCount">24</span> signals in the last minute</span>
       </button>
       <button type="button" data-summary-state="idle" aria-pressed="false">
         <span class="fl-summary-label">Idle</span>
@@ -229,7 +262,7 @@
           '<div class="fl-card-head"><span class="fl-avatar"><img src="' + iconRoot + slug + '.svg" alt="" /></span>' +
           '<div class="fl-identity"><h2 class="fl-name">' + agent.name + '</h2><p class="fl-role">' + agent.role + "</p></div>" +
           '<div class="fl-badges">' + badges + "</div></div>" +
-          '<div class="fl-work"><span class="fl-work-label">Current work</span><strong>' + agent.work + "</strong></div>" +
+          '<div class="fl-work"><span class="fl-work-label">Current work' + (agent.state === "watching" ? '<span class="fl-live"><span class="fl-live-pulse" aria-hidden="true"></span><span data-live-age="' + slug + '">signal now</span></span>' : "") + '</span><strong>' + agent.work + "</strong></div>" +
           '<div class="fl-metrics">' + metrics + "</div>" +
           '<div class="fl-card-foot"><details class="fl-details"><summary>Details</summary><dl class="fl-detail-grid">' + details + "</dl></details>" +
           '<div class="fl-actions"><a class="cs-btn" href="agent-activity.html?agent=' + slug + '">Activity</a><a class="cs-btn" href="deck.html?agent=' + slug + '">Ask</a></div></div></article>';
@@ -288,6 +321,27 @@
       });
 
       render();
+      var streamAge = 0;
+      var signalCount = 24;
+      var huginn = agents.find(function (agent) { return agent.name === "Huginn"; });
+      window.setInterval(function () {
+        streamAge += 1;
+        document.getElementById("streamAge").textContent = streamAge === 1 ? "1s since last signal" : streamAge + "s since last signal";
+        document.querySelectorAll("[data-live-age]").forEach(function (element, index) {
+          var age = (streamAge + index) % 4;
+          element.textContent = age === 0 ? "signal now" : age + "s ago";
+        });
+      }, 1000);
+
+      window.setInterval(function () {
+        streamAge = 0;
+        signalCount += 1;
+        document.getElementById("streamAge").textContent = "signal now";
+        document.getElementById("watchSignalCount").textContent = String(signalCount);
+        huginn.metrics[0][1] = (Number(huginn.metrics[0][1].replace(",", "")) + 1).toLocaleString("en-US");
+        var eventMetric = document.querySelector('[data-search*="huginn"] .fl-metric strong');
+        if (eventMetric) eventMetric.textContent = huginn.metrics[0][1];
+      }, 5000);
     }());
   </script>
 </body>
