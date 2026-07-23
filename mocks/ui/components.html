@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Components - Calm Slate</title>
-  <link rel="stylesheet" href="assets/calm-slate.css?v=components-v3" />
+  <link rel="stylesheet" href="assets/calm-slate.css?v=components-v4" />
 </head>
 <body>
   <main class="cs-container cs-page">
@@ -349,11 +349,39 @@
         <div class="cs-stackbar-legend"><span><i class="dot" style="background:var(--cs-sage)"></i>Auto 76%</span><span><i class="dot" style="background:var(--cs-terracotta)"></i>Approval 17%</span><span><i class="dot" style="background:var(--cs-plum)"></i>Abstain 7%</span></div>
       </div>
     </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">14</span>
+        <div class="cs-section-title"><h2>Code highlight</h2><p class="cs-desc">Tabbed syntax viewer with file metadata, line numbers, horizontal scrolling, and copy feedback.</p></div>
+      </div>
+      <div class="cs-code-viewer" data-cs-code-viewer>
+        <div class="cs-code-toolbar">
+          <span class="cs-code-file" data-cs-code-file>action-type.yaml</span>
+          <div class="cs-code-tabs" role="tablist" aria-label="Code examples">
+            <button class="cs-code-tab is-active" id="code-tab-yaml" type="button" role="tab" aria-selected="true" aria-controls="code-panel-yaml" data-cs-code-tab="code-panel-yaml">YAML</button>
+            <button class="cs-code-tab" id="code-tab-json" type="button" role="tab" aria-selected="false" aria-controls="code-panel-json" tabindex="-1" data-cs-code-tab="code-panel-json">JSON</button>
+            <button class="cs-code-tab" id="code-tab-cli" type="button" role="tab" aria-selected="false" aria-controls="code-panel-cli" tabindex="-1" data-cs-code-tab="code-panel-cli">CLI</button>
+          </div>
+          <button class="cs-code-copy" type="button" aria-live="polite" data-cs-code-copy>Copy</button>
+        </div>
+        <div class="cs-code-panel" id="code-panel-yaml" role="tabpanel" aria-labelledby="code-tab-yaml" data-code-file="action-type.yaml">
+          <div class="cs-code-scroll"><pre class="cs-code-block"><code><span class="cs-code-line"><span class="cs-code-token is-comment"># Governed action contract</span></span><span class="cs-code-line"><span class="cs-code-token is-key">action_type</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-string">"database.enable-pitr"</span></span><span class="cs-code-line"><span class="cs-code-token is-key">mode</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-string">shadow</span></span><span class="cs-code-line"><span class="cs-code-token is-key">risk</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-string">high</span></span><span class="cs-code-line"><span class="cs-code-token is-key">guardrails</span><span class="cs-code-token is-punctuation">:</span></span><span class="cs-code-line">  <span class="cs-code-token is-key">dry_run</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-boolean">true</span></span><span class="cs-code-line">  <span class="cs-code-token is-key">blast_radius</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-number">1</span></span><span class="cs-code-line">  <span class="cs-code-token is-key">approval_required</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-boolean">true</span></span><span class="cs-code-line"><span class="cs-code-token is-key">rollback</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-string">"restore_previous_policy"</span></span></code></pre></div>
+        </div>
+        <div class="cs-code-panel" id="code-panel-json" role="tabpanel" aria-labelledby="code-tab-json" data-code-file="decision.json" hidden>
+          <div class="cs-code-scroll"><pre class="cs-code-block"><code><span class="cs-code-line"><span class="cs-code-token is-punctuation">{</span></span><span class="cs-code-line">  <span class="cs-code-token is-key">"decision"</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-string">"approval_required"</span><span class="cs-code-token is-punctuation">,</span></span><span class="cs-code-line">  <span class="cs-code-token is-key">"tier"</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-string">"T1"</span><span class="cs-code-token is-punctuation">,</span></span><span class="cs-code-line">  <span class="cs-code-token is-key">"confidence"</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-number">0.93</span><span class="cs-code-token is-punctuation">,</span></span><span class="cs-code-line">  <span class="cs-code-token is-key">"grounded"</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-boolean">true</span><span class="cs-code-token is-punctuation">,</span></span><span class="cs-code-line">  <span class="cs-code-token is-key">"policy_escapes"</span><span class="cs-code-token is-punctuation">:</span> <span class="cs-code-token is-number">0</span></span><span class="cs-code-line"><span class="cs-code-token is-punctuation">}</span></span></code></pre></div>
+        </div>
+        <div class="cs-code-panel" id="code-panel-cli" role="tabpanel" aria-labelledby="code-tab-cli" data-code-file="verify.sh" hidden>
+          <div class="cs-code-scroll"><pre class="cs-code-block"><code><span class="cs-code-line"><span class="cs-code-token is-comment"># Validate the focused change</span></span><span class="cs-code-line"><span class="cs-code-token is-command">scripts/verify.sh</span> <span class="cs-code-token is-flag">--full</span> tests/core/control_loop</span><span class="cs-code-line"></span><span class="cs-code-line"><span class="cs-code-token is-comment"># Preview the local console</span></span><span class="cs-code-line"><span class="cs-code-token is-command">npm</span> <span class="cs-code-token is-flag">--prefix</span> console run dev <span class="cs-code-token is-flag">--</span> <span class="cs-code-token is-flag">--port</span> <span class="cs-code-token is-number">5273</span></span></code></pre></div>
+        </div>
+      </div>
+      <div class="cs-code-caption"><span>Token colors remain readable without changing the copied source.</span><span>Keyboard: Tab to language or Copy.</span></div>
+    </section>
   </main>
 
   <footer class="cs-footer">
     <div class="cs-container"><span>FDAI UI kit - Calm Slate theme.</span></div>
   </footer>
-  <script src="assets/calm-slate.js?v=sidebar-v5"></script>
+  <script src="assets/calm-slate.js?v=components-v4"></script>
 </body>
 </html>

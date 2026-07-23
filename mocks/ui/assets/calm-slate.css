@@ -755,6 +755,45 @@ body.cs-has-sidebar { padding-left: var(--cs-sidebar-w); }
 .cs-dialog-body p { margin: 0; color: var(--cs-text-soft); }
 .cs-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px 20px; }
 
+/* ----- Syntax-highlighted code viewer ----- */
+.cs-code-viewer { overflow: hidden; border: 1px solid #36414B; border-radius: 8px; background: #20272E; box-shadow: 0 10px 28px rgba(32,39,46,.14); color: #E7E9EB; }
+.cs-code-toolbar { min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 10px 0 14px; border-bottom: 1px solid rgba(255,255,255,.09); background: #29323A; }
+.cs-code-file { min-width: 0; flex: 1; overflow: hidden; color: #CDD3D8; font: 12px/1.3 "Cascadia Code", "Consolas", monospace; text-overflow: ellipsis; white-space: nowrap; }
+.cs-code-tabs { display: inline-flex; align-self: stretch; gap: 2px; }
+.cs-code-tab { position: relative; min-width: 54px; padding: 0 8px; border: 0; background: transparent; color: #96A1AA; font: 600 11px var(--cs-font); cursor: pointer; }
+.cs-code-tab::after { content: ""; position: absolute; right: 8px; bottom: 0; left: 8px; height: 2px; border-radius: 2px 2px 0 0; background: transparent; }
+.cs-code-tab:hover { color: #E7E9EB; }
+.cs-code-tab.is-active { color: #FFFFFF; }
+.cs-code-tab.is-active::after { background: #8EB6D9; }
+.cs-code-tab:focus-visible, .cs-code-copy:focus-visible { outline: 2px solid #8EB6D9; outline-offset: -2px; }
+.cs-code-copy { min-height: 30px; padding: 4px 9px; border: 1px solid rgba(255,255,255,.13); border-radius: 6px; background: rgba(255,255,255,.05); color: #CDD3D8; font: 600 11px var(--cs-font); cursor: pointer; transition: border-color .15s ease, background .15s ease, color .15s ease; }
+.cs-code-copy:hover { border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.09); color: #FFFFFF; }
+.cs-code-copy.is-copied { border-color: rgba(184,213,168,.45); color: #B8D5A8; }
+.cs-code-panel[hidden] { display: none; }
+.cs-code-scroll { min-height: 286px; max-height: 420px; overflow: auto; padding: 14px 0 16px; }
+.cs-code-block { min-width: max-content; margin: 0; counter-reset: cs-code-line; background: transparent; color: #D8DDE1; font: 12.5px/1.72 "Cascadia Code", "Consolas", monospace; font-variant-ligatures: none; tab-size: 2; }
+.cs-code-block code { display: block; padding: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; }
+.cs-code-line { display: block; min-height: 1.72em; padding: 0 20px 0 56px; white-space: pre; }
+.cs-code-line::before { counter-increment: cs-code-line; content: counter(cs-code-line); display: inline-block; width: 24px; margin-left: -38px; margin-right: 14px; color: #68747E; text-align: right; user-select: none; }
+.cs-code-token.is-key { color: #8EB6D9; }
+.cs-code-token.is-string { color: #B8D5A8; }
+.cs-code-token.is-number { color: #E5B98D; }
+.cs-code-token.is-boolean { color: #C6ADD8; }
+.cs-code-token.is-comment { color: #77838D; font-style: italic; }
+.cs-code-token.is-command { color: #F1F3F4; font-weight: 600; }
+.cs-code-token.is-flag { color: #9EC5C0; }
+.cs-code-token.is-punctuation { color: #8F9AA4; }
+.cs-code-caption { display: flex; justify-content: space-between; gap: 16px; margin-top: 10px; color: var(--cs-text-soft); font-size: 12px; }
+@media (max-width: 620px) {
+  .cs-code-toolbar { align-items: stretch; flex-wrap: wrap; gap: 0; padding: 8px 8px 0 12px; }
+  .cs-code-file { align-self: center; min-width: 140px; padding-bottom: 8px; }
+  .cs-code-copy { margin: 0 0 8px auto; }
+  .cs-code-tabs { width: 100%; height: 38px; order: 3; }
+  .cs-code-tab { flex: 1; }
+  .cs-code-scroll { min-height: 260px; }
+  .cs-code-caption { align-items: flex-start; flex-direction: column; gap: 2px; }
+}
+
 /* ==========================================================================
    Live cockpit (activity swarm + sparklines + audit ticker)
    Light-theme only for now. Motion is CSS-driven; JS only toggles data-*.

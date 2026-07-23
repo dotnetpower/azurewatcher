@@ -156,6 +156,71 @@
   });
 
   document.addEventListener("click", function (event) {
+    var codeTab = event.target.closest("[data-cs-code-tab]");
+    if (!codeTab) return;
+    var viewer = codeTab.closest("[data-cs-code-viewer]");
+    var targetId = codeTab.getAttribute("data-cs-code-tab");
+    viewer.querySelectorAll("[data-cs-code-tab]").forEach(function (tab) {
+      var active = tab === codeTab;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+    });
+    viewer.querySelectorAll(".cs-code-panel").forEach(function (panel) {
+      panel.hidden = panel.id !== targetId;
+    });
+    var activePanel = viewer.querySelector("#" + targetId);
+    viewer.querySelector("[data-cs-code-file]").textContent = activePanel.getAttribute("data-code-file");
+  });
+
+  document.addEventListener("keydown", function (event) {
+    var codeTab = event.target.closest("[data-cs-code-tab]");
+    if (!codeTab || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    var tabs = Array.prototype.slice.call(codeTab.closest("[role=tablist]").querySelectorAll("[data-cs-code-tab]"));
+    var currentIndex = tabs.indexOf(codeTab);
+    var targetIndex = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : currentIndex + (event.key === "ArrowRight" ? 1 : -1);
+    event.preventDefault();
+    var targetTab = tabs[(targetIndex + tabs.length) % tabs.length];
+    targetTab.focus();
+    targetTab.click();
+  });
+
+  function copyCodeText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return false; });
+    }
+    var textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.top = "-1000px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    var copied = false;
+    try { copied = document.execCommand("copy"); } catch (_) { copied = false; }
+    document.body.removeChild(textarea);
+    return Promise.resolve(copied);
+  }
+
+  document.addEventListener("click", function (event) {
+    var copyButton = event.target.closest("[data-cs-code-copy]");
+    if (!copyButton) return;
+    var viewer = copyButton.closest("[data-cs-code-viewer]");
+    var activeCode = viewer.querySelector(".cs-code-panel:not([hidden]) code");
+    var text = Array.prototype.map.call(activeCode.querySelectorAll(".cs-code-line"), function (line) {
+      return line.textContent;
+    }).join("\n");
+    copyCodeText(text).then(function (copied) {
+      if (!copied) return;
+      copyButton.classList.add("is-copied");
+      copyButton.textContent = "Copied";
+      window.setTimeout(function () {
+        copyButton.classList.remove("is-copied");
+        copyButton.textContent = "Copy";
+      }, 1400);
+    });
+  });
+
+  document.addEventListener("click", function (event) {
     if (event.target.tagName !== "DIALOG") return;
     var bounds = event.target.getBoundingClientRect();
     var inside = event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
