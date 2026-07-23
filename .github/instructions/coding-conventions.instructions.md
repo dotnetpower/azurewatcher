@@ -164,14 +164,22 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
 
 ## Testing
 
-- During the edit loop, run the smallest executable test that can falsify the current change. If
-  no more precise test target is known, use `make test-changed` for working-tree changes or
-  `make test-changed DIFF=<base>...HEAD` for a branch. The selector includes untracked files and
-  uses conservative full-suite fallbacks for global Python test configuration.
+- **Edit loop**: run the smallest executable test that can falsify the current change. Do not run a
+  package, subsystem, or repository suite when one test file or node id is sufficient.
+- **Completed batch**: run the route-selected focused checks, then `make test-changed` for
+  working-tree changes or `make test-changed DIFF=<base>...HEAD` for a branch, plus
+  `bash scripts/verify.sh --fast`. The selector includes untracked files and uses conservative
+  whole-suite fallbacks for global Python test configuration.
+- **Focused pytest facade**: use `bash scripts/verify.sh --full <path>` when the completed slice
+  needs pytest through the common gate runner. A path is mandatory; pathless `--full` is rejected.
+- **Whole-repository suite**: `bash scripts/verify.sh --all` is reserved for an explicit user
+  request, a merge/release boundary, or a changed-test selector full fallback. It MUST NOT run after
+  every edit, hardening batch, commit, or push. A green whole-suite result applies to that exact
+  commit and environment and MUST NOT be repeated while relevant inputs are unchanged; use CI as
+  the authoritative merge/release regression gate when available.
 - Diff-scoped testing is a development feedback optimization, not proof of complete regression or
-  coverage. It MUST NOT replace the relevant safety property tests, `bash scripts/verify.sh --full
-  <path>` for the completed slice, or the authoritative full coverage/regression gates before
-  merge and release.
+  coverage. It MUST NOT replace relevant safety property tests, focused slice verification, or the
+  authoritative full coverage/regression gates at merge and release boundaries.
 - Cover the `deterministic-engine` and `risk-gate` with unit tests; these are the safety core
   and MUST hold a high coverage bar (target ≥ 90% line/branch, enforced as a CI gate).
 - Use fixtures for rule-catalog entries and event payloads; keep them English and secret-free.

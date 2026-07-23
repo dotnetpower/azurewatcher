@@ -16,14 +16,15 @@
 #   - check-arb-readiness.py (ARB artifact, blocker, owner, evidence contract)
 #   - clean-checkout / Docker build-context contracts
 #   - mypy (strict static types)
-#   - pytest + safety-core coverage             [--full only]
-#   - console + CLI tests/typecheck/build       [--full only]
+#   - pytest scoped to one path                 [--full <path> only]
+#   - pytest + safety-core coverage             [--all only]
+#   - console + CLI tests/typecheck/build       [--all only]
 #
 # Usage:
 #   scripts/verify.sh              # --fast (text + lint + strict type gates)
 #   scripts/verify.sh --fast       # same as default
-#   scripts/verify.sh --full       # add pytest (whole suite)
-#   scripts/verify.sh --full <path>  # pytest scoped to <path>
+#   scripts/verify.sh --full <path>  # add pytest scoped to <path>
+#   scripts/verify.sh --all          # whole pytest + operator suite (explicit)
 #
 # Exit code: 0 on all-pass, 1 on any failure. Prints a summary at the end so
 # the caller can see which gate needs attention without scrolling.
@@ -39,6 +40,7 @@ for arg in "$@"; do
     case "$arg" in
         --fast) MODE="fast" ;;
         --full) MODE="full" ;;
+        --all) MODE="all" ;;
         -h|--help)
             sed -n '2,25p' "$0"
             exit 0
@@ -53,6 +55,15 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+if [[ "$MODE" == "full" && -z "$PYTEST_PATH" ]]; then
+    echo "verify.sh: --full requires a pytest path; use make test-changed during development or --all for an explicit whole-suite run" >&2
+    exit 2
+fi
+if [[ "$MODE" == "all" && -n "$PYTEST_PATH" ]]; then
+    echo "verify.sh: --all does not accept a pytest path; use --full <path> for focused verification" >&2
+    exit 2
+fi
 
 declare -a NAMES=()
 declare -a RESULTS=()
@@ -124,15 +135,13 @@ run_gate "derived-sources" python3 scripts/quality/localization/check-derived-so
 # loudly when any signed artifact is missing.
 run_gate "framework-integrity" bash scripts/integrity/check-integrity.sh
 
-# ---- full gates (opt-in) ----------------------------------------------------
+# ---- pytest and whole-repository gates (opt-in) -----------------------------
 
 if [[ "$MODE" == "full" ]]; then
-    if [[ -n "$PYTEST_PATH" ]]; then
-        run_gate "pytest ($PYTEST_PATH)" uv run pytest -q --no-cov "$PYTEST_PATH"
-    else
-        run_gate "pytest + coverage" bash scripts/quality/ci/run-python-tests.sh
-        run_gate "operator surfaces" bash scripts/quality/ci/run-operator-surfaces.sh
-    fi
+    run_gate "pytest ($PYTEST_PATH)" uv run pytest -q --no-cov "$PYTEST_PATH"
+elif [[ "$MODE" == "all" ]]; then
+    run_gate "pytest + coverage" bash scripts/quality/ci/run-python-tests.sh
+    run_gate "operator surfaces" bash scripts/quality/ci/run-operator-surfaces.sh
 fi
 
 # ---- summary ---------------------------------------------------------------

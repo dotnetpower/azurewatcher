@@ -23,12 +23,16 @@ lines, verify, commit. **One batch = one commit.**
 
 ## Steps
 
-1. Baseline coverage on the whole tree:
+1. Reuse the under-covered module list already recorded for this hardening
+  campaign. If no campaign baseline exists, run this whole-tree command once
+  and record the ordered candidate list in the session plan:
    ```
    pytest -q -p no:cacheprovider --cov=src/fdai --cov-branch \
      --cov-report=term-missing
    ```
-2. Sort by lowest coverage, excluding testing fakes:
+  Do not rerun it for later batches. A report from another commit is only a
+  candidate-selection hint, not verification evidence.
+2. Sort the one-time baseline by lowest coverage, excluding testing fakes:
    ```
    coverage report --skip-covered --sort=cover | grep -vE "/testing/"
    ```
@@ -45,6 +49,10 @@ lines, verify, commit. **One batch = one commit.**
 6. Run the fast gate suite: `bash scripts/verify.sh --fast`.
 7. Per-file `git add`, then a Conventional Commit:
    `test(<scope>): cover <module> (<X% -> Y%>)`
+
+Do not run the whole repository suite per batch. The merge/release CI coverage
+gate is authoritative; local `scripts/verify.sh --all` is reserved for an
+explicit user request or the end of a merge/release campaign.
 
 ## When to stop
 

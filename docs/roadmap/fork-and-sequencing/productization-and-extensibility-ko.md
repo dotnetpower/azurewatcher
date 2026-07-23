@@ -1,8 +1,8 @@
 ---
 title: 제품화 및 확장성 계획
 translation_of: productization-and-extensibility.md
-translation_source_sha: a0ae8d966de3028ad72e414f6ceaae600d1448a9
-translation_revised: 2026-07-18
+translation_source_sha: ce88bac20cf2b801bc710c26215e1df24646aa5d
+translation_revised: 2026-07-23
 ---
 # 제품화 및 확장성 계획
 
@@ -179,7 +179,7 @@ bash scripts/quality/localization/check-translations.sh
 bash scripts/quality/repository/check-punctuation.sh
 ```
 
-Release batch는 clean checkout에서 `scripts/verify.sh --full`도 실행하고 wheel 및 deployment
+Release batch는 clean checkout에서 `scripts/verify.sh --all`도 실행하고 wheel 및 deployment
 bundle을 build하고 isolated environment에 wheel을 설치하고 signature를 검증하고 disposable
 PostgreSQL database에서 migration upgrade check를 실행합니다. Release workflow는 Environment가
 signing key를 노출하기 전에 이 순서를 적용합니다. 별도 dependency audit도 통과해야 하며

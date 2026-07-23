@@ -1,8 +1,8 @@
 ---
 title: 설치형 배포 CLI
 translation_of: installable-deployment-cli.md
-translation_source_sha: 2efc0d0f1b940843117deefdbe7f83a8724ecdf2
-translation_revised: 2026-07-22
+translation_source_sha: e3af2b52784d972b08c26cc51794bd0e98d33e8a
+translation_revised: 2026-07-23
 ---
 # 설치형 배포 CLI
 
@@ -413,7 +413,7 @@ key는 mode-restricted 상태로 사용하고 shell trap으로 제거합니다.
 `release` Environment가 signing key를 노출하기 전에 exact clean checkout에서 두 independent
 job이 통과해야 합니다. Verification job은 locked Python 및 console dependency를 설치하고
 disposable pgvector PostgreSQL service를 시작해 single Alembic head로 upgrade합니다. 이어서 live
-integration test를 포함한 `scripts/verify.sh --full`과 productization, console, wheel build,
+integration test를 포함한 `scripts/verify.sh --all`과 productization, console, wheel build,
 isolated CLI check를 실행합니다. 마지막 `git diff --exit-code`는 generator가 tracked source를
 다시 쓰는 경우를 차단합니다. Dependency-audit job은 pinned Python vulnerability scanner를
 실행합니다. Bundle job은 두 job을 `needs`로 선언하고 pinned Ubuntu runner image를 사용하며,

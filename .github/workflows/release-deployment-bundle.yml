@@ -101,7 +101,7 @@ jobs:
         run: uv run alembic upgrade head
 
       - name: Run full repository verification
-        run: uv run bash scripts/verify.sh --full
+        run: uv run bash scripts/verify.sh --all
 
       - name: Run productization and isolated wheel verification
         run: bash scripts/deployment/release/verify-productization.sh

@@ -175,7 +175,7 @@ bash scripts/quality/localization/check-translations.sh
 bash scripts/quality/repository/check-punctuation.sh
 ```
 
-Release batches additionally run `scripts/verify.sh --full` from a clean checkout, build the wheel
+Release batches additionally run `scripts/verify.sh --all` from a clean checkout, build the wheel
 and deployment bundle, install the wheel in an isolated environment, verify signatures, and run
 migration upgrade checks against a disposable PostgreSQL database. The release workflow enforces
 this sequence before its Environment can expose the signing key; a separate dependency audit must

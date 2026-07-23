@@ -79,7 +79,8 @@ repository-integrity checks only; runtime code must not branch on them.
 Do these before your first `git commit` on the fork.
 
 1. **Confirm the baseline is green on your fresh clone**:
-   `uv sync` then `uv run pytest -q`. If the upstream test suite
+  `uv sync` then `scripts/verify.sh --all`. This fresh-clone boundary is an
+  explicit whole-repository check. If the upstream test suite
    fails on an untouched checkout, stop and diagnose before adding
    any fork code - the fork must never inherit a red baseline.
 2. **Clone with a distinct default branch name** (optional but

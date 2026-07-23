@@ -9,7 +9,7 @@ description: |
   built on top of this skill). Load when doing "critique-and-harden" or
   "coverage hardening" work, when triaging a suspected bug, or when
   extending tests around the >= 90% safety-core coverage floor.
-version: 1.1.0
+version: 1.2.0
 scope: repository
 ---
 
@@ -90,8 +90,13 @@ for the full 45-subsystem index.
   `make test-changed DIFF=<base>...HEAD`.
 - Run fast gates: `bash scripts/verify.sh --fast`.
 - Finish with `bash scripts/verify.sh --full <test-path>` for the touched
-  slice. Diff-scoped tests do not replace full coverage/regression gates
-  before merge or release.
+  slice when the focused pytest command has not already covered it.
+- Do NOT run `bash scripts/verify.sh --all` after each batch. Run it once at
+  the end of a campaign only when the user explicitly requested a local
+  whole-repository check or the work is at a merge/release boundary. Reuse a
+  green result for the same commit and environment.
+- Diff-scoped tests do not replace full coverage/regression gates before
+  merge or release; those authoritative gates may run in CI.
 - For coverage-driven work, use the single-module coverage recipe below.
 - Safety-core property tests MUST still pass unchanged:
   - "high-risk never auto-executes"
@@ -119,11 +124,15 @@ for the full 45-subsystem index.
 The 0-risk companion to the critique loop: raise coverage without
 touching production paths.
 
-1. Baseline on the whole tree:
+1. Establish the campaign baseline once, before the first batch:
    ```
    pytest -q -p no:cacheprovider --cov=src/fdai --cov-branch \
      --cov-report=term-missing
    ```
+  Record the ordered under-covered module list in the session plan. Every
+  later batch in the same campaign MUST reuse that list instead of rerunning
+  the whole tree. An existing coverage report from another commit may guide
+  candidate selection, but is not verification evidence.
 2. Sort by lowest coverage (skip testing fakes):
    ```
    coverage report --skip-covered --sort=cover | grep -vE "/testing/"
@@ -139,6 +148,10 @@ touching production paths.
      --cov-report=term-missing --no-cov-on-fail -o addopts=""
    ```
 6. Commit: `test(<scope>): cover <module> (<X% -> Y%>)`.
+
+At the end of a multi-batch campaign, rely on the merge/release CI coverage
+gate by default. Run `scripts/verify.sh --all` locally only under the explicit
+whole-suite conditions in step 3 above.
 
 ## Async-Seam Table
 

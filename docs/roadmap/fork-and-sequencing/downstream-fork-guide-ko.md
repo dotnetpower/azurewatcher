@@ -1,8 +1,8 @@
 ---
 title: Downstream Fork 가이드
 translation_of: downstream-fork-guide.md
-translation_source_sha: 6a97e5c1869a84fa4f17b3aea92a3eb7d459f600
-translation_revised: 2026-07-22
+translation_source_sha: c9a452fcb384d7b608e82e008fa5a9fc8a28a216
+translation_revised: 2026-07-23
 ---
 
 # Downstream Fork 가이드
@@ -84,7 +84,8 @@ repository-integrity 검사만 활성화하며 runtime code는 이 값을 기준
 Fork에서 첫 `git commit` 전에 이것들을 하세요.
 
 1. **Fresh clone에서 baseline이 green인지 확인**: `uv sync` 후
-   `uv run pytest -q`. 손대지 않은 checkout에서 upstream 테스트 스위트가
+  `scripts/verify.sh --all`을 실행합니다. 이 fresh-clone 경계는 명시적인 전체
+  리포지토리 검사입니다. 손대지 않은 checkout에서 upstream 테스트 스위트가
    fail하면 fork 코드 추가 전에 멈추고 진단 - fork는 red baseline을
    절대 상속하지 말 것.
 2. **구별되는 기본 브랜치 이름으로 clone** (선택적이지만 권장):

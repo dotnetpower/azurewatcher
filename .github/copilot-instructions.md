@@ -32,6 +32,10 @@ that context is missing or stale. A more specific instruction wins a conflict.
 9. FDAI is agent-driven. Agents MUST be independently and concurrently runnable, and machine
   workflow collaboration MUST use schema-validated event-bus pub/sub. Direct agent-to-agent
   workflow calls, RPC, imports, or shared mutable workflow state are prohibited.
+10. During development, run the narrowest test that can falsify the current change, then
+  `make test-changed` for the completed batch. Run an unscoped whole-repository suite only when
+  the user explicitly requests it, at a merge/release boundary, or when the changed-test selector
+  requires its full-suite fallback. Do not repeat a green whole-suite run for an unchanged commit.
 
 ## Issue Lifecycle (MUST)
 
@@ -64,5 +68,6 @@ machine-record keys stay ASCII/English as defined by
 
 ## Verification
 
-Run `scripts/verify.sh`; use `--full [<path>]` for pytest. Do not hand-edit generated runtime
-artifacts (`resolved-models*.json`, Terraform state/plan, migrations, or `__pycache__`).
+Run `scripts/verify.sh` for fast gates, `--full <path>` for focused pytest, and `--all` only for an
+explicit whole-repository gate. Do not hand-edit generated runtime artifacts
+(`resolved-models*.json`, Terraform state/plan, migrations, or `__pycache__`).

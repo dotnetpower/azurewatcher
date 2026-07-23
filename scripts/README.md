@@ -57,8 +57,8 @@ database migrations, composition wiring, policy data, rule catalog data or
 loaders, shared contracts and provider interfaces with cross-repository
 consumers, Python files outside a known source layout, and mapped test paths
 that don't exist select the full suite. The focused runner doesn't collect
-coverage and doesn't replace `make test` or `bash scripts/verify.sh --full`
-before merging.
+coverage and doesn't replace `make test` or `bash scripts/verify.sh --all` at
+a merge or release boundary.
 Non-Python fixtures under `tests/` and package resources under `src/` also
 select the full suite because their consumers can't be inferred from imports.
 
@@ -81,5 +81,7 @@ Run the fast repository checks after changing script wiring:
 bash scripts/verify.sh --fast
 ```
 
-Use `bash scripts/verify.sh --full` before merging changes that alter shared
-script behavior or cross-domain automation.
+Use `bash scripts/verify.sh --full <path>` for a focused pytest target. Use
+`bash scripts/verify.sh --all` once before merging changes that alter shared
+script behavior or cross-domain automation; do not repeat it for an unchanged
+commit.

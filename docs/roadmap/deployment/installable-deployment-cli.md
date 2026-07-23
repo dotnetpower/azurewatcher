@@ -413,7 +413,7 @@ trap.
 Before the `release` Environment can expose that signing key, two independent jobs must pass from
 the exact clean checkout. The verification job installs the locked Python and console dependencies,
 starts a disposable pgvector PostgreSQL service, upgrades it to the single Alembic head, runs
-`scripts/verify.sh --full` with live integration tests, and then runs the productization, console,
+`scripts/verify.sh --all` with live integration tests, and then runs the productization, console,
 wheel-build, and isolated-CLI checks. A final `git diff --exit-code` blocks generators that rewrite
 tracked source. The dependency-audit job runs the pinned Python vulnerability scanner. The bundle
 job declares both jobs in `needs`, uses a pinned Ubuntu runner image, and alone receives
