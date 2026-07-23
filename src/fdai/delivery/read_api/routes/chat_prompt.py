@@ -26,6 +26,7 @@ from fdai.delivery.read_api.routes.chat_prompt_content import (
     _SCREEN_EXPLANATION_DIRECTIVE,
     _SYSTEM_PROMPT,
     _TOOL_EVIDENCE_DIRECTIVE,
+    _VISION_EVIDENCE_DIRECTIVE,
     _WEB_EVIDENCE_DIRECTIVE,
 )
 
@@ -685,11 +686,31 @@ def _ontology_selection(value: Any) -> str | None:
     return selected
 
 
+def _vision_user_content(text: str, attachments: Any) -> str | list[dict[str, Any]]:
+    """Build the user-turn content, adding image parts when attachments exist.
+
+    Returns the plain text when there are no attachments (byte-identical to the
+    text-only path), otherwise an OpenAI-style multimodal content list: the text
+    followed by one ``image_url`` part per validated inline image. Only
+    ``data:image/`` URLs pass through, matching the server-side parser guard.
+    """
+    if not isinstance(attachments, list) or not attachments:
+        return text
+    parts: list[dict[str, Any]] = [{"type": "text", "text": text}]
+    for attachment in attachments:
+        if not isinstance(attachment, dict):
+            continue
+        url = attachment.get("data_url")
+        if isinstance(url, str) and url.startswith("data:image/"):
+            parts.append({"type": "image_url", "image_url": {"url": url}})
+    return parts if len(parts) > 1 else text
+
+
 def _build_messages(
     prompt: str,
     view_context: dict[str, Any],
     history: list[dict[str, str]],
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """Assemble the chat messages shared by every backend.
 
     One grounded system message (size-capped snapshot + glossary only when the
@@ -697,9 +718,16 @@ def _build_messages(
     and the user turn. Centralised so all three backends
     (:class:`OpenAiCompatibleChatBackend`, :class:`AzureAdChatBackend`, and the
     streaming path) build byte-identical, minimal prompts.
+
+    When the turn carries validated ``_attachments`` (inline images), the user
+    turn becomes a multimodal content list and a vision directive is added, so
+    a vision-capable narrator grounds its answer on the attached image(s). The
+    base64 payload is popped before snapshot serialisation so it never bloats
+    the system prompt or leaks into logs.
     """
     view_context = dict(view_context)
     compiled_policy = view_context.pop(_COMPILED_USER_POLICY_KEY, None)
+    attachments = view_context.pop("_attachments", None)
     view_context = _trim_view_context(view_context, prompt=prompt)
     if not isinstance(view_context.get("_answer_plan"), dict):
         plan = build_answer_plan(prompt, route_id=str(view_context.get("routeId") or "") or None)
@@ -721,7 +749,7 @@ def _build_messages(
         glossary=glossary,
         snapshot_json=snapshot_json,
     )
-    messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     if isinstance(compiled_policy, dict) and isinstance(compiled_policy.get("text"), str):
         messages.append({"role": "system", "content": compiled_policy["text"]})
     if "_behavior_evidence" in view_context:
@@ -736,6 +764,8 @@ def _build_messages(
         messages.append({"role": "system", "content": _CONCEPT_EVIDENCE_DIRECTIVE})
     if "_web_evidence" in view_context:
         messages.append({"role": "system", "content": _WEB_EVIDENCE_DIRECTIVE})
+    if isinstance(attachments, list) and attachments:
+        messages.append({"role": "system", "content": _VISION_EVIDENCE_DIRECTIVE})
     if view_context.get("_answer_quality_review") is True:
         messages.append({"role": "system", "content": _ANSWER_QUALITY_REVIEW_DIRECTIVE})
     # Locale directive is a separate second system message so the base prompt
@@ -749,7 +779,7 @@ def _build_messages(
         content = turn.get("content")
         if role in {"user", "assistant"} and isinstance(content, str) and content:
             messages.append({"role": role, "content": content[:4000]})
-    messages.append({"role": "user", "content": prompt[:4000]})
+    messages.append({"role": "user", "content": _vision_user_content(prompt[:4000], attachments)})
     return messages
 
 

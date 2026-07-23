@@ -159,6 +159,7 @@ export async function askBackendStream(
           callbacks.sessionId,
           requestId,
           callbacks.conversationBinding,
+          callbacks.attachments,
         ),
       ),
       signal: callbacks.signal ?? null,

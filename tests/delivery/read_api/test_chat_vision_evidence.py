@@ -9,6 +9,7 @@ import pytest
 from fdai.delivery.read_api.routes.chat_vision_evidence import (
     VisionAttachment,
     parse_vision_attachments,
+    vision_source_previews,
 )
 
 _PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
@@ -133,3 +134,23 @@ def test_normalizes_whitespace_in_data_url() -> None:
     # Normalized form carries no embedded whitespace.
     assert "\n" not in parsed[0].data_url
     assert parsed[0].byte_size == len(_PNG)
+
+
+def test_vision_source_previews_render_metadata_without_base64() -> None:
+    parsed = parse_vision_attachments(
+        {"attachments": [_attachment("image/png", _PNG, "diagram.png")]}
+    )
+    previews = vision_source_previews([a.to_view_dict() for a in parsed])
+    assert len(previews) == 1
+    assert previews[0]["kind"] == "image"
+    assert previews[0]["label"] == "diagram.png"
+    assert previews[0]["side_effect_class"] == "ground"
+    assert previews[0]["detail"].startswith("image/png")
+    # The base64 payload is never carried in a preview.
+    assert "base64" not in previews[0]["detail"]
+
+
+def test_vision_source_previews_tolerate_bad_input() -> None:
+    assert vision_source_previews(None) == []
+    assert vision_source_previews("nope") == []
+    assert vision_source_previews([{"media_type": "image/png"}]) == []  # no name

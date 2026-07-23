@@ -11,6 +11,7 @@ import {
 } from "./backend";
 import { detectActionIntent } from "./action-intent";
 import { watchActionProgress } from "./action-progress";
+import { takeComposerAttachments } from "./composer-attachment-store";
 import { DEFAULT_NARRATOR, type Turn } from "./command-deck-presenters";
 import { upsertInvestigationActivity } from "./investigation-timeline";
 import { replyAgent, sessionIdFor } from "./command-deck-session";
@@ -103,6 +104,9 @@ export function useCommandDeckSubmit({
 }: UseCommandDeckSubmitOptions) {
   return useCallback(async (raw: string) => {
     const text = raw.trim();
+    // Drain any staged image attachments up front so exactly this turn owns
+    // them and a concurrent composer clear cannot race the payload away.
+    const attachments = takeComposerAttachments();
     if (text.length === 0 || pending || inFlightRef.current) return;
     const originSessionKey = sessionKeyRef.current;
     const controller = new AbortController();
@@ -326,6 +330,7 @@ export function useCommandDeckSubmit({
       try {
         reply = await askBackendStream(text, snapshot, history, {
           sessionId: sessionIdFor(sessionIdsRef.current, originSessionKey),
+          ...(attachments.length > 0 ? { attachments } : {}),
           ...(sessionSummary?.binding
             ? { conversationBinding: sessionSummary.binding }
             : {}),

@@ -102,7 +102,10 @@ from fdai.delivery.read_api.routes.chat_stream_protocol import (
 from fdai.delivery.read_api.routes.chat_stream_request import read_chat_stream_body
 from fdai.delivery.read_api.routes.chat_system_health import render_system_health_answer
 from fdai.delivery.read_api.routes.chat_verification import verify_answer
-from fdai.delivery.read_api.routes.chat_vision_evidence import parse_vision_attachments
+from fdai.delivery.read_api.routes.chat_vision_evidence import (
+    parse_vision_attachments,
+    vision_source_previews,
+)
 from fdai.delivery.read_api.routes.post_turn_review import (
     PostTurnReviewSubmission,
     PostTurnReviewSubmitter,
@@ -327,6 +330,19 @@ def make_chat_stream_route(
                         ),
                     },
                 )
+                # Vision escalation: when the turn carries validated image
+                # attachments, surface a read-only "analyzing" phase before the
+                # narrator composes, symmetric to the web_search_* phases.
+                vision_previews = vision_source_previews(view_context.get("_attachments"))
+                if vision_previews:
+                    yield frame(
+                        "status",
+                        {
+                            "phase": "vision_analyzing",
+                            "label": f"Analyzing {len(vision_previews)} attached image(s)",
+                            "sources": vision_previews,
+                        },
+                    )
                 enriched_context = await _with_compiled_user_policy(
                     view_context,
                     user_id=user_id,
@@ -468,6 +484,17 @@ def make_chat_stream_route(
                     enriched_context,
                     locale=response_locale,
                 )
+                if vision_previews:
+                    yield frame(
+                        "status",
+                        {
+                            "phase": "vision_grounded",
+                            "label": f"Grounded on {len(vision_previews)} attached image(s)",
+                            "completed": len(vision_previews),
+                            "total": len(vision_previews),
+                            "sources": vision_previews,
+                        },
+                    )
                 yield frame(
                     "status",
                     {

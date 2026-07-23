@@ -21,8 +21,40 @@ import {
   thumbLabel,
   type StagedAttachment,
 } from "./composer-attachments";
+import {
+  clearComposerAttachments,
+  stageComposerAttachment,
+  unstageComposerAttachment,
+} from "./composer-attachment-store";
 
 const OOXML_PROBE = new Set(["docx", "docm", "xlsx", "xlsm", "pptx", "pptm"]);
+
+/** Raster types the vision narrator accepts, mirroring the server allowlist. */
+const SENDABLE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+
+/** Per-image byte cap, symmetric to the server DEFAULT_MAX_IMAGE_BYTES. */
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/** Resolve a sendable image media type from the file, or null when unsupported. */
+function imageMediaType(file: File): string | null {
+  if (SENDABLE_IMAGE_TYPES.has(file.type)) return file.type;
+  const ext = fileExtension(file.name);
+  if (ext === "png") return "image/png";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "gif") return "image/gif";
+  if (ext === "webp") return "image/webp";
+  return null;
+}
+
+/** Read a file as a base64 ``data:`` URL for the vision request payload. */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("attachment read failed"));
+    reader.readAsDataURL(file);
+  });
+}
 
 async function readHead(file: File, count = 8): Promise<Uint8Array> {
   const buffer = await file.slice(0, count).arrayBuffer();
@@ -75,6 +107,25 @@ export function ComposerAttachments() {
               );
             })
             .catch(() => patch(id, { status: "ready" }));
+        } else if (kind === "image") {
+          // Stage the image as send-ready vision evidence: read it as a base64
+          // data URL into the external store the submit path drains. Oversized
+          // or unsupported rasters stay visible but are not sent.
+          const media = imageMediaType(file);
+          if (media !== null && file.size <= MAX_IMAGE_BYTES) {
+            void fileToDataUrl(file)
+              .then((dataUrl) => {
+                stageComposerAttachment(id, {
+                  name: file.name,
+                  media_type: media,
+                  data_url: dataUrl,
+                });
+              })
+              .catch(() => undefined)
+              .finally(() => patch(id, { status: "ready" }));
+          } else {
+            patch(id, { status: "ready" });
+          }
         } else {
           patch(id, { status: "ready" });
         }
@@ -84,6 +135,7 @@ export function ComposerAttachments() {
   );
 
   const remove = useCallback((id: string) => {
+    unstageComposerAttachment(id);
     setItems((current) => {
       const target = current.find((entry) => entry.id === id);
       if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
@@ -129,12 +181,14 @@ export function ComposerAttachments() {
     };
   }, [addFiles]);
 
-  // Revoke any outstanding object URLs on unmount.
+  // Revoke any outstanding object URLs on unmount, and drop any staged
+  // attachments so a closed/switched deck never carries them into a later turn.
   useEffect(
     () => () => {
       for (const entry of itemsRef.current) {
         if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
       }
+      clearComposerAttachments();
     },
     [],
   );

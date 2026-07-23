@@ -142,9 +142,56 @@ def parse_vision_attachments(
     return parsed
 
 
+def _format_bytes(size: int) -> str:
+    """Render a compact human byte size for a status-frame detail line."""
+
+    if size < 1024:
+        return f"{size} B"
+    kib = size / 1024
+    if kib < 1024:
+        return f"{round(kib)} KB"
+    return f"{kib / 1024:.1f} MB"
+
+
+def vision_source_previews(attachments: Any) -> list[dict[str, Any]]:
+    """Render read-only source previews for the ``vision_*`` SSE status frames.
+
+    Carries only the display metadata (name, media type, size) - never the
+    base64 payload - so the console can show which attached images the narrator
+    is grounding on, symmetric to the web-search source previews.
+    """
+
+    if not isinstance(attachments, list):
+        return []
+    previews: list[dict[str, Any]] = []
+    for attachment in attachments:
+        if not isinstance(attachment, dict):
+            continue
+        name = attachment.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        detail_bits: list[str] = []
+        media = attachment.get("media_type")
+        if isinstance(media, str) and media:
+            detail_bits.append(media)
+        size = attachment.get("byte_size")
+        if isinstance(size, int) and size >= 0:
+            detail_bits.append(_format_bytes(size))
+        previews.append(
+            {
+                "kind": "image",
+                "label": name,
+                "detail": " \u00b7 ".join(detail_bits),
+                "side_effect_class": "ground",
+            }
+        )
+    return previews
+
+
 __all__ = [
     "DEFAULT_MAX_IMAGES",
     "DEFAULT_MAX_IMAGE_BYTES",
     "VisionAttachment",
     "parse_vision_attachments",
+    "vision_source_previews",
 ]

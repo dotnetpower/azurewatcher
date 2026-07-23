@@ -1,6 +1,7 @@
 import { getLocale } from "../i18n";
 import { ROUTE_ACTION_HINTS } from "./answerer";
 import type { AnswerVerification, BackendTurn } from "./backend-types";
+import type { ChatAttachment } from "./composer-attachment-store";
 import type { ViewSnapshot } from "./context";
 import { normalizeIncidentBinding } from "./conversation-sessions";
 import { getDeckUser } from "./deck-user";
@@ -32,12 +33,22 @@ export function createBackendRequestPayload(
   sessionId: string | undefined,
   requestId?: string,
   binding?: IncidentConversationBinding,
+  attachments?: readonly ChatAttachment[],
 ): Record<string, unknown> {
   const normalizedBinding = normalizeIncidentBinding(binding);
   return {
     ...(requestId === undefined ? {} : { request_id: requestId }),
     prompt,
     session_id: sessionId,
+    ...(attachments && attachments.length > 0
+      ? {
+          attachments: attachments.map((attachment) => ({
+            name: attachment.name,
+            media_type: attachment.media_type,
+            data_url: attachment.data_url,
+          })),
+        }
+      : {}),
     ...(normalizedBinding ? {
       conversation_context: {
         kind: normalizedBinding.kind,
