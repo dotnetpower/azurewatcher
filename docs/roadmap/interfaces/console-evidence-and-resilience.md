@@ -27,6 +27,11 @@ Unavailable metric cards use a subdued whole-surface background, no elevation sh
 muted value text so they don't read as measured results. They remain focusable drill-down links and
 retain a complete-border focus or hover cue; the visual treatment never sets disabled semantics.
 
+Operating Outcomes publishes the selected metric, current value, baseline, measurement window,
+sample size, confidence, source provenance, and vertical records as a bounded Command Deck view
+snapshot. The narrator receives only these rendered evidence facts; it does not infer unavailable
+values or replace the route's authoritative source.
+
 ## Loading presentation
 
 Every route, panel, and bounded content region renders a skeleton from its first loading frame.

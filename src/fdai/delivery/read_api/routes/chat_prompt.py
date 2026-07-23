@@ -108,6 +108,17 @@ _CONCEPT_DOMAIN: Final = re.compile(
 _AGENT_NAME_TOKEN: Final = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
 
 
+_SCREEN_EXPLANATION_QUERY: Final = re.compile(
+    r"\b(?:explain|describe|summarize|walk me through)\b.{0,40}\b(?:this|current)\s+"
+    r"(?:screen|page|view)\b"
+    r"|\bwhat(?:'s| is)\b.{0,20}\b(?:on|in)\s+(?:this|the current)\s+"
+    r"(?:screen|page|view)\b"
+    r"|(?:\uc774|\ud604\uc7ac)\s*(?:\ud654\uba74|\ud398\uc774\uc9c0|\ubdf0).{0,40}"
+    r"(?:\uc124\uba85|\uc694\uc57d|\uc54c\ub824|\ubb34\uc5c7|\ubb50)",
+    re.IGNORECASE,
+)
+
+
 _GLOSSARY_STOP: Final = frozenset(
     {"a", "an", "and", "do", "does", "explain", "is", "of", "the", "what", "why"}
 )
@@ -133,6 +144,12 @@ def _is_concept_query(prompt: str) -> bool:
     if _CONCEPT_INTENT.search(prompt):
         return True
     return bool(_CONCEPT_PHRASING.search(prompt) and not _DATA_WORD.search(prompt))
+
+
+def _is_screen_explanation_query(prompt: str) -> bool:
+    """Return whether the operator explicitly asks for a current-view walkthrough."""
+
+    return bool(_SCREEN_EXPLANATION_QUERY.search(prompt))
 
 
 def _glossary_matches(prompt: str) -> list[dict[str, str]]:
@@ -673,12 +690,8 @@ def _build_messages(
     snapshot_json = _snapshot_json_capped(view_context, DEFAULT_MAX_CONTEXT_BYTES)
     glossary = _GLOSSARY if _is_concept_query(prompt) else ""
     capabilities = _CAPABILITIES if _is_capability_query(prompt) else ""
-    records = view_context.get("records")
     screen_explanation = (
-        _SCREEN_EXPLANATION_DIRECTIVE
-        if isinstance(records, Mapping)
-        and any(key in records for key in ("sections", "controls", "constraints"))
-        else ""
+        _SCREEN_EXPLANATION_DIRECTIVE if _is_screen_explanation_query(prompt) else ""
     )
     explanation_rules = (
         _EXPLANATION_DIRECTIVE if isinstance(view_context.get("explanations"), Mapping) else ""

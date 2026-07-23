@@ -197,6 +197,13 @@ frame or a same-tick queue burst is grouped into paint-sized chunks with a
 short cosmetic cadence; deterministic fallback prose keeps its separate,
 slower typewriter cadence.
 
+An explicit English or Korean request to explain the current screen receives a
+concise operator walkthrough of at most 120 words. It covers purpose, current
+status, and the most important visible evidence first, then controls,
+constraints, or safety boundaries only when the snapshot contains them. The
+narrator does not repeat raw snapshot fields, invent a control-loop stage, or
+add a separate example interpretation.
+
 Screen-only provisional answers additionally produce an atomic claim artifact
 without a second model call. The deterministic extractor recognizes IDs,
 numbers, percentages, timestamps, causal assertions, and bounded-scope claims;

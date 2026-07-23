@@ -1,5 +1,6 @@
 import type { ReadApiClient } from "../api";
 import type { AutonomyPayload, MetricVsBaseline, VerticalSummary } from "../types";
+import { usePublishViewContext } from "../deck/context";
 import {
   AsyncBoundary,
   DataTable,
@@ -15,6 +16,7 @@ import { t } from "./i18n/analytics";
 import { currentRoute, routeHref } from "../router";
 import { formatShare, formatUsd, overviewHealth } from "./dashboard.model";
 import { useAnalyticsData, type AnalyticsData } from "./analytics-data";
+import { buildOperatingOutcomeViewSnapshot } from "./analytics-hubs.view";
 
 interface Props { readonly client: ReadApiClient }
 
@@ -189,8 +191,22 @@ export function OperatingOutcomesRoute({ client }: Props) {
 function OutcomeBody({ data, active }: { readonly data: AnalyticsData; readonly active: OutcomeKey }) {
   const autonomy = data.autonomy!;
   const metric = outcomeMetric(autonomy, active);
+  const routeLabel = t("analytics.outcomes.title");
+  const metricLabel = t(`analytics.metric.${active}`);
+  const unavailableLabel = t("analytics.unavailable");
   const trend = autonomy.trend[active.replaceAll("-", "_")] ??
     (active === "auto-resolution" ? autonomy.trend.auto_resolution_rate : undefined);
+  usePublishViewContext(
+    () => buildOperatingOutcomeViewSnapshot({
+      autonomy,
+      metric,
+      metricKey: active,
+      metricLabel,
+      unavailableLabel,
+      routeLabel,
+    }),
+    [active, autonomy, metric, metricLabel, routeLabel, unavailableLabel],
+  );
   return (
     <div class="stack">
       <EvidenceStrip autonomy={autonomy} />

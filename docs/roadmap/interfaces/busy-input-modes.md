@@ -95,6 +95,8 @@ at most four steer reruns. If the turn finishes before consumption, `finish_turn
 unconsumed steer disposition to `queued`.
 Queued and steered follow-ups retain the active incident conversation binding; a rerun never
 reverts to fuzzy incident selection or changes Bragi's narrator identity.
+They also preserve an English or Korean current-screen explanation intent and its 120-word
+walkthrough bound; steer guidance cannot expand that turn into an unbounded snapshot recital.
 They also retain intent scope. An incident collection-summary follow-up deterministically renders
 the bounded matching set without asking the operator to select one incident. A question that
 requires one incident, such as cause analysis, keeps the ambiguous-selection behavior.

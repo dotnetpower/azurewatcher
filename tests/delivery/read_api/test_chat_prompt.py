@@ -341,12 +341,46 @@ def test_screen_explanation_uses_sections_controls_and_constraints() -> None:
         )
     )
 
-    assert "purpose, visible `records.sections`, current facts/status" in system
-    assert "available `records.controls`" in system
-    assert "`records.constraints` and safety boundaries" in system
+    assert "Cover the purpose, current status and most important evidence" in system
+    assert "available controls, constraints, or safety boundaries" in system
     assert "human-facing `label`, `detail`, and `disabled_reason`" in system
     assert "hide machine `key`/`control` tokens" in system
+    assert "at most 120 words" in system
+    assert "Do not quote the raw snapshot, repeat the headline" in system
     assert "Do not reduce a screen explanation to a raw fact list" in system
+
+
+def test_korean_screen_explanation_gets_concise_walkthrough_without_control_records() -> None:
+    system = _system_of(
+        _build_messages(
+            "\uc774 \ud654\uba74\uc5d0 \ub300\ud574\uc11c \uc124\uba85\ud574\uc918",
+            {
+                "routeId": "operating-outcomes",
+                "purpose": "Inspect measured operating outcomes.",
+                "facts": [{"key": "sample_size", "value": 34}],
+                "records": {"verticals": [{"key": "change-safety", "events": 34}]},
+            },
+            [],
+        )
+    )
+
+    assert "at most 120 words" in system
+    assert "Do not quote the raw snapshot, repeat the headline" in system
+
+
+def test_metric_question_does_not_get_screen_walkthrough_directive() -> None:
+    system = _system_of(
+        _build_messages(
+            "How many events are in the sample?",
+            {
+                "routeId": "operating-outcomes",
+                "facts": [{"key": "sample_size", "value": 34}],
+            },
+            [],
+        )
+    )
+
+    assert "at most 120 words" not in system
 
 
 def test_current_turn_language_takes_precedence_over_history() -> None:

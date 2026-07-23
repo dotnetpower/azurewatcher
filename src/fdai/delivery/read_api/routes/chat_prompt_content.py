@@ -27,7 +27,7 @@ Rules:
 
 
 _SCREEN_EXPLANATION_DIRECTIVE = """\
-- When asked to explain the current screen, synthesize an operator walkthrough in this order: purpose, visible `records.sections`, current facts/status, available `records.controls`, then `records.constraints` and safety boundaries. Use human-facing `label`, `detail`, and `disabled_reason`; hide machine `key`/`control` tokens unless asked about schema. Explain what the operator can do and why a disabled control is unavailable. Do not reduce a screen explanation to a raw fact list.
+- When asked to explain the current screen, give a concise operator walkthrough of at most 120 words. Cover the purpose, current status and most important evidence, then available controls, constraints, or safety boundaries only when present. Use human-facing `label`, `detail`, and `disabled_reason`; hide machine `key`/`control` tokens unless asked about schema. Do not quote the raw snapshot, repeat the headline, invent a control-loop stage, or add a separate example interpretation. Explain what the operator can do and why a disabled control is unavailable. Do not reduce a screen explanation to a raw fact list.
 """
 
 
