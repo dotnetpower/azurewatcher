@@ -1,0 +1,26 @@
+region       = "<azure-region>"
+region_short = "<region-token>"
+
+# Use the Microsoft-registered Azure VPN Client audience documented for the
+# active Azure cloud. Do not commit a populated tenant-specific tfvars file.
+entra_audience = "00000000-0000-0000-0000-000000000000"
+
+fdai_vnet = {
+  id                  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/<fdai-dev-resource-group>/providers/Microsoft.Network/virtualNetworks/<fdai-dev-vnet>"
+  name                = "<fdai-dev-vnet>"
+  resource_group_name = "<fdai-dev-resource-group>"
+}
+
+fdai_private_dns_zones = {
+  vault = {
+    name                = "privatelink.vaultcore.azure.net"
+    resource_group_name = "<fdai-dev-resource-group>"
+  }
+}
+
+# Override these defaults if any range overlaps the FDAI VNet, your LAN, WSL,
+# Docker, or another connected network.
+# dev_access_address_space         = "10.71.0.0/24"
+# gateway_subnet_prefix            = "10.71.0.0/27"
+# resolver_inbound_subnet_prefix   = "10.71.0.32/28"
+# vpn_client_address_pool          = "172.30.250.0/24"
