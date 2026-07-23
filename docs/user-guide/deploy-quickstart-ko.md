@@ -2,7 +2,7 @@
 title: 배포 빠른 시작
 description: FDAI 최소 세트 인벤토리를 Azure에 프로비저닝하는 방법. 동등한 두 경로(azd 턴키 또는 Terraform 직접 실행) 모두 먼저 미리보고, 계획이 맞을 때만 적용합니다.
 translation_of: deploy-quickstart.md
-translation_source_sha: 5b5f8168bf512681b107033922188552253d003b
+translation_source_sha: 63ac81a9f80378458cec26e883149b686991fa6b
 translation_revised: 2026-07-23
 ---
 
@@ -68,7 +68,10 @@ terraform -chdir=infra apply -var-file=envs/dev.tfvars
    범위에서 최소 권한만 갖는지 확인합니다. Subscription Event Grid delivery가 inventory
    managed identity로 operational Event Hubs shard의 `aw.inventory.raw`에 도달하는지, primary
    shard가 Standard entity 10개 제한 안에 있는지, Huginn이 test resource change를 project하는지,
-   6시간 ARG/ARM reconciliation Job이 예약되어 있는지 확인합니다.
+   6시간 ARG/ARM reconciliation Job이 예약되어 있는지 확인합니다. Private networking을
+   활성화했으면 PostgreSQL과 두 Event Hubs shard가 runtime subnet 또는 peered runner에서 private
+   address로 resolve되고 protocol TLS check를 완료하는지, Event Hubs public access가 비활성화됐는지
+   확인합니다.
 2. **Runtime health 및 identity 검증.** 내부 core probe가 정상인지, 15개 agent가 모두 Pantheon
    health snapshot에 보고되는지, 즉시 실행한 canary publisher Job이 완료됐는지 확인합니다.
    Read API를 사용하면 browser Entra App Role을 검증하고 read/command credential이 Thor의

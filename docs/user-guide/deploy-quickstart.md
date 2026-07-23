@@ -1,7 +1,7 @@
 ---
 title: Deploy Quickstart
 description: Provision the FDAI minimum-set inventory on Azure - two equivalent paths (azd turnkey or Terraform direct), preview first, apply only when the plan looks right.
-derives_from: [{ source: docs/roadmap/deployment/deploy-and-onboard.md, sha: f519673ca1ab10c482542972809cf3aba66096d3 }]
+derives_from: [{ source: docs/roadmap/deployment/deploy-and-onboard.md, sha: 9f599de1f2a4020c608f3c4737db0552c33adf27 }]
 ---
 
 # Deploy Quickstart
@@ -72,7 +72,9 @@ terraform -chdir=infra apply -var-file=envs/dev.tfvars
    subscription Event Grid delivery uses the inventory managed identity to
    reach `aw.inventory.raw` on the operational Event Hubs shard, the primary shard stays within
    its ten-entity Standard limit, Huginn projects a test resource change, and the six-hour ARG/ARM
-   reconciliation Job remains scheduled.
+   reconciliation Job remains scheduled. With private networking enabled, verify PostgreSQL and
+   both Event Hubs shards resolve to private addresses from the runtime subnet or peered runner,
+   complete their protocol TLS checks, and keep Event Hubs public access disabled.
 2. **Verify runtime health and identity.** Confirm the internal core probes are healthy, all 15
    agents report through the Pantheon health snapshot, and the immediate canary publisher Job
    completed. When the read API is enabled, verify browser Entra App Roles and confirm its
