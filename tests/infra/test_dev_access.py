@@ -72,6 +72,7 @@ def test_dev_access_ships_repeatable_client_checks() -> None:
     assert "wsl.exe" in wsl_dns
     assert '"label": "dev-access: configure VPN on folder open"' in tasks
     assert '"command": "bash tools/dev-access/scripts/vscode-startup.sh"' in tasks
+    assert '"problemMatcher": "$gcc"' in tasks
     assert '"runOn": "folderOpen"' in tasks
     assert '"instanceLimit": 1' in tasks
     assert "terraform.tfstate" in startup

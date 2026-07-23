@@ -42,7 +42,7 @@
       "label": "dev-access: configure VPN on folder open",
       "type": "shell",
       "command": "bash tools/dev-access/scripts/vscode-startup.sh",
-      "problemMatcher": [],
+      "problemMatcher": "$gcc",
       "presentation": {
         "reveal": "silent",
         "panel": "dedicated",

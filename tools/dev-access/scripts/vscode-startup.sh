@@ -25,7 +25,7 @@ if [[ -z "${route_line}" || "${route_line}" == *" via "* ]]; then
       Start-Process ("shell:AppsFolder\" + $app.AppID)
     }
   ' >/dev/null 2>&1 || true
-  printf 'error: FDAI Azure VPN is disconnected. Azure VPN Client was opened; connect the dev-access profile, then reopen the workspace or run wsl-dns.sh apply.\n' >&2
+  printf 'tools/dev-access/README.md:1:1: error: FDAI Azure VPN is disconnected. Azure VPN Client was opened; connect the dev-access profile, then reopen the workspace or run wsl-dns.sh apply.\n' >&2
   exit 20
 fi
 

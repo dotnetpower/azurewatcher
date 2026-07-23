@@ -1,7 +1,7 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: f32a3825e2c05157123379834bbc5a849b3d7801
+translation_source_sha: 75510b9749e4a480276a471a24c8169a5c97df26
 translation_revised: 2026-07-23
 ---
 
@@ -91,8 +91,9 @@ runtime adapter를 선택하지 않습니다. Source, test 및 담당 design doc
 선택적 `dev-access: configure VPN on folder open` task는 workstation에 격리된 P2S 개발 접근
 stack의 local state가 있을 때만 활성화됩니다. VPN이 연결되어 있으면 FDAI runtime resource를
 변경하지 않고 transient WSL Resolver binding을 복구합니다. VPN 연결이 끊겨 있으면 Azure VPN
-Client를 열고 startup task 실패를 보고하며, 개발자가 Entra sign-in 및 MFA를 계속 완료합니다.
-Local dev-access state가 없는 workstation에는 prompt나 network 변경이 발생하지 않습니다.
+Client를 열고 실패한 startup task의 Problems 패널 오류를 보고하며, 개발자가 Entra sign-in 및
+MFA를 계속 완료합니다. Local dev-access state가 없는 workstation에는 prompt나 network 변경이
+발생하지 않습니다.
 
 ### 로컬 개발의 Console 데이터
 

@@ -88,8 +88,9 @@ mode, action lifecycle, or runtime adapter. Source, tests, and owning design doc
 The optional `dev-access: configure VPN on folder open` task activates only when the workstation
 has local state for the isolated P2S development-access stack. A connected VPN causes the task to
 restore the transient WSL Resolver binding without changing FDAI runtime resources. A disconnected
-VPN opens Azure VPN Client and reports a failed startup task; the developer still completes Entra
-sign-in and MFA. Workstations without local dev-access state receive no prompt or network change.
+VPN opens Azure VPN Client and reports a Problems-panel error from the failed startup task; the
+developer still completes Entra sign-in and MFA. Workstations without local dev-access state
+receive no prompt or network change.
 
 ### Console data in local development
 
