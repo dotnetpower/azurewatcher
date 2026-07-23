@@ -85,9 +85,12 @@ for the full 45-subsystem index.
 ### 3. Verify
 
 - Run the most precise known pytest target immediately after each edit.
-- When a batch spans multiple files or the owning test is unclear, run
-  `make test-changed`. For a committed branch range, run
-  `make test-changed DIFF=<base>...HEAD`.
+- When a batch spans multiple files or the owning test is unclear, run bare
+  `make test-changed` only if the worktree contains that batch alone. Parallel
+  hardening sessions SHOULD use separate Git worktrees. In a shared dirty
+  worktree, run focused checks before committing only owned paths, then run
+  `make test-changed DIFF=<commit>^..<commit>` for the exact hardening commit.
+  For a committed branch range, run `make test-changed DIFF=<base>...HEAD`.
 - Run fast gates: `bash scripts/verify.sh --fast`.
 - Finish with `bash scripts/verify.sh --full <test-path>` for the touched
   slice when the focused pytest command has not already covered it.

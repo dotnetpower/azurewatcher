@@ -19,8 +19,13 @@ Run `scripts/verify.sh` from the repo root and report the gate summary.
    `bash scripts/verify.sh --full ${ARGS}`.
 5. If the user explicitly asked for the whole repository, run
    `bash scripts/verify.sh --all`. A generic request such as "with tests"
-   means `make test-changed`, not the whole suite. Do not repeat a green
-   `--all` run while the commit and relevant environment are unchanged.
+   means diff-scoped tests, not the whole suite. Use bare `make test-changed`
+   only when the worktree contains the current batch alone. If unrelated
+   dirty files from parallel sessions are present, use the current session's
+   exact committed range:
+   `make test-changed DIFF=<commit>^..<commit>`.
+   Do not repeat a green run while the commit and relevant environment are
+   unchanged.
 6. Print the summary block from `verify.sh`. If any gate failed:
    - Name the failing gate.
    - Point at the individual `scripts/check-*.sh` or the offending pytest
@@ -33,3 +38,5 @@ Run `scripts/verify.sh` from the repo root and report the gate summary.
 - Never edit the gate scripts to make them pass; treat a failure as a real
   finding.
 - Do not touch untracked or WIP files while verifying.
+- Do not validate one session by selecting unrelated files from a shared dirty
+   worktree. Prefer a separate Git worktree for concurrent sessions.

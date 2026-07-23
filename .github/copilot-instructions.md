@@ -32,10 +32,13 @@ that context is missing or stale. A more specific instruction wins a conflict.
 9. FDAI is agent-driven. Agents MUST be independently and concurrently runnable, and machine
   workflow collaboration MUST use schema-validated event-bus pub/sub. Direct agent-to-agent
   workflow calls, RPC, imports, or shared mutable workflow state are prohibited.
-10. During development, run the narrowest test that can falsify the current change, then
-  `make test-changed` for the completed batch. Run an unscoped whole-repository suite only when
-  the user explicitly requests it, at a merge/release boundary, or when the changed-test selector
-  requires its full-suite fallback. Do not repeat a green whole-suite run for an unchanged commit.
+10. During development, run the narrowest test that can falsify the current change. Run bare
+  `make test-changed` only when the worktree contains that session's batch alone. Parallel sessions
+  SHOULD use separate Git worktrees; in a shared dirty worktree, validate before commit with focused
+  checks, commit only owned paths, then run `make test-changed DIFF=<commit>^..<commit>` for that exact
+  commit. Never make every session retest unrelated dirty files. Run an unscoped whole-repository
+  suite only when explicitly requested, at a merge/release boundary, or on selector fallback, and
+  do not repeat a green result for an unchanged commit.
 
 ## Issue Lifecycle (MUST)
 
