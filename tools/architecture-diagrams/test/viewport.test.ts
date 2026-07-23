@@ -59,3 +59,17 @@ test("viewer leaves mouse-wheel scrolling to the page", async () => {
 
   assert.doesNotMatch(viewer, /addEventListener\(\s*["']wheel["']/u);
 });
+
+test("toolbar floats over the diagram and reveals on hover or focus", async () => {
+  const viewer = await readFile(
+    new URL("../src/viewer/architecture-diagram.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(viewer, /\.shell \{[^}]*position: relative/u);
+  assert.match(viewer, /\.toolbar \{[^}]*position: absolute/u);
+  assert.match(viewer, /\.shell:hover \.toolbar, \.shell:focus-within \.toolbar/u);
+  assert.match(viewer, /@media \(hover: none\)[^{]*\{[^}]*\.toolbar/u);
+  assert.doesNotMatch(viewer, /border-bottom:/u);
+  assert.match(viewer, /\.shell:fullscreen \.stage \{ height: 100vh; \}/u);
+});

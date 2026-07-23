@@ -217,11 +217,12 @@ class ArchitectureDiagramElement extends HTMLElement {
     style.textContent = `
       :host { --fdai-diagram-canvas: #faf9f8; --fdai-diagram-surface: #ffffff; --fdai-diagram-node: #ffffff; --fdai-diagram-label-surface: #ffffff; --fdai-diagram-text: #323130; --fdai-diagram-muted: #605e5c; --fdai-diagram-border: #a19f9d; --fdai-diagram-border-strong: #605e5c; --fdai-diagram-neutral-header: #edebe9; --fdai-diagram-control-surface: #eff6fc; --fdai-diagram-control-header: #deecf9; --fdai-diagram-delivery-surface: #f0fbfd; --fdai-diagram-delivery-header: #d9f8ff; --fdai-diagram-azure: #0078d4; --fdai-diagram-azure-dark: #005a9e; --fdai-diagram-azure-soft: #deecf9; --fdai-diagram-cyan-dark: #35b4e3; display: block; width: 100%; max-width: 100%; min-width: 0; margin: 1.5rem 0 2rem; color: var(--sl-color-text, #323130); contain: inline-size; }
       :host-context([data-theme="dark"]) { --fdai-diagram-canvas: #11100f; --fdai-diagram-surface: #1b1a19; --fdai-diagram-node: #201f1e; --fdai-diagram-label-surface: #1b1a19; --fdai-diagram-text: #f3f2f1; --fdai-diagram-muted: #d2d0ce; --fdai-diagram-border: #605e5c; --fdai-diagram-border-strong: #a19f9d; --fdai-diagram-neutral-header: #323130; --fdai-diagram-control-surface: #10243a; --fdai-diagram-control-header: #163b5c; --fdai-diagram-delivery-surface: #102a30; --fdai-diagram-delivery-header: #123b44; --fdai-diagram-azure: #50e6ff; --fdai-diagram-azure-dark: #71afe5; --fdai-diagram-azure-soft: #163b5c; --fdai-diagram-cyan-dark: #50e6ff; }
-      .shell { box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; border: 1px solid var(--sl-color-hairline, var(--fdai-diagram-border)); border-radius: 8px; overflow: hidden; background: var(--fdai-diagram-canvas); }
-      .toolbar { box-sizing: border-box; display: flex; width: 100%; align-items: center; justify-content: flex-end; gap: 0.2rem; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--sl-color-hairline, #d6e0ec); background: var(--sl-color-bg, #fff); }
+      .shell { box-sizing: border-box; position: relative; width: 100%; max-width: 100%; min-width: 0; border: 1px solid var(--sl-color-hairline, var(--fdai-diagram-border)); border-radius: 8px; overflow: hidden; background: var(--fdai-diagram-canvas); }
+      .toolbar { box-sizing: border-box; position: absolute; z-index: 4; inset-block-start: 0.45rem; inset-inline-end: 0.45rem; display: flex; width: auto; align-items: center; justify-content: flex-end; gap: 0.1rem; padding: 0.18rem; border: 1px solid var(--sl-color-hairline, #d6e0ec); border-radius: 6px; background: color-mix(in srgb, var(--sl-color-bg, #fff) 92%, transparent); box-shadow: 0 4px 14px rgb(15 23 42 / 0.16); opacity: 0; transform: translateY(-0.2rem); pointer-events: none; transition: opacity 140ms ease, transform 140ms ease; }
+      .shell:hover .toolbar, .shell:focus-within .toolbar { opacity: 1; transform: translateY(0); pointer-events: auto; }
       .zoom-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-      button { display: inline-grid; flex: 0 0 auto; place-items: center; width: 2.5rem; height: 2.5rem; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--sl-color-gray-2, #64748b); cursor: pointer; }
-      button svg { width: 1rem; height: 1rem; color: inherit; stroke: currentColor; }
+      button { display: inline-grid; flex: 0 0 auto; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--sl-color-gray-2, #64748b); cursor: pointer; }
+      button svg { width: 0.9rem; height: 0.9rem; color: inherit; stroke: currentColor; }
       button:hover { background: var(--sl-color-bg-nav, #eef3f8); border-color: var(--sl-color-hairline, #cbd5e1); color: var(--sl-color-white, #334155); }
       button:focus-visible { outline: 2px solid var(--sl-color-text-accent, #0078d4); outline-offset: 2px; }
       .stage { box-sizing: border-box; position: relative; width: 100%; max-width: 100%; height: auto; overflow: hidden; touch-action: pan-y; cursor: default; }
@@ -237,10 +238,11 @@ class ArchitectureDiagramElement extends HTMLElement {
       .connections { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0.4rem; }
       .flow { padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid var(--sl-color-hairline, #cbd5e1); font-size: 0.78rem; }
       .shell:fullscreen { width: 100vw; height: 100vh; border: 0; border-radius: 0; }
-      .shell:fullscreen .stage { height: calc(100vh - 3.5rem); }
+      .shell:fullscreen .stage { height: 100vh; }
       .shell:fullscreen .details.open { position: absolute; inset-inline: 1rem; inset-block-end: 1rem; width: auto; max-height: 13rem; overflow: auto; border: 1px solid var(--sl-color-hairline, #d6e0ec); border-radius: 8px; box-shadow: 0 8px 28px rgb(15 23 42 / 0.24); }
-      @media (max-width: 44rem) { .toolbar { gap: 0.1rem; padding: 0.3rem 0.35rem; } button { width: 2.35rem; height: 2.35rem; } .stage { height: min(72vh, 30rem); min-height: 24rem; } .details { grid-template-columns: 1fr; } }
-      @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+      @media (max-width: 44rem) { .toolbar { inset-block-start: 0.3rem; inset-inline-end: 0.3rem; } .stage { height: min(72vh, 30rem); min-height: 24rem; } .details { grid-template-columns: 1fr; } }
+      @media (hover: none) { .toolbar { opacity: 1; transform: none; pointer-events: auto; } }
+      @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } .toolbar { transition: none; } }
     `;
 
     const shell = document.createElement("div");

@@ -112,10 +112,12 @@ checksum, and inspect both locale PNG files before merging.
 
 The docs page keeps an ordinary localized `<img>` inside
 `<fdai-architecture-diagram>`. Without JavaScript, the SVG remains readable.
-With JavaScript, the generated Web Component loads the same SVG and adds its
-toolbar and component-detail panel. Desktop starts with the full diagram at its
-native aspect ratio. Narrow screens start with a readable crop that leaves room
-to pan on both axes and provide a separate overview control. Arrow keys pan,
+With JavaScript, the generated Web Component loads the same SVG and adds a
+compact floating toolbar plus a component-detail panel. The toolbar appears at
+the upper right when the diagram is hovered or receives keyboard focus; touch
+devices keep it visible. Desktop starts with the full diagram at its native
+aspect ratio. Narrow screens start with a readable crop that leaves room to pan
+on both axes and provide a separate overview control. Arrow keys pan,
 `+` and `-` zoom, `0` resets the view, and `Escape` clears a selected component.
 Hovering a connector or its label emphasizes both, so a label remains traceable
 through dense crossings.
