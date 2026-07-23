@@ -1123,6 +1123,7 @@ body.cs-drawer-open { overflow: hidden; }
    ========================================================================== */
 
 .cs-live-page { padding-top: 20px; }
+.cs-live-context { margin-bottom: 18px; }
 
 .cs-live-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
 .cs-live-title { display: inline-flex; align-items: center; gap: 12px; margin: 0; }
