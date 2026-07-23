@@ -1,7 +1,7 @@
 ---
 title: Operator Console - Narrator, DI Seams, and Session Model
 translation_of: operator-console-runtime-model.md
-translation_source_sha: e2c87936723bf0b7d324484e81791695e6dd7922
+translation_source_sha: d06b59698925fbeba065571ec1740cc35a246099
 translation_revised: 2026-07-23
 ---
 
@@ -281,6 +281,15 @@ class ConversationSession:
   Verification은 trim한 answer를 Unicode NFC 형식으로 비교하므로 동일한 한국어의 canonical
   equivalent 표현이 false correction revision을 만들지 않습니다. 반환하는 canonical evidence
   text는 재작성하지 않습니다.
+  Model-generated 한국어 answer는 terminal evidence verification 전에 bounded post-generation
+  review를 한 번 받습니다. Route는 exact snapshot value, identifier, URL 및 code를 ordered
+  placeholder로 mask합니다. Reviewer는 draft를 pass하거나 narrator-authored prose를 rewrite하거나
+  복구할 수 없는 draft를 reject할 수 있습니다. 모든 placeholder가 원래 순서로 정확히 한 번씩
+  나타나는 경우에만 rewrite를 수락하고 원래 evidence를 byte-for-byte로 restore합니다. Explicit
+  rejection은 localized unverified answer가 됩니다. Reviewer outage, invalid JSON, placeholder
+  mismatch, English output 및 deterministic evidence fast path는 두 번째 model dependency를 추가하지
+  않고 기존 factual verifier를 계속 사용합니다. JSON과 SSE는 bounded `answer_quality` metadata를
+  노출하고, SSE는 변경된 visible draft를 기존 `revision` frame으로 교체합니다.
   탐색 목록은 대화를 **현재 화면**, **다른 화면**, **에이전트**로 그룹화.
   각 pathname은 제거할 수 없는 기본 화면 대화 하나를 소유. **새 대화**는 현재
   pathname에 대한 빈 임시 thread를 만들고, 첫 operator turn을 보낸 뒤에만 해당

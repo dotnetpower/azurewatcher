@@ -291,6 +291,15 @@ class ConversationSession:
   Newlines, tabs, and script-shaping zero-width joiners remain allowed.
   Verification compares trimmed answers in Unicode NFC form so canonically equivalent Korean text
   does not create a false correction revision. The returned canonical evidence text is not rewritten.
+  Model-generated Korean answers receive one bounded post-generation review before terminal
+  evidence verification. The route masks exact snapshot values, identifiers, URLs, and code as
+  ordered placeholders; the reviewer can pass the draft, rewrite narrator-authored prose, or reject
+  an unrepairable draft. A rewrite is accepted only when every placeholder appears exactly once in
+  its original order, then the route restores the original evidence byte-for-byte. An explicit
+  rejection becomes a localized unverified answer. Reviewer outage, invalid JSON, placeholder
+  mismatch, English output, and deterministic evidence fast paths add no second model dependency and
+  continue through the existing factual verifier. JSON and SSE expose bounded `answer_quality`
+  metadata; SSE replaces a changed visible draft through the existing `revision` frame.
   The navigation list groups conversations as **Current screen**, **Other
   screens**, and **Agents**. Each pathname owns one non-removable default
   screen conversation. **New conversation** creates an ephemeral empty thread

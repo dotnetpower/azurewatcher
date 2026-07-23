@@ -30,6 +30,10 @@ from fdai.delivery.read_api.routes.chat_answer_planning import (
     planning_metadata,
     start_shadow_answer_planning,
 )
+from fdai.delivery.read_api.routes.chat_answer_quality import (
+    review_korean_narrator_answer,
+    verify_quality_result,
+)
 from fdai.delivery.read_api.routes.chat_backend_azure import AzureAdChatBackend
 from fdai.delivery.read_api.routes.chat_backend_common import (
     _COGNITIVE_SCOPE,
@@ -70,6 +74,7 @@ from fdai.delivery.read_api.routes.chat_backend_router import (
 from fdai.delivery.read_api.routes.chat_busy_input import (
     ChatTurnInterruptedError,
     answer_with_busy_input,
+    await_with_interrupt,
 )
 from fdai.delivery.read_api.routes.chat_document_evidence import (
     ChatDocumentEvidenceResolver,
@@ -517,21 +522,54 @@ def make_chat_route(
                     with_correlation(_metering_correlation_id(user_id, session_id)),
                     with_invocation_scope(InvocationScope.OPERATOR_CHAT),
                 ):
-                    reply = await answer_with_busy_input(
+                    draft_reply = await answer_with_busy_input(
                         invoke=invoke_backend,
                         history=history,
                         coordinator=busy_input_coordinator,
                         active_turn=active_turn,
                     )
-                provisional_answer = str(reply.get("answer", ""))
-                verification = verify_answer(
-                    provisional_answer,
+                provisional_answer = str(draft_reply.get("answer", ""))
+
+                async def invoke_quality(
+                    quality_prompt: str,
+                    quality_context: dict[str, Any],
+                ) -> dict[str, Any]:
+                    if isinstance(backend, LatencyRoutedChatBackend):
+                        return await backend.answer(
+                            prompt=quality_prompt,
+                            view_context=quality_context,
+                            history=[],
+                            preferred_model=str(draft_reply.get("model") or preferred_model or "")
+                            or None,
+                        )
+                    return await backend.answer(
+                        prompt=quality_prompt,
+                        view_context=quality_context,
+                        history=[],
+                    )
+
+                with (
+                    with_correlation(_metering_correlation_id(user_id, session_id)),
+                    with_invocation_scope(InvocationScope.OPERATOR_CHAT),
+                ):
+                    quality = await await_with_interrupt(
+                        review_korean_narrator_answer(
+                            answer=provisional_answer,
+                            view_context=view_context,
+                            locale=response_locale,
+                            invoke=invoke_quality,
+                        ),
+                        active_turn=active_turn,
+                    )
+                verification = verify_quality_result(
+                    quality,
                     view_context,
                     locale=_response_locale(clean_prompt, view_context),
                 )
                 reply = {
-                    **reply,
+                    **draft_reply,
                     "answer": verification.answer,
+                    "answer_quality": quality.to_dict(),
                 }
             verification = merge_document_verification(
                 verification,

@@ -16,6 +16,7 @@ from fdai.core.conversation.answer_plan import (
 )
 from fdai.delivery.read_api.routes.chat_prompt_content import (
     _AGENT_EVIDENCE_DIRECTIVE,
+    _ANSWER_QUALITY_REVIEW_DIRECTIVE,
     _BEHAVIOR_EVIDENCE_DIRECTIVE,
     _CAPABILITIES,
     _CONCEPT_EVIDENCE_DIRECTIVE,
@@ -735,6 +736,8 @@ def _build_messages(
         messages.append({"role": "system", "content": _CONCEPT_EVIDENCE_DIRECTIVE})
     if "_web_evidence" in view_context:
         messages.append({"role": "system", "content": _WEB_EVIDENCE_DIRECTIVE})
+    if view_context.get("_answer_quality_review") is True:
+        messages.append({"role": "system", "content": _ANSWER_QUALITY_REVIEW_DIRECTIVE})
     # Locale directive is a separate second system message so the base prompt
     # stays byte-identical for English operators (matches the CLI narrator's
     # two-message shape when locale != "en"). Skipped when locale is absent
@@ -756,6 +759,7 @@ __all__ = [
     "DEFAULT_MAX_HISTORY_TURNS",
     "DEFAULT_MAX_RECORDS_PER_KEY",
     "_AGENT_EVIDENCE_DIRECTIVE",
+    "_ANSWER_QUALITY_REVIEW_DIRECTIVE",
     "_BEHAVIOR_EVIDENCE_DIRECTIVE",
     "_CAPABILITIES",
     "_CONCEPT_EVIDENCE_DIRECTIVE",

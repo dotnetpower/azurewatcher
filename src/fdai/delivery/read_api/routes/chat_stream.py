@@ -28,6 +28,11 @@ from fdai.delivery.read_api.routes.chat_answer_planning import (
     planning_metadata,
     start_shadow_answer_planning,
 )
+from fdai.delivery.read_api.routes.chat_answer_quality import (
+    AnswerQualityResult,
+    review_korean_narrator_answer,
+    verify_quality_result,
+)
 from fdai.delivery.read_api.routes.chat_backend_common import (
     ChatBackend,
     ChatBackendUnavailableError,
@@ -467,6 +472,7 @@ def make_chat_stream_route(
 
                 stream = getattr(backend, "answer_stream", None)
                 provisional_answer = ""
+                model_generated = False
                 terminal_model: Any = None
                 terminal_router: Any = None
                 terminal_usage: Any = None
@@ -496,6 +502,7 @@ def make_chat_stream_route(
                     for chunk in _chunk_answer_for_stream(provisional_answer):
                         yield frame("token", {"delta": chunk})
                 elif stream is not None:
+                    model_generated = True
                     steer_reruns = 0
                     while steer_reruns <= MAX_STEER_RERUNS:
                         if isinstance(backend, LatencyRoutedChatBackend):
@@ -555,6 +562,7 @@ def make_chat_stream_route(
                             },
                         )
                 else:
+                    model_generated = True
 
                     async def invoke_backend(
                         active_history: list[dict[str, str]],
@@ -606,10 +614,66 @@ def make_chat_stream_route(
                         "generation_ms": generation_ms,
                     },
                 )
-                verification = verify_answer(
-                    provisional_answer,
-                    enriched_context,
-                    locale=_response_locale(clean_prompt, enriched_context),
+                quality: AnswerQualityResult | None = None
+                if model_generated:
+
+                    async def invoke_quality(
+                        quality_prompt: str,
+                        quality_context: dict[str, Any],
+                    ) -> dict[str, Any]:
+                        if isinstance(backend, LatencyRoutedChatBackend):
+                            return await backend.answer(
+                                prompt=quality_prompt,
+                                view_context=quality_context,
+                                history=[],
+                                preferred_model=str(terminal_model or preferred_model or "")
+                                or None,
+                            )
+                        return await backend.answer(
+                            prompt=quality_prompt,
+                            view_context=quality_context,
+                            history=[],
+                        )
+
+                    async def quality_source() -> AsyncIterator[dict[str, Any]]:
+                        with (
+                            with_correlation(_metering_correlation_id(user_id, session_id)),
+                            with_invocation_scope(InvocationScope.OPERATOR_CHAT),
+                        ):
+                            result = await review_korean_narrator_answer(
+                                answer=provisional_answer,
+                                view_context=enriched_context,
+                                locale=response_locale,
+                                invoke=invoke_quality,
+                            )
+                        yield {"result": result}
+
+                    quality_events = _with_sse_heartbeats(
+                        quality_source(), interval=DEFAULT_STREAM_HEARTBEAT_S
+                    )
+                    async for quality_event in interruptible_events(
+                        quality_events,
+                        active_turn=active_turn,
+                    ):
+                        if quality_event is None:
+                            yield _sse_heartbeat()
+                            continue
+                        candidate = quality_event.get("result")
+                        if isinstance(candidate, AnswerQualityResult):
+                            quality = candidate
+
+                verification = (
+                    verify_quality_result(
+                        quality,
+                        enriched_context,
+                        locale=response_locale,
+                    )
+                    if quality is not None
+                    else verify_answer(
+                        provisional_answer,
+                        enriched_context,
+                        locale=response_locale,
+                    )
                 )
                 verification = merge_document_verification(
                     verification,
@@ -680,6 +744,8 @@ def make_chat_stream_route(
                         for artifact in extract_grounded_code(verification.answer)
                     ],
                 }
+                if quality is not None:
+                    done_payload["answer_quality"] = quality.to_dict()
                 if conversation_history_store is not None:
                     assistant_turn = await append_assistant_turn(
                         store=conversation_history_store,

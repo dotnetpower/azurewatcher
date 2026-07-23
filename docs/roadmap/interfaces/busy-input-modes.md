@@ -71,6 +71,8 @@ validation. The backend model call races against a conversation-local cancellati
 interrupt:
 
 - The backend task is cancelled and awaited.
+- A bounded post-generation narrator quality review is part of the same conversational task and is
+    cancelled and awaited under the same active-turn signal.
 - The one-shot route returns an interrupted response before appending an assistant turn.
 - The stream emits `interrupted`, emits no `done`, and closes upstream iteration.
 - Planning helpers are cancelled and awaited.
@@ -93,6 +95,9 @@ At a safe model or tool boundary, the coordinator rechecks the principal, consum
 exactly once, appends its content as in-memory user guidance, and reruns the narrator. A turn accepts
 at most four steer reruns. If the turn finishes before consumption, `finish_turn` atomically changes
 unconsumed steer disposition to `queued`.
+The terminal quality review runs after the final steered draft. It does not consume another steer or
+start another operator turn; input that arrives during review remains governed by the existing
+queue, interrupt, or steer race outcome.
 Queued and steered follow-ups retain the active incident conversation binding; a rerun never
 reverts to fuzzy incident selection or changes Bragi's narrator identity.
 They also preserve an English or Korean current-screen explanation intent and its 120-word
