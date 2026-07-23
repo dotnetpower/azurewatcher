@@ -75,6 +75,9 @@ prod topology so shadow evaluation is representative.
     Event Grid subscription. No Service Bus or custom Event Grid topic exists.
   - **PostgreSQL Flexible Server** (Burstable B1ms, 1 zone, 7-day backup) as the single store
     for audit + KPI + pattern library + **pgvector** T1 embeddings.
+  - **Private StorageV2 case-history account** with Shared Key disabled, Blob versioning,
+    soft delete, bounded version lifecycle, a dedicated non-executor workload identity, and a private endpoint.
+    It stores content-addressed case revisions; PostgreSQL keeps only the rebuildable hot index.
   - **Key Vault** as the secret backend, consumed by the app via **Container Apps native
     secret + Key Vault reference** - the app reads env vars only and never imports a secret
     SDK ([csp-neutrality.md § Secret contract](../architecture/csp-neutrality.md#3-secret-contract--environment--k8s-secret)).

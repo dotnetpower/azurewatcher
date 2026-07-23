@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: cbfb8e05b65802e7c2d07a55bb49f517c122a5c0
+translation_source_sha: 807c0ec937e60c5bc800eeb62965288dc73c1d63
 translation_revised: 2026-07-23
 ---
 
@@ -33,6 +33,7 @@ fdai/
 │   │   ├── operator_memory/    # HIL 승인된 오퍼레이터 메모리를 untrusted `<operator_note>` 데이터로 주입
 │   │   ├── learning/           # 동의 기반 off-path turn eligibility, consensus, dedup ledger, 비활성 proposal routing
 │   │   ├── trajectory/         # authorization-first observable trajectory projection, version policy, reviewed aggregate, offline validation
+│   │   ├── case_history/       # canonical case revision, scoped cohort retrieval, inert off-path analysis
 │   │   ├── task_worker/        # 격리된 depth-one 읽기 전용 worker: capability 축소, lifecycle, 영구 state, parent synthesis
 │   │   ├── background_task/    # 영구 detached read: lease/CAS, atomic completion outbox, bounded retry, process-loss, retention purge
 │   │   ├── read_investigation/ # Exact-resource VM/network planning, evidence, latency policy, owner-scoped direct/stream replay, honest cost usage, SSE heartbeat, stream-close cancellation. Cloud SDK와 execution authority 없음
@@ -92,6 +93,7 @@ fdai/
 │   │   ├── behavior_knowledge/ # in-memory hybrid behavior index, tracked-source freshness, built-in behavior seed
 │   │   ├── pgvector/           # persistent document 및 behavior vector index
 │   │   ├── azure/              # bounded log/metric/App Insights trace evidence를 포함한 Azure 전용 adapter (`azure-*` import 허용 트리)
+│   │   │                       #   `case_history_artifacts.py`는 workload identity로 private Blob에 content-addressed case revision 저장
 │   │   │                       #   `vm_task.py` 는 Managed Run Command 사용; `container_apps_job_backend.py` 는 pinned Job template만 시작; `llm/python_task_author.py` 는 inert draft 생성
 │   │   ├── vm_task/            # planning-only read adapter + ontology ToolExecutor bridge; cloud SDK import 없음
 │   │   ├── execution_backend/  # 기존 sandbox authority 위의 bubblewrap 및 VM-task lifecycle adapter

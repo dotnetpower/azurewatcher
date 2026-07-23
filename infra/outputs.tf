@@ -221,6 +221,16 @@ output "document_storage_account_name" {
   value       = length(module.document_storage) > 0 ? module.document_storage[0].name : ""
 }
 
+output "case_history_storage_account_name" {
+  description = "Private versioned case-history storage account name."
+  value       = length(module.case_history_storage) > 0 ? module.case_history_storage[0].name : ""
+}
+
+output "case_history_container_url" {
+  description = "Private Blob container URL consumed by the core case-history adapter."
+  value       = length(module.case_history_storage) > 0 ? module.case_history_storage[0].container_url : ""
+}
+
 output "document_storage_dfs_endpoint" {
   description = "Private ADLS Gen2 DFS endpoint consumed by the ingestion gateway."
   value       = length(module.document_storage) > 0 ? module.document_storage[0].primary_dfs_endpoint : ""

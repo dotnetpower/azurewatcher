@@ -59,6 +59,7 @@ from fdai.agents._framework.introspection import (
 )
 from fdai.agents._framework.norns_consensus import NornsConsensus
 from fdai.agents._framework.pantheon import _NORNS
+from fdai.core.case_history import CaseHistoryAnalyzer
 from fdai.core.chaos.coverage import ScenarioCoverageAggregator
 from fdai.core.learning import (
     PostTurnReviewCoordinator,
@@ -89,6 +90,8 @@ class Norns(Agent):
         rejection_revise_threshold: int = 5,
         coverage_aggregator: ScenarioCoverageAggregator | None = None,
         post_turn_review: PostTurnReviewCoordinator | None = None,
+        forecast_error_threshold: int = 3,
+        case_history_analyzer: CaseHistoryAnalyzer | None = None,
     ) -> None:  # Fail fast on misconfiguration: a non-positive threshold or a
         # rate outside [0, 1] would make the learner propose on thin or
         # impossible evidence (e.g. min_outcome_samples=0 fires on a single
@@ -103,6 +106,8 @@ class Norns(Agent):
             raise ValueError("override_retire_threshold MUST be >= 1")
         if rejection_revise_threshold < 1:
             raise ValueError("rejection_revise_threshold MUST be >= 1")
+        if forecast_error_threshold < 1:
+            raise ValueError("forecast_error_threshold MUST be >= 1")
         super().__init__(spec=_NORNS)
         # Fingerprints are content hashes (one per distinct incident), so the
         # counter is bounded by an LRU cap - a long-lived learner would leak
@@ -160,6 +165,11 @@ class Norns(Agent):
         # discipline as the other learners: never mutate the catalog.
         self._coverage_aggregator = coverage_aggregator
         self._post_turn_review = post_turn_review
+        self._forecast_error_threshold = forecast_error_threshold
+        self._forecast_error_counts: BoundedLruDict[str, int] = BoundedLruDict(_MAX_TRACKED)
+        self._forecast_error_proposed: BoundedLruSet[str] = BoundedLruSet(_MAX_TRACKED)
+        self._counted_case_revisions: BoundedLruSet[str] = BoundedLruSet(_MAX_TRACKED)
+        self._case_history_analyzer = case_history_analyzer
 
     def observe_reviewed_trajectory_dataset(self, dataset: ReviewedTrajectoryDataset) -> bool:
         """Consume one reviewed aggregate without training or promoting anything.
@@ -189,12 +199,102 @@ class Norns(Agent):
             self._observe_approval(payload)
         elif topic == "object.turn":
             await self._observe_post_turn_review(payload)
+        elif topic == "object.context-index":
+            await self._observe_forecast_case(payload)
         # object.override is deliberately NOT handled here: it is not a pantheon
         # bus topic (agent-pantheon.md 2 - overrides flow through the exemption
         # / rule-catalog machinery). That machinery calls observe_override()
         # directly.
         # Off-path batch: forward any newly-formed inert candidates to Mimir.
         await self.flush_candidates()
+
+    async def _observe_forecast_case(self, payload: dict[str, Any]) -> None:
+        if payload.get("kind") != "forecast_case_history":
+            return
+        case_id = str(payload.get("case_id") or "")
+        revision = str(payload.get("revision") or "")
+        manifest_digest = str(payload.get("manifest_digest") or "")
+        detector_id = str(payload.get("detector_id") or "")
+        metric = str(payload.get("metric") or "")
+        label = str(payload.get("outcome_label") or "")
+        case_ref = str(payload.get("case_ref") or "")
+        dedup_key = f"{case_id}:{revision}:{manifest_digest}"
+        if not all((case_id, revision, manifest_digest, detector_id, metric, case_ref)):
+            self.record_behavior("forecast_case:invalid")
+            return
+        if dedup_key in self._counted_case_revisions:
+            return
+        self._counted_case_revisions.add(dedup_key)
+        if label not in {
+            "false_positive",
+            "false_negative",
+            "late_breach",
+            "magnitude_error",
+        }:
+            self.record_behavior(f"forecast_case:{label or 'unknown'}")
+            return
+        fingerprint = hashlib.sha256(f"{detector_id}\0{metric}".encode()).hexdigest()
+        count = (self._forecast_error_counts.get(fingerprint) or 0) + 1
+        self._forecast_error_counts.set(fingerprint, count)
+        self.record_behavior(f"forecast_case:{label}")
+        if count < self._forecast_error_threshold or fingerprint in self._forecast_error_proposed:
+            return
+        self._forecast_error_proposed.add(fingerprint)
+        if self._case_history_analyzer is not None:
+            try:
+                hint = await self._case_history_analyzer.analyze(payload)
+            except Exception:  # noqa: BLE001 - optional off-path analysis fails closed
+                hint = None
+                self.record_behavior("forecast_case:analysis_failed")
+            if hint is not None and not isinstance(hint, RuleCandidateHint):
+                self.record_behavior("forecast_case:analysis_invalid")
+                hint = None
+            if isinstance(hint, RuleCandidateHint):
+                self.pending_candidates.append(
+                    {
+                        "source_signal": "forecast_case_history_analysis",
+                        "evidence": {
+                            "evidence_refs": list(hint.evidence_refs),
+                            "pattern_digest": hashlib.sha256(hint.pattern.encode()).hexdigest(),
+                            "confidence": hint.confidence,
+                            "occurrence_count": count,
+                        },
+                        "provenance": {
+                            "source": "case-history-analysis",
+                            "case_id": case_id,
+                            "revision": revision,
+                            "manifest_digest": manifest_digest,
+                        },
+                        "proposed_by": "Norns",
+                        "proposal_kind": hint.proposal_kind,
+                        "target_rule_id": hint.target_ref,
+                        "suggested_pattern": hint.pattern,
+                    }
+                )
+                return
+        self.pending_candidates.append(
+            {
+                "source_signal": "forecast_case_history",
+                "evidence": {
+                    "detector_id": detector_id,
+                    "metric": metric,
+                    "latest_label": label,
+                    "occurrence_count": count,
+                    "case_ref": case_ref,
+                    "manifest_digest": manifest_digest,
+                },
+                "provenance": {
+                    "source": "case-history",
+                    "case_id": case_id,
+                    "revision": revision,
+                    "manifest_digest": manifest_digest,
+                },
+                "proposed_by": "Norns",
+                "proposal_kind": "threshold_adjustment",
+                "suggested_change": "review_forecast_detector",
+                "target_rule_id": detector_id,
+            }
+        )
 
     async def _observe_post_turn_review(self, payload: dict[str, Any]) -> None:
         if payload.get("kind") != "post_turn_review":

@@ -1,7 +1,7 @@
 ---
 title: 코드 맵
 translation_of: code-map.md
-translation_source_sha: 989d1a8eaed8d5a5aaf72e429ffe413759152d6a
+translation_source_sha: 0b678494f7bf38f86e502cc94d2b66cbba209032
 translation_revised: 2026-07-23
 ---
 # 코드 맵
@@ -55,6 +55,7 @@ shared 패키지를 커버한다.
 | 서브시스템 | 책임 | 소스 | 테스트 |
 |-----------|------|------|--------|
 | detection | 이상치, 예측, 50개 카탈로그 기반 운영 insight 발견자 (event-ingest 재진입) | [src/fdai/core/detection/](../../../src/fdai/core/detection/) | [tests/core/detection/](../../../tests/core/detection/) |
+| case_history | Canonical case revision, scoped failure/control retrieval, governed Norns 분석 ([설계](../rules-and-detection/prediction-learning-and-case-history-ko.md)) | [src/fdai/core/case_history/](../../../src/fdai/core/case_history/) 및 [src/fdai/shared/providers/case_history.py](../../../src/fdai/shared/providers/case_history.py) | [tests/core/case_history/](../../../tests/core/case_history/), [tests/persistence/test_state_store_case_history.py](../../../tests/persistence/test_state_store_case_history.py), [tests/agents/test_forecast_learning_chain.py](../../../tests/agents/test_forecast_learning_chain.py) |
 | rca | 근본원인 분석 (T0 + T2 seam 뒤) | [src/fdai/core/rca/](../../../src/fdai/core/rca/) | [tests/core/rca/](../../../tests/core/rca/) |
 | incident | 인시던트 라이프사이클 레지스트리 + 상태 머신 | [src/fdai/core/incident/](../../../src/fdai/core/incident/) | [tests/core/incident/](../../../tests/core/incident/) |
 | slo | 워크로드 SLO / burn-rate 평가자 | [src/fdai/core/slo/](../../../src/fdai/core/slo/) | [tests/core/slo/](../../../tests/core/slo/) |
@@ -161,6 +162,7 @@ shared 패키지를 커버한다.
 | programmatic_pipeline | Local isolated child runner 및 broker transport | [src/fdai/delivery/programmatic_pipeline/](../../../src/fdai/delivery/programmatic_pipeline/) |
 | browser | General browser handle 없이 GET/HEAD를 intercept하는 선택적 isolated async Playwright capture | [src/fdai/delivery/browser/](../../../src/fdai/delivery/browser/) |
 | trajectory | Deterministic streaming exporter, PostgreSQL metadata/quarantine store, Owner-only read projection, offline CLI | [src/fdai/delivery/trajectory/](../../../src/fdai/delivery/trajectory/), [postgres_trajectory.py](../../../src/fdai/delivery/persistence/postgres_trajectory.py), [trajectory_datasets.py](../../../src/fdai/delivery/read_api/routes/trajectory_datasets.py), [deployment_cli/trajectory.py](../../../src/fdai/deployment_cli/trajectory.py) |
+| case_history | StateStore CAS metadata 및 managed-identity Azure Blob artifact | [state_store_case_history.py](../../../src/fdai/delivery/persistence/state_store_case_history.py), [case_history_artifacts.py](../../../src/fdai/delivery/azure/case_history_artifacts.py), [runtime/case_history.py](../../../src/fdai/runtime/case_history.py) |
 | azure_devops | Azure DevOps PR / 파이프라인 게이트 | [src/fdai/delivery/azure_devops/](../../../src/fdai/delivery/azure_devops/) |
 | github | GitHub App / Checks API | [src/fdai/delivery/github/](../../../src/fdai/delivery/github/) |
 | gitops_pr | PR-native 리메디에이션 패키저 | [src/fdai/delivery/gitops_pr/](../../../src/fdai/delivery/gitops_pr/) |

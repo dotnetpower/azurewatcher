@@ -115,6 +115,39 @@
       "docs_update": ["docs/roadmap/agents/agent-pantheon.md"]
     },
     {
+      "id": "prediction-case-history",
+      "paths": [
+        "src/fdai/core/case_history/**",
+        "src/fdai/core/detection/forecast_outcome.py",
+        "src/fdai/shared/contracts/forecast-outcome/**",
+        "src/fdai/shared/contracts/models/forecast_outcome.py",
+        "src/fdai/shared/providers/case_history.py",
+        "src/fdai/delivery/persistence/state_store_case_history.py",
+        "src/fdai/delivery/azure/case_history_artifacts.py",
+        "src/fdai/runtime/case_history.py",
+        "tests/core/case_history/**",
+        "tests/core/detection/test_forecast_outcome.py",
+        "tests/persistence/test_state_store_case_history.py",
+        "tests/delivery/azure/test_case_history_artifacts.py",
+        "tests/runtime/test_case_history.py",
+        "tests/agents/test_forecast_learning_chain.py"
+      ],
+      "must_read": [
+        ".github/instructions/architecture.instructions.md",
+        ".github/instructions/agent-pantheon.instructions.md",
+        "docs/roadmap/rules-and-detection/prediction-learning-and-case-history.md",
+        "docs/roadmap/architecture/data-governance.md"
+      ],
+      "docs_update": [
+        "docs/roadmap/rules-and-detection/prediction-learning-and-case-history.md",
+        "docs/roadmap/architecture/code-map.md",
+        "docs/roadmap/architecture/project-structure.md"
+      ],
+      "validate": [
+        "uv run pytest -q --no-cov tests/contracts/test_forecast_outcome.py tests/core/detection/test_forecast_outcome.py tests/core/case_history tests/persistence/test_state_store_case_history.py tests/delivery/azure/test_case_history_artifacts.py tests/runtime/test_case_history.py tests/agents/test_forecast_learning_chain.py"
+      ]
+    },
+    {
       "id": "azure-read-investigations",
       "paths": [
         "src/fdai/core/read_investigation/**",

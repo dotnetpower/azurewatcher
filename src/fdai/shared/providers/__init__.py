@@ -35,6 +35,11 @@ from .briefing import (
     ConversationPolicyRecord,
     ConversationPolicyStore,
 )
+from .case_history import (
+    CaseHistoryArtifactStore,
+    CaseHistoryMetadataStore,
+    CaseHistoryRevisionRecord,
+)
 from .code_workspace import (
     CodePatchKind,
     CodePatchOperation,
@@ -263,6 +268,9 @@ __all__ = [
     "BriefingSpec",
     "BriefingSubscription",
     "BriefingSubscriptionStore",
+    "CaseHistoryArtifactStore",
+    "CaseHistoryMetadataStore",
+    "CaseHistoryRevisionRecord",
     "CostConfidence",
     "CostEstimate",
     "CostEstimator",

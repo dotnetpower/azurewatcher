@@ -26,6 +26,13 @@ from fdai.delivery.read_api.streaming.agent_activity_stream import (
 from fdai.delivery.read_api.streaming.agent_runtime_state_publisher import (
     AgentRuntimeStatePublisher,
 )
+from fdai.runtime.case_history import (
+    CaseHistoryRetentionTickPublisher,
+    CaseHistoryRuntime,
+    build_case_history_runtime,
+    case_history_retention_days,
+    case_history_retention_tick_seconds,
+)
 from fdai.runtime.configuration import (
     _attach_runtime_github_change_feed,
     _attach_runtime_knowledge_source,
@@ -73,7 +80,12 @@ def _operational_event_bus(primary: EventBus, auxiliary: EventBus | None) -> Eve
     return auxiliary or primary
 
 
-def _build_runtime_workload_identity(http_client: httpx.AsyncClient) -> WorkloadIdentity:
+def _build_runtime_workload_identity(
+    http_client: httpx.AsyncClient,
+    *,
+    client_id_env: str = "FDAI_MI_CLIENT_ID",
+    require_client_id: bool = False,
+) -> WorkloadIdentity:
     if (
         os.environ.get("RUNTIME_ENV", "").strip().lower() == "dev"
         and os.environ.get("FDAI_RUNTIME_LOCAL_AZURE_CLI", "").strip() == "1"
@@ -84,7 +96,12 @@ def _build_runtime_workload_identity(http_client: httpx.AsyncClient) -> Workload
 
     from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
 
-    return ManagedIdentityWorkloadIdentity(http_client=http_client)
+    if require_client_id and not os.environ.get(client_id_env, "").strip():
+        raise RuntimeError(f"{client_id_env} MUST identify the dedicated workload identity")
+    return ManagedIdentityWorkloadIdentity.from_env(
+        http_client=http_client,
+        client_id_env=client_id_env,
+    )
 
 
 async def _run() -> int:
@@ -101,6 +118,8 @@ async def _run() -> int:
     pantheon_heartbeat: float | None = None
     divergence_ledger: ShadowDivergenceLedger | None = None
     health_server: RuntimeHealthServer | None = None
+    case_history_runtime: CaseHistoryRuntime | None = None
+    case_history_retention_publisher: CaseHistoryRetentionTickPublisher | None = None
 
     try:
         telemetry_requested = bool(
@@ -108,7 +127,13 @@ async def _run() -> int:
             or os.environ.get("FDAI_PROMETHEUS_ENDPOINT", "").strip()
         )
         gateway_requested = bool(os.environ.get("FDAI_DEV_OPERATIONS_GATEWAY_URL", "").strip())
-        if container.config.llm.mode == LlmMode.AZURE or telemetry_requested or gateway_requested:
+        case_history_requested = bool(os.environ.get("FDAI_CASE_HISTORY_CONTAINER_URL", "").strip())
+        if (
+            container.config.llm.mode == LlmMode.AZURE
+            or telemetry_requested
+            or gateway_requested
+            or case_history_requested
+        ):
             http_client = _new_http_client()
             identity = _build_runtime_workload_identity(http_client)
 
@@ -323,6 +348,37 @@ async def _run() -> int:
                     models=post_turn_models,
                     dsn=post_turn_review_dsn(),
                 )
+                case_history_container_url = (
+                    os.environ.get("FDAI_CASE_HISTORY_CONTAINER_URL", "").strip() or None
+                )
+                case_history_identity = None
+                if case_history_container_url is not None:
+                    if http_client is None:
+                        raise RuntimeError("case history storage requires an HTTP client")
+                    case_history_identity = _build_runtime_workload_identity(
+                        http_client,
+                        client_id_env="FDAI_CASE_HISTORY_MI_CLIENT_ID",
+                        require_client_id=True,
+                    )
+                case_history_runtime = build_case_history_runtime(
+                    container_url=case_history_container_url,
+                    state_store=incident_audit_store,
+                    identity=case_history_identity,
+                    http_client=http_client,
+                    models=post_turn_models,
+                )
+                if case_history_runtime is not None:
+                    case_history_retention_publisher = CaseHistoryRetentionTickPublisher(
+                        bus=bus,
+                        topic=container.config.kafka.topic_events,
+                        interval_seconds=case_history_retention_tick_seconds(
+                            os.environ.get("FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS")
+                        ),
+                    )
+                case_retention_days, case_deletion_days = case_history_retention_days(
+                    os.environ.get("FDAI_CASE_HISTORY_RETENTION_DAYS"),
+                    os.environ.get("FDAI_CASE_HISTORY_DELETION_DAYS"),
+                )
                 pantheon_runtime = PantheonRuntime.build(
                     provider=bus,
                     raw_event_topic=container.config.kafka.topic_events,
@@ -339,6 +395,19 @@ async def _run() -> int:
                         index=runtime_symptom_index
                     ),
                     post_turn_review=post_turn_review.coordinator,
+                    case_history_materializer=(
+                        case_history_runtime.materializer
+                        if case_history_runtime is not None
+                        else None
+                    ),
+                    case_history_analyzer=(
+                        case_history_runtime.analyzer if case_history_runtime is not None else None
+                    ),
+                    case_history_retention=(
+                        case_history_runtime.retention if case_history_runtime is not None else None
+                    ),
+                    case_retention_days=case_retention_days,
+                    case_deletion_days=case_deletion_days,
                     action_types=control_loop.action_types,
                 )
                 runtime_state_publisher = AgentRuntimeStatePublisher(
@@ -464,6 +533,7 @@ async def _run() -> int:
             # of the primary pipeline.
             pantheon_task: asyncio.Task[None] | None = None
             runtime_state_task: asyncio.Task[None] | None = None
+            case_history_retention_task: asyncio.Task[None] | None = None
             if pantheon_runtime is not None:
                 pantheon_task = asyncio.create_task(
                     pantheon_runtime.run(heartbeat_interval=pantheon_heartbeat),
@@ -475,6 +545,11 @@ async def _run() -> int:
                     runtime_state_publisher.run(),
                     name="pantheon-runtime-state",
                 )
+            if case_history_retention_publisher is not None:
+                case_history_retention_task = asyncio.create_task(
+                    case_history_retention_publisher.run(stop=stop),
+                    name="case-history-retention-ticks",
+                )
 
             wait_set = {consumer_task, wait_task}
             if resource_change_task is not None:
@@ -483,6 +558,8 @@ async def _run() -> int:
                 wait_set.add(canary_task)
             if hil_decision_task is not None:
                 wait_set.add(hil_decision_task)
+            if case_history_retention_task is not None:
+                wait_set.add(case_history_retention_task)
             done, _pending = await asyncio.wait(
                 wait_set,
                 return_when=asyncio.FIRST_COMPLETED,
@@ -499,6 +576,8 @@ async def _run() -> int:
                 pantheon_task.cancel()
             if runtime_state_task is not None:
                 runtime_state_task.cancel()
+            if case_history_retention_task is not None:
+                case_history_retention_task.cancel()
             # Await the cancels so cleanup can drain the consumer's
             # ``async for`` + finally (which stops the AIOKafkaConsumer)
             # before we tear down the bus / HTTP client in the outer
@@ -515,6 +594,8 @@ async def _run() -> int:
                 cleanup_tasks.append(pantheon_task)
             if runtime_state_task is not None:
                 cleanup_tasks.append(runtime_state_task)
+            if case_history_retention_task is not None:
+                cleanup_tasks.append(case_history_retention_task)
             await asyncio.gather(*cleanup_tasks, return_exceptions=True)
             for task in done:
                 exc = task.exception()

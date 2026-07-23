@@ -1,9 +1,7 @@
 ---
 title: Deploy Quickstart
 description: Provision the FDAI minimum-set inventory on Azure - two equivalent paths (azd turnkey or Terraform direct), preview first, apply only when the plan looks right.
-derives_from:
-   - source: docs/roadmap/deployment/deploy-and-onboard.md
-     sha: f93fba708cf538f87554b5bfb6b3c2bf4644201d
+derives_from: [{ source: docs/roadmap/deployment/deploy-and-onboard.md, sha: 7e94a1479f09a357c06ef669a47cc3aa2ffa7a0e }]
 ---
 
 # Deploy Quickstart
@@ -80,7 +78,9 @@ terraform -chdir=infra apply -var-file=envs/dev.tfvars
    completed. When the read API is enabled, verify browser Entra App Roles and confirm its
    read/command credentials remain distinct from Thor's executor Managed Identity. When document
    OCR is enabled, confirm the ingestion identity has `Cognitive Services User` only on the
-   configured Document Intelligence resource.
+   configured Document Intelligence resource. When case history is enabled, confirm its dedicated
+   managed identity alone has Blob data access, the executor has no case-history Blob role, and
+   `FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS` matches the approved deletion cadence.
 3. **Verify the development operations gateway.** When enabled, confirm the protected source
    archive was deployed after Terraform apply, the current remote-build deployment succeeded,
    both Function triggers are registered, host and idempotency storage use the reader managed

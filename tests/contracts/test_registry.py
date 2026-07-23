@@ -65,6 +65,7 @@ def test_registry_names_covers_expected_set(
     registry = factory()
     expected = {
         "event",
+        "forecast-outcome",
         "action",
         "rule",
         "incident",

@@ -51,6 +51,11 @@ def test_build_instantiates_all_fifteen_agents() -> None:
     assert set(runtime.agents) == {s.name for s in PANTHEON_SPECS}
 
 
+def test_build_enables_bounded_handler_retries() -> None:
+    runtime, _ = _build()
+    assert runtime.bridge.handler_max_retries == 2
+
+
 def test_build_registers_every_declared_subscription_plus_ingress() -> None:
     runtime, _ = _build()
     expected = sum(len(s.subscribes) for s in PANTHEON_SPECS) + 1  # +1 raw ingress
@@ -64,6 +69,30 @@ def test_object_event_fans_out_to_forseti_and_heimdall() -> None:
     runtime, _ = _build()
     subscribers = {name for name, _ in runtime.bridge._subs["object.event"]}
     assert {"Forseti", "Heimdall"} <= subscribers
+
+
+def test_forecast_findings_route_to_forseti_judgment() -> None:
+    runtime, _ = _build()
+    subscribers = {name for name, _ in runtime.bridge._subs["object.forecast"]}
+    assert "Forseti" in subscribers
+
+
+async def test_forseti_judges_forecast_finding() -> None:
+    runtime, provider = _build()
+    forseti = runtime.agents["Forseti"]
+    await forseti.on_typed_message(
+        "object.forecast",
+        {
+            "correlation_id": "corr-forecast",
+            "idempotency_key": "forecast-1",
+            "resource_id": "resource-1",
+            "action_type": "ops.scale-out",
+            "severity": "medium",
+        },
+    )
+    verdicts = provider._records.get("object.verdict", [])
+    assert len(verdicts) == 1
+    assert verdicts[0][1]["correlation_id"] == "corr-forecast"
 
 
 async def test_runtime_injects_heimdall_incident_candidate_hook() -> None:
@@ -527,6 +556,7 @@ def test_shadow_observer_counts_verdicts_and_action_runs() -> None:
             "object.verdict",
             "c1",
             {
+                "producer_principal": "Forseti",
                 "risk_verdict": "auto",
                 "action_type": "ops.restart-service",
                 "correlation_id": "c1",
@@ -562,6 +592,7 @@ def test_runtime_feeds_the_divergence_ledger() -> None:
             "object.verdict",
             "c1",
             {
+                "producer_principal": "Forseti",
                 "risk_verdict": "auto",
                 "action_type": "ops.restart-service",
                 "correlation_id": "c1",

@@ -377,6 +377,30 @@ variable "monitor_workspace_customer_id" {
   default     = ""
 }
 
+variable "case_history_container_url" {
+  description = "Private HTTPS Blob container URL for FDAI_CASE_HISTORY_CONTAINER_URL."
+  type        = string
+  default     = ""
+}
+
+variable "case_history_identity_client_id" {
+  description = "Client id of the dedicated case-history managed identity."
+  type        = string
+  default     = ""
+}
+
+variable "case_history_retention_days" {
+  description = "Active case-history retention in days."
+  type        = number
+  default     = 30
+}
+
+variable "case_history_deletion_days" {
+  description = "Case-history deletion due offset in days."
+  type        = number
+  default     = 60
+}
+
 variable "state_store_dsn_secret_id" {
   description = "Key Vault secret resource id backing FDAI_STATE_STORE_DSN. Empty = fall back to in-memory."
   type        = string

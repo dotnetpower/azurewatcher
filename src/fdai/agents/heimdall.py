@@ -25,6 +25,7 @@ from fdai.agents._framework.introspection import (
     mentioned,
 )
 from fdai.agents._framework.pantheon import _HEIMDALL
+from fdai.shared.contracts.models import ForecastOutcome
 
 AlerterHook = Callable[[dict[str, Any]], Awaitable[None]]
 """Var-provided hook that delivers the admin notification card."""
@@ -114,6 +115,20 @@ class Heimdall(Agent):
     def register_read_investigation(self, hook: ReadInvestigationHook) -> None:
         """Bind a provider-neutral conversational read responder."""
         self._read_investigation_hook = hook
+
+    async def publish_forecast_outcome(self, outcome: ForecastOutcome) -> bool:
+        """Publish one schema-validated terminal forecast result."""
+        if not isinstance(outcome, ForecastOutcome):
+            raise TypeError("Heimdall forecast outcome MUST be a ForecastOutcome")
+        self.record_behavior(f"forecast_outcome:{outcome.label.value}")
+        if self.bus is None:
+            return False
+        await self.bus.publish(
+            "Heimdall",
+            "object.forecast-outcome",
+            outcome.model_dump(mode="json"),
+        )
+        return True
 
     async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
         if topic == "object.event":

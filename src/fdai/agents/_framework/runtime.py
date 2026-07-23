@@ -47,10 +47,16 @@ from fdai.agents.bragi import Bragi, Turn
 from fdai.agents.forseti import Forseti
 from fdai.agents.heimdall import Heimdall, IncidentCandidateHook, ReadInvestigationHook
 from fdai.agents.huginn import DiscoveryProjector, Huginn
+from fdai.agents.muninn import Muninn
 from fdai.agents.norns import Norns
 from fdai.agents.saga import Saga, compute_fingerprint
 from fdai.agents.thor import ActionExecutor, ActionRunStore, Thor
 from fdai.agents.vidar import RollbackExecutor, Vidar
+from fdai.core.case_history import (
+    CaseHistoryAnalyzer,
+    CaseHistoryMaterializer,
+    CaseHistoryRetentionService,
+)
 from fdai.core.chaos.coverage import ScenarioCoverageAggregator
 from fdai.core.learning import PostTurnReviewCoordinator
 from fdai.shared.contracts.models import OntologyActionType
@@ -105,6 +111,11 @@ class PantheonRuntime:
         discovery_projector: DiscoveryProjector | None = None,
         scenario_coverage_aggregator: ScenarioCoverageAggregator | None = None,
         post_turn_review: PostTurnReviewCoordinator | None = None,
+        case_history_materializer: CaseHistoryMaterializer | None = None,
+        case_history_analyzer: CaseHistoryAnalyzer | None = None,
+        case_history_retention: CaseHistoryRetentionService | None = None,
+        case_retention_days: int = 30,
+        case_deletion_days: int = 60,
         action_types: tuple[OntologyActionType, ...] = (),
         handler_observer: AgentHandlerObserver | None = None,
     ) -> PantheonRuntime:
@@ -166,6 +177,7 @@ class PantheonRuntime:
             provider=provider,
             registry=reg,
             consumer_group_prefix=consumer_group_prefix,
+            handler_max_retries=2,
             handler_observer=handler_observer,
         )
         instantiated = instantiate_pantheon()
@@ -174,10 +186,22 @@ class PantheonRuntime:
         action_semantics = (
             ActionSemanticsCatalog.from_action_types(action_types) if action_types else None
         )
-        if scenario_coverage_aggregator is not None or post_turn_review is not None:
+        if (
+            scenario_coverage_aggregator is not None
+            or post_turn_review is not None
+            or case_history_analyzer is not None
+        ):
             instantiated["Norns"] = Norns(
                 coverage_aggregator=scenario_coverage_aggregator,
                 post_turn_review=post_turn_review,
+                case_history_analyzer=case_history_analyzer,
+            )
+        if case_history_materializer is not None or case_history_retention is not None:
+            instantiated["Muninn"] = Muninn(
+                case_history=case_history_materializer,
+                case_history_retention=case_history_retention,
+                case_retention_days=case_retention_days,
+                case_deletion_days=case_deletion_days,
             )
         if operator_rbac is not None or action_semantics is not None:
             instantiated["Forseti"] = Forseti(

@@ -243,14 +243,14 @@ operations / interface), `3` = governance staff.
 | Thor | Responder | 2 | ActionRun, ActionAttempt | (dispatches; owns none directly - see §7.1) | no |
 | Forseti | Judge | 2 | Verdict, RCA | (produces verdicts; no executor role) | yes (T2 abstain only) |
 | Huginn | Event Collector / Real-time Resource Discovery | 2 | Event | ingest_event | no |
-| Heimdall | Observer | 2 | Anomaly, Drift, Forecast, SecurityEvent | detect_anomaly, detect_drift, forecast, notify_admin_privilege_violation | no |
+| Heimdall | Observer | 2 | Anomaly, Drift, Forecast, ForecastOutcome, SecurityEvent | detect_anomaly, detect_drift, forecast, close_forecast_outcome, notify_admin_privilege_violation | no |
 | Vidar | Recovery | 2 | Rollback | perform_rollback, dr_failover | no |
 | Var | Approver | 2 | Approval | approve_action, reject_action | no |
 | Bragi | Narrator | 2 | Conversation, Turn, UserPreference | translate_intent | yes (translator only) |
 | Saga | Auditor | 3 | AuditEntry, Issue | append_audit, escalate_to_github_issue | no |
 | Mimir | Rule Steward | 3 | Rule, Policy | promote_rule, revoke_rule | no |
-| Muninn | Memory | 3 | StateSnapshot, ContextIndex | index_state, snapshot_state | no |
-| Norns | Learner | 3 | RuleCandidate, PatternObservation | propose_rule_candidate, close_issue | yes (off-path batch only) |
+| Muninn | Memory | 3 | StateSnapshot, ContextIndex | index_state, snapshot_state, seal_case_history | no |
+| Norns | Learner | 3 | RuleCandidate, PatternObservation | propose_rule_candidate, analyze_case_history, close_issue | yes (off-path batch only) |
 | Njord | Cost | 1 | CostAnomaly, Budget | propose_cost_action | no |
 | Freyr | Capacity | 1 | CapacityForecast, SizingRecommendation | propose_capacity_action | no |
 | Loki | Chaos | 1 | ChaosExperiment, ResilienceScore | schedule_experiment | no |
@@ -303,7 +303,7 @@ and self-improvement. **X**-agent participates in the workflows named in
 | Bragi | expired-session cleanup, UserPreference index refresh | NL routing, multi-agent aggregation, NL rendering | intent classifier retraining (T1, off-path) | 7, 10 (Retrospective what-if), 12 |
 | Saga | audit-chain integrity self-check, issue-close scan, fingerprint index compaction | append AuditEntry, escalate_to_github_issue, replay for reconstruction | audit chain tamper detection | every workflow (audit) |
 | Mimir | rule-source polling, regression suite, deprecation cycle | promote / revoke rule, cache-invalidation broadcast | freshness-score, stale-rule detection | 4, 6 (Handoff -> Capability), 8, 11 |
-| Muninn | snapshot rotation, RAG index rebuild, cache eviction | context fetch for Forseti, state query for Bragi | trending-query pre-warm, ontology cross-check | supports every judgment-touching workflow |
+| Muninn | snapshot rotation, RAG index rebuild, cache eviction, case-history retention | context fetch for Forseti, state query for Bragi, retention tick apply | trending-query pre-warm, ontology cross-check | supports every judgment-touching workflow |
 | Norns | hourly batch audit analysis, streaming pattern extraction | pattern signal, RuleCandidate publish, close_issue signal | model performance drift detection | 4, 6, 8 (Judgment coherence), 10 |
 | Njord | cost ingestion (daily), budget monitor, cost forecasting | cost anomaly, budget breach alert, cost-advisor query | RI / SP optimization proposals | 1, 2 |
 | Freyr | utilization sampling, capacity forecasting, sizing analysis | scale proposal, capacity advisor query | multi-dimensional capacity (CPU + IOPS + net + mem) | 2, 3 |
@@ -436,8 +436,9 @@ and `producer_principal`; Thor uses `correlation_id:state` for `object.action-ru
 
 | Topic | Publisher | Primary subscribers |
 |-------|-----------|---------------------|
-| object.event | Huginn | Heimdall |
-| object.anomaly, object.drift | Heimdall | Forseti |
+| object.event | Huginn | Heimdall, Muninn (case-history retention ticks only) |
+| object.anomaly, object.drift, object.forecast | Heimdall | Forseti |
+| object.forecast-outcome | Heimdall | Saga, Muninn |
 | object.security-event | Forseti | Heimdall (correlation), Saga |
 | object.verdict | Forseti | Thor, Saga, Odin |
 | object.arbitration-request | Forseti | Odin |
@@ -449,20 +450,19 @@ and `producer_principal`; Thor uses `correlation_id:state` for `object.action-ru
 | object.issue | Saga | Norns, Mimir |
 | object.rule-candidate | Norns | Mimir |
 | object.rule | Mimir | Forseti (cache reload) |
+| object.context-index | Muninn | Norns (sealed case-history intake) |
 | object.conversation | Bragi | (session index) |
 | object.turn | Bragi | Muninn, Norns (consent-filtered post-turn review only) |
 | object.user-preference | Bragi | Muninn |
 | object.cost-anomaly | Njord | Forseti |
 | object.capacity-forecast | Freyr | Forseti |
 | object.chaos-experiment | Loki | Heimdall |
-
 Partitioning:
 
 - Mutation topics (`object.action-run`, `object.rollback`) partition by
   `resource_id` so concurrent writes to the same resource serialize.
 - Judgment and audit topics partition by `correlation_id` so a single
   incident stays on one consumer.
-
 ### 6.2 Conversational port
 
 Every agent exposes a request-response NL interface reachable through

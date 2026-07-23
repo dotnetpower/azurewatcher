@@ -93,6 +93,7 @@ from .enums import (
     WorkflowTriggerKind,
 )
 from .event import Event
+from .forecast_outcome import ForecastOutcome, ForecastOutcomeLabel, TelemetryCompleteness
 from .incident import Incident
 from .ontology import (
     ActionBlastRadius,
@@ -141,6 +142,7 @@ __all__ = [
     "Severity",
     "StopConditionKind",
     "Tier",
+    "TelemetryCompleteness",
     "TriggerKind",
     "WorkflowTriggerKind",
     "WorkflowStepKind",
@@ -159,6 +161,8 @@ __all__ = [
     "CeilingByTier",
     "CheckLogic",
     "Event",
+    "ForecastOutcome",
+    "ForecastOutcomeLabel",
     "Incident",
     "IncidentSeverity",
     "IncidentState",

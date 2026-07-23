@@ -1,0 +1,146 @@
+"""Runtime composition for durable forecast case history and analysis."""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+import httpx
+
+from fdai.core.case_history import (
+    CaseHistoryAnalyzer,
+    CaseHistoryMaterializer,
+    CaseHistoryRetentionService,
+)
+from fdai.core.learning import ConsensusPostTurnReviewer, PostTurnProposalModel
+from fdai.delivery.azure.case_history_artifacts import (
+    AzureBlobCaseHistoryArtifactStore,
+    AzureBlobCaseHistoryConfig,
+)
+from fdai.delivery.persistence.state_store_case_history import (
+    StateStoreCaseHistoryMetadataStore,
+)
+from fdai.shared.providers.event_bus import EventBus
+from fdai.shared.providers.state_store import StateStore
+from fdai.shared.providers.workload_identity import WorkloadIdentity
+
+
+@dataclass(frozen=True, slots=True)
+class CaseHistoryRuntime:
+    materializer: CaseHistoryMaterializer
+    analyzer: CaseHistoryAnalyzer | None
+    retention: CaseHistoryRetentionService
+
+
+class CaseHistoryRetentionTickPublisher:
+    """Publish bounded retention ticks through Huginn's raw ingress topic."""
+
+    def __init__(
+        self,
+        *,
+        bus: EventBus,
+        topic: str,
+        interval_seconds: int = 86_400,
+    ) -> None:
+        if not topic.strip():
+            raise ValueError("case history retention topic MUST be non-empty")
+        if interval_seconds < 1:
+            raise ValueError("case history retention interval MUST be positive")
+        self._bus = bus
+        self._topic = topic
+        self._interval_seconds = interval_seconds
+
+    async def publish_once(self, *, now: datetime) -> None:
+        if now.tzinfo is None:
+            raise ValueError("case history retention tick MUST be timezone-aware")
+        bucket = int(now.timestamp()) // self._interval_seconds
+        tick_id = f"case-history-retention:{bucket}"
+        await self._bus.publish(
+            self._topic,
+            tick_id,
+            {
+                "event_id": tick_id,
+                "idempotency_key": tick_id,
+                "correlation_id": tick_id,
+                "source": "case-history-retention-scheduler",
+                "event_type": "case_history.retention_due",
+                "attributes": {"as_of": now.isoformat()},
+            },
+        )
+
+    async def run(self, *, stop: asyncio.Event) -> None:
+        while not stop.is_set():
+            await self.publish_once(now=datetime.now(UTC))
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=self._interval_seconds)
+            except TimeoutError:
+                continue
+
+
+def build_case_history_runtime(
+    *,
+    container_url: str | None,
+    state_store: StateStore,
+    identity: WorkloadIdentity | None,
+    http_client: httpx.AsyncClient | None,
+    models: tuple[PostTurnProposalModel, ...] = (),
+) -> CaseHistoryRuntime | None:
+    if container_url is None or not container_url.strip():
+        return None
+    if identity is None or http_client is None:
+        raise RuntimeError("case history storage requires workload identity and HTTP bindings")
+    metadata = StateStoreCaseHistoryMetadataStore(store=state_store)
+    artifacts = AzureBlobCaseHistoryArtifactStore(
+        config=AzureBlobCaseHistoryConfig(container_url=container_url),
+        identity=identity,
+        http_client=http_client,
+    )
+    materializer = CaseHistoryMaterializer(metadata=metadata, artifacts=artifacts)
+    retention = CaseHistoryRetentionService(metadata=metadata, artifacts=artifacts)
+    analyzer = None
+    if len(models) >= 2:
+        analyzer = CaseHistoryAnalyzer(
+            metadata=metadata,
+            artifacts=artifacts,
+            reviewer=ConsensusPostTurnReviewer(models),
+        )
+    return CaseHistoryRuntime(
+        materializer=materializer,
+        analyzer=analyzer,
+        retention=retention,
+    )
+
+
+def case_history_retention_days(
+    retention_raw: str | None,
+    deletion_raw: str | None,
+) -> tuple[int, int]:
+    retention = _positive_int("FDAI_CASE_HISTORY_RETENTION_DAYS", retention_raw, 30)
+    deletion = _positive_int("FDAI_CASE_HISTORY_DELETION_DAYS", deletion_raw, 60)
+    if deletion < retention:
+        raise ValueError("case history deletion days MUST be >= retention days")
+    return retention, deletion
+
+
+def case_history_retention_tick_seconds(raw: str | None) -> int:
+    return _positive_int("FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS", raw, 86_400)
+
+
+def _positive_int(name: str, raw: str | None, default: int) -> int:
+    try:
+        value = int(raw.strip()) if raw and raw.strip() else default
+    except ValueError as exc:
+        raise ValueError(f"{name} MUST be a positive integer") from exc
+    if value < 1:
+        raise ValueError(f"{name} MUST be a positive integer")
+    return value
+
+
+__all__ = [
+    "CaseHistoryRetentionTickPublisher",
+    "CaseHistoryRuntime",
+    "build_case_history_runtime",
+    "case_history_retention_days",
+    "case_history_retention_tick_seconds",
+]

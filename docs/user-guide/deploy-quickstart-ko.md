@@ -2,7 +2,7 @@
 title: 배포 빠른 시작
 description: FDAI 최소 세트 인벤토리를 Azure에 프로비저닝하는 방법. 동등한 두 경로(azd 턴키 또는 Terraform 직접 실행) 모두 먼저 미리보고, 계획이 맞을 때만 적용합니다.
 translation_of: deploy-quickstart.md
-translation_source_sha: 977c2aaffc2528c68b096acb95e1e7cbbbdf84bd
+translation_source_sha: 15052b96528e2d00b88b86c81bdc6ae0553eeab0
 translation_revised: 2026-07-23
 ---
 
@@ -74,7 +74,9 @@ terraform -chdir=infra apply -var-file=envs/dev.tfvars
    Read API를 사용하면 browser Entra App Role을 검증하고 read/command credential이 Thor의
    executor Managed Identity와 분리됐는지 확인합니다. Document OCR을 사용하면 ingestion
    identity가 configured Document Intelligence resource에만 `Cognitive Services User` role을
-   갖는지 확인합니다.
+   갖는지 확인합니다. Case history를 사용하면 전용 managed identity만 Blob data access를
+   갖는지, executor에 case-history Blob role이 없는지, 그리고
+   `FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS`가 승인된 deletion cadence와 일치하는지 확인합니다.
 3. **Development operations gateway 검증.** 이 gateway를 사용하면 보호된 source archive가
    Terraform apply 후에 배포됐는지, 현재 remote-build deployment가 성공했는지, 두 Function
    trigger가 등록됐는지, host 및 idempotency storage가 reader managed identity를 사용하는지,

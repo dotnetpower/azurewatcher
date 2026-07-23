@@ -47,3 +47,48 @@ async def test_non_dev_runtime_keeps_managed_identity(
         identity = _build_runtime_workload_identity(http_client)
 
     assert isinstance(identity, ManagedIdentityWorkloadIdentity)
+
+
+async def test_case_history_runtime_requires_dedicated_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RUNTIME_ENV", "production")
+    monkeypatch.setenv("IDENTITY_ENDPOINT", "https://identity.local/token")
+    monkeypatch.setenv("IDENTITY_HEADER", "test-header")
+    monkeypatch.delenv("FDAI_CASE_HISTORY_MI_CLIENT_ID", raising=False)
+
+    async with httpx.AsyncClient() as http_client:
+        with pytest.raises(RuntimeError, match="FDAI_CASE_HISTORY_MI_CLIENT_ID"):
+            _build_runtime_workload_identity(
+                http_client,
+                client_id_env="FDAI_CASE_HISTORY_MI_CLIENT_ID",
+                require_client_id=True,
+            )
+
+
+async def test_case_history_runtime_selects_dedicated_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={"access_token": "token", "expires_on": "4102444800"},
+        )
+
+    monkeypatch.setenv("RUNTIME_ENV", "production")
+    monkeypatch.setenv("IDENTITY_ENDPOINT", "https://identity.local/token")
+    monkeypatch.setenv("IDENTITY_HEADER", "test-header")
+    monkeypatch.setenv("FDAI_CASE_HISTORY_MI_CLIENT_ID", "case-history-client")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        identity = _build_runtime_workload_identity(
+            http_client,
+            client_id_env="FDAI_CASE_HISTORY_MI_CLIENT_ID",
+            require_client_id=True,
+        )
+        await identity.get_token("https://storage.azure.com/")
+
+    assert captured[0].url.params["client_id"] == "case-history-client"

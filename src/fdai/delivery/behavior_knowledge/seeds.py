@@ -142,8 +142,8 @@ def build_seed_behavior_specs(
             "code",
             "src/fdai/agents/saga.py",
             "Saga.escalate_to_github_issue",
-            138,
-            205,
+            227,
+            293,
         ),
         _source(
             blob_shas,

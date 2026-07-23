@@ -60,6 +60,7 @@ _FORSETI = AgentSpec(
         "object.event",
         "object.anomaly",
         "object.drift",
+        "object.forecast",
         "object.cost-anomaly",
         "object.capacity-forecast",
         "object.arbitration-decision",
@@ -92,7 +93,7 @@ _HEIMDALL = AgentSpec(
     name="Heimdall",
     layer=Layer.PIPELINE,
     reports_to="Forseti",
-    owns=("Anomaly", "Drift", "Forecast"),
+    owns=("Anomaly", "Drift", "Forecast", "ForecastOutcome"),
     executes=(),
     initiates=(
         "governance.notify-admin-privilege-violation",
@@ -175,6 +176,7 @@ _SAGA = AgentSpec(
         "object.approval",
         "object.security-event",
         "object.issue",
+        "object.forecast-outcome",
     ),
     question_domains=("fdai_action_history", "audit_log", "approval_history"),
     owns_code_paths=("src/fdai/agents/saga.py",),
@@ -206,7 +208,12 @@ _MUNINN = AgentSpec(
     owns=("StateSnapshot", "ContextIndex"),
     executes=(),
     initiates=(),
-    subscribes=("object.turn", "object.audit-entry"),  # turns + governed document index
+    subscribes=(
+        "object.turn",
+        "object.audit-entry",
+        "object.forecast-outcome",
+        "object.event",
+    ),
     question_domains=("current_state", "bitemporal_state", "resource_context"),
     owns_code_paths=("src/fdai/agents/muninn.py",),
 )
@@ -221,7 +228,13 @@ _NORNS = AgentSpec(
     owns=("RuleCandidate", "PatternObservation"),
     executes=("governance.propose-rule-candidate",),
     initiates=("governance.propose-rule-candidate",),
-    subscribes=("object.audit-entry", "object.issue", "object.approval", "object.turn"),
+    subscribes=(
+        "object.audit-entry",
+        "object.issue",
+        "object.approval",
+        "object.turn",
+        "object.context-index",
+    ),
     question_domains=("pattern", "recurring_issue", "discovery_status"),
     owns_code_paths=("src/fdai/agents/norns.py",),
     off_path_llm=True,

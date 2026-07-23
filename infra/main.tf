@@ -282,6 +282,15 @@ module "ingestion_identity" {
   tags                = merge(local.tags, { "fdai:component" = "document-ingestion" })
 }
 
+module "case_history_identity" {
+  count               = var.enable_case_history ? 1 : 0
+  source              = "./modules/identity/user-assigned-mi"
+  name                = "id-${var.workload}${local.full_suffix}-casehistory"
+  resource_group_name = module.resource_group.name
+  location            = var.region
+  tags                = merge(local.tags, { "fdai:component" = "case-history" })
+}
+
 resource "azurerm_role_assignment" "read_api_acr_pull" {
   count                = var.enable_read_api ? 1 : 0
   scope                = module.container_registry.id
@@ -644,6 +653,25 @@ resource "azurerm_role_assignment" "ingestion_document_data" {
   principal_id         = module.ingestion_identity[0].principal_id
 }
 
+# -----------------------------------------------------------------------
+# Prediction case-history storage - private, versioned Blob artifacts.
+# -----------------------------------------------------------------------
+module "case_history_storage" {
+  count  = var.enable_case_history ? 1 : 0
+  source = "./modules/storage/case-history"
+
+  name                          = substr("st${var.workload}case${local.acr_suffix}${local.storage_unique_suffix}", 0, 24)
+  resource_group_name           = module.resource_group.name
+  location                      = var.region
+  deployer_principal_id         = data.azurerm_client_config.current.object_id
+  runtime_principal_id          = module.case_history_identity[0].principal_id
+  replication_type              = var.case_history_replication_type
+  public_network_access_enabled = !var.enable_private_networking
+  soft_delete_retention_days    = var.case_history_retention_days
+  version_retention_days        = var.case_history_version_retention_days
+  tags                          = merge(local.tags, { "fdai:component" = "case-history" })
+}
+
 # Key Vault private endpoint + private DNS (privatelink.vaultcore.azure.net).
 # Only when private networking is on; this is what lets a VNet-resident deploy
 # host (CI runner / jumpbox) and the VNet-integrated Container App reach the
@@ -679,6 +707,21 @@ module "document_blob_private_endpoint" {
   subresource_name      = "blob"
   private_dns_zone_name = "privatelink.blob.core.windows.net"
   extra_vnet_links      = {}
+  tags                  = local.tags
+}
+
+module "case_history_blob_private_endpoint" {
+  count                 = var.enable_case_history && var.enable_private_networking ? 1 : 0
+  source                = "./modules/private-endpoint"
+  name                  = "pe-case-blob-${var.workload}${local.full_suffix}"
+  location              = var.region
+  resource_group_name   = module.resource_group.name
+  subnet_id             = module.network[0].pe_subnet_id
+  vnet_id               = module.network[0].vnet_id
+  target_resource_id    = module.case_history_storage[0].id
+  subresource_name      = "blob"
+  private_dns_zone_name = "privatelink.blob.core.windows.net"
+  extra_vnet_links      = var.runner_vnet_id != "" ? { ops = var.runner_vnet_id } : {}
   tags                  = local.tags
 }
 
@@ -1165,8 +1208,9 @@ module "compute" {
   canary_cron_expression       = var.canary_cron_expression
   image                        = var.core_image
   max_replicas                 = var.max_replicas
-  extra_identity_ids = (
-    var.enable_email_notifications ? [module.notification_identity[0].resource_id] : []
+  extra_identity_ids = concat(
+    var.enable_email_notifications ? [module.notification_identity[0].resource_id] : [],
+    var.enable_case_history ? [module.case_history_identity[0].resource_id] : [],
   )
 
   # Private-networking: bind the Container App Environment to the delegated
@@ -1210,6 +1254,14 @@ module "compute" {
   # so the deterministic detection pipeline sees real telemetry with no
   # fork required. See src/fdai/composition/wire_azure.py.
   monitor_workspace_customer_id = module.log_analytics.workspace_customer_id
+  case_history_container_url = (
+    var.enable_case_history ? module.case_history_storage[0].container_url : ""
+  )
+  case_history_retention_days = var.case_history_retention_days
+  case_history_deletion_days  = var.case_history_deletion_days
+  case_history_identity_client_id = (
+    var.enable_case_history ? module.case_history_identity[0].client_id : ""
+  )
 
   email_endpoint = (
     var.enable_email_notifications

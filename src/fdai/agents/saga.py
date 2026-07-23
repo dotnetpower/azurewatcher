@@ -82,6 +82,43 @@ class Saga(Agent):
             await self._republish_document_approval(payload, correlation_id)
         if topic == "object.action-run":
             await self._republish_outcome(payload, correlation_id)
+        if topic == "object.forecast-outcome":
+            await self._republish_forecast_outcome(payload, correlation_id)
+
+    async def _republish_forecast_outcome(
+        self,
+        payload: dict[str, Any],
+        correlation_id: str,
+    ) -> None:
+        """Seal a bounded forecast result onto Saga's public audit stream."""
+        if self.bus is None or not correlation_id:
+            return
+        outcome_id = str(payload.get("outcome_id") or "")
+        if not outcome_id:
+            return
+        await self.bus.publish(
+            "Saga",
+            "object.audit-entry",
+            {
+                "producer_principal": "Saga",
+                "correlation_id": correlation_id,
+                "idempotency_key": str(payload.get("idempotency_key") or ""),
+                "audited_topic": "object.forecast-outcome",
+                "action_kind": "forecast.outcome.closed",
+                "outcome_id": outcome_id,
+                "prediction_id": payload.get("prediction_id"),
+                "detector_id": str(payload.get("detector_id") or ""),
+                "detector_version": str(payload.get("detector_version") or ""),
+                "access_scope_digest": str(payload.get("access_scope_digest") or ""),
+                "target_digest": str(payload.get("target_digest") or ""),
+                "metric": str(payload.get("metric") or ""),
+                "label": str(payload.get("label") or ""),
+                "evidence_refs": list(payload.get("evidence_refs") or []),
+                "telemetry_completeness": str(payload.get("telemetry_completeness") or ""),
+                "closed_at": str(payload.get("closed_at") or ""),
+                "mode": str(payload.get("mode") or "shadow"),
+            },
+        )
 
     async def _republish_document_decision(
         self, payload: dict[str, Any], correlation_id: str

@@ -29,6 +29,8 @@ from .models import (
     DocumentState,
     DocumentVersion,
     Event,
+    ForecastOutcome,
+    ForecastOutcomeLabel,
     IdempotencyKey,
     IngestionCapabilities,
     LifecycleCriterion,
@@ -58,6 +60,7 @@ from .models import (
     SourceStorageMode,
     StopConditionKind,
     StructuralUnit,
+    TelemetryCompleteness,
     Tier,
     UploadSession,
 )
@@ -86,6 +89,7 @@ __all__ = [
     "RuleSource",
     "Severity",
     "StopConditionKind",
+    "TelemetryCompleteness",
     "Tier",
     # data - aliases
     "IdempotencyKey",
@@ -98,6 +102,8 @@ __all__ = [
     "BlastRadius",
     "CheckLogic",
     "Event",
+    "ForecastOutcome",
+    "ForecastOutcomeLabel",
     "LifecycleCriterion",
     "LifecycleDeduplication",
     "ObjectLifecycle",

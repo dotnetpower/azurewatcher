@@ -52,6 +52,12 @@ locals {
       # src/fdai/composition/wire_azure.py.
       FDAI_MONITOR_WORKSPACE_ID = var.monitor_workspace_customer_id
     },
+    var.case_history_container_url == "" ? {} : {
+      FDAI_CASE_HISTORY_CONTAINER_URL  = var.case_history_container_url
+      FDAI_CASE_HISTORY_MI_CLIENT_ID   = var.case_history_identity_client_id
+      FDAI_CASE_HISTORY_RETENTION_DAYS = tostring(var.case_history_retention_days)
+      FDAI_CASE_HISTORY_DELETION_DAYS  = tostring(var.case_history_deletion_days)
+    },
     var.prometheus_endpoint == "" ? {} : {
       # Read by the same helper to bind ``PrometheusMetricProvider`` as
       # the primary route (Prom-first, AML-fallback via

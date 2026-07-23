@@ -735,6 +735,54 @@ variable "stewardship_audit_interval_seconds" {
 }
 
 # ---------------------------------------------------------------------------
+# Prediction case history - private versioned Blob artifacts.
+# ---------------------------------------------------------------------------
+variable "enable_case_history" {
+  description = "Provision durable private case-history artifact storage and wire it into the core Pantheon runtime."
+  type        = bool
+  default     = true
+}
+
+variable "case_history_replication_type" {
+  description = "StorageV2 standard replication type for case-history artifacts."
+  type        = string
+  default     = "ZRS"
+}
+
+variable "case_history_retention_days" {
+  description = "Queryable case-history retention exposed to the runtime."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.case_history_retention_days >= 7
+    error_message = "case_history_retention_days MUST be >= 7."
+  }
+}
+
+variable "case_history_deletion_days" {
+  description = "Deletion due date offset for case-history artifacts and indexes."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.case_history_deletion_days >= var.case_history_retention_days
+    error_message = "case_history_deletion_days MUST be >= case_history_retention_days."
+  }
+}
+
+variable "case_history_version_retention_days" {
+  description = "Retention for superseded Blob versions after application-level deletion."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = var.case_history_version_retention_days >= var.case_history_deletion_days
+    error_message = "case_history_version_retention_days MUST be >= case_history_deletion_days."
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Governed document ingestion - production gateway + ADLS Gen2 HNS.
 # ---------------------------------------------------------------------------
 variable "enable_document_ingestion" {

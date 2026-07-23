@@ -1,7 +1,7 @@
 ---
 title: 에이전트 판테온
 translation_of: agent-pantheon.md
-translation_source_sha: 49f269d802a0144f1384fb106f1821ba6fc976cb
+translation_source_sha: 0b73e3993d04e41581d8e7f9c3b7b396c1d60cbe
 translation_revised: 2026-07-23
 ---
 
@@ -222,14 +222,14 @@ operations / interface), `3` = governance staff.
 | Thor | Responder | 2 | ActionRun, ActionAttempt | (dispatch 만; 직접 소유 없음 - §7.1) | no |
 | Forseti | Judge | 2 | Verdict, RCA | (verdict 생성; executor 역할 없음) | yes (T2 abstain 시만) |
 | Huginn | Event Collector / 실시간 Resource Discovery | 2 | Event | ingest_event | no |
-| Heimdall | Observer | 2 | Anomaly, Drift, Forecast, SecurityEvent | detect_anomaly, detect_drift, forecast, notify_admin_privilege_violation | no |
+| Heimdall | Observer | 2 | Anomaly, Drift, Forecast, ForecastOutcome, SecurityEvent | detect_anomaly, detect_drift, forecast, close_forecast_outcome, notify_admin_privilege_violation | no |
 | Vidar | Recovery | 2 | Rollback | perform_rollback, dr_failover | no |
 | Var | Approver | 2 | Approval | approve_action, reject_action | no |
 | Bragi | Narrator | 2 | Conversation, Turn, UserPreference | translate_intent | yes (translator 만) |
 | Saga | Auditor | 3 | AuditEntry, Issue | append_audit, escalate_to_github_issue | no |
 | Mimir | Rule Steward | 3 | Rule, Policy | promote_rule, revoke_rule | no |
-| Muninn | Memory | 3 | StateSnapshot, ContextIndex | index_state, snapshot_state | no |
-| Norns | Learner | 3 | RuleCandidate, PatternObservation | propose_rule_candidate, close_issue | yes (off-path batch 만) |
+| Muninn | Memory | 3 | StateSnapshot, ContextIndex | index_state, snapshot_state, seal_case_history | no |
+| Norns | Learner | 3 | RuleCandidate, PatternObservation | propose_rule_candidate, analyze_case_history, close_issue | yes (off-path batch 만) |
 | Njord | Cost | 1 | CostAnomaly, Budget | propose_cost_action | no |
 | Freyr | Capacity | 1 | CapacityForecast, SizingRecommendation | propose_capacity_action | no |
 | Loki | Chaos | 1 | ChaosExperiment, ResilienceScore | schedule_experiment | no |
@@ -281,7 +281,7 @@ self-improvement. **X**-agent 는 [agent-workflows.md](agent-workflows-ko.md)
 | Bragi | 만료 세션 정리, UserPreference index 리프레시 | NL routing, multi-agent aggregation, NL 렌더링 | intent classifier 재학습 (T1, off-path) | 7, 10 (Retrospective what-if), 12 |
 | Saga | audit-chain 무결성 self-check, issue-close scan, fingerprint index compaction | append AuditEntry, escalate_to_github_issue, replay for reconstruction | audit chain tamper 감지 | 모든 워크플로우 (audit) |
 | Mimir | rule-source 폴링, regression suite, deprecation cycle | rule promote / revoke, cache-invalidation broadcast | freshness-score, stale-rule 감지 | 4, 6 (Handoff -> Capability), 8, 11 |
-| Muninn | 스냅샷 rotation, RAG index rebuild, cache eviction | Forseti 를 위한 context fetch, Bragi 를 위한 state query | trending-query pre-warm, ontology cross-check | 판단을 touch 하는 모든 워크플로우 지원 |
+| Muninn | 스냅샷 rotation, RAG index rebuild, cache eviction, case-history retention | Forseti 를 위한 context fetch, Bragi 를 위한 state query, retention tick 적용 | trending-query pre-warm, ontology cross-check | 판단을 touch 하는 모든 워크플로우 지원 |
 | Norns | 시간당 배치 audit 분석, 스트리밍 pattern extraction | pattern signal, RuleCandidate publish, close_issue signal | 모델 성능 drift 감지 | 4, 6, 8 (Judgment coherence), 10 |
 | Njord | cost ingestion (daily), budget 모니터, cost forecasting | cost anomaly, budget breach alert, cost-advisor query | RI / SP 최적화 proposal | 1, 2 |
 | Freyr | utilization 샘플링, capacity forecasting, sizing 분석 | scale proposal, capacity advisor query | 다차원 capacity (CPU + IOPS + net + mem) | 2, 3 |
@@ -413,8 +413,9 @@ Object type 당 topic 하나, `object.<type>` 로 명명. 모든 메시지는 `c
 
 | Topic | Publisher | Primary subscribers |
 |-------|-----------|---------------------|
-| object.event | Huginn | Heimdall |
-| object.anomaly, object.drift | Heimdall | Forseti |
+| object.event | Huginn | Heimdall, Muninn (case-history retention tick만) |
+| object.anomaly, object.drift, object.forecast | Heimdall | Forseti |
+| object.forecast-outcome | Heimdall | Saga, Muninn |
 | object.security-event | Forseti | Heimdall (correlation), Saga |
 | object.verdict | Forseti | Thor, Saga, Odin |
 | object.arbitration-request | Forseti | Odin |
@@ -426,20 +427,19 @@ Object type 당 topic 하나, `object.<type>` 로 명명. 모든 메시지는 `c
 | object.issue | Saga | Norns, Mimir |
 | object.rule-candidate | Norns | Mimir |
 | object.rule | Mimir | Forseti (cache reload) |
+| object.context-index | Muninn | Norns (봉인된 case-history intake) |
 | object.conversation | Bragi | (session index) |
 | object.turn | Bragi | Muninn, Norns(동의가 확인된 post-turn 검토만) |
 | object.user-preference | Bragi | Muninn |
 | object.cost-anomaly | Njord | Forseti |
 | object.capacity-forecast | Freyr | Forseti |
 | object.chaos-experiment | Loki | Heimdall |
-
 Partitioning:
 
 - Mutation topic (`object.action-run`, `object.rollback`) 은 `resource_id`
   로 partition 되어 같은 리소스에 대한 동시 write 가 serialize.
 - Judgment 와 audit topic 은 `correlation_id` 로 partition 되어 단일
   incident 가 한 consumer 에 머묾.
-
 ### 6.2 Conversational port
 
 모든 에이전트는 Bragi 를 통해 도달 가능한 request-response NL 인터페이스를

@@ -329,7 +329,6 @@ once (e.g. `core` vs `worker`), mirroring the naming convention above.
   `*.tfvars`, exactly like resource names.
 - **Values are stable and lowercase** where they feed a query (`true`, `dev`, `resilience`);
   Cost Management and Resource Graph group on the literal, so drift breaks aggregation.
-
 ## Azure Resource Inventory (minimum set)
 
 The inventory is deliberately minimized for **cost-efficiency first**. Every choice below is
@@ -338,7 +337,6 @@ document. The inventory is rendered from the four CSP-neutral contracts (event b
 secret, workload identity) defined in [csp-neutrality.md](../architecture/csp-neutrality.md); Azure is
 today's realization of each contract. Concrete tier values, exact names, region, and per-app
 replica caps are still **deployment-specific** and tuned per environment; the shape is stable.
-
 | # | Resource | Tier | Purpose | Notes |
 |---|----------|------|---------|-------|
 | 1 | **Container Apps environment** | Consumption | shared serverless compute host | one environment shared by the core app and scheduled jobs; realizes the [Runtime contract](../architecture/csp-neutrality.md#2-runtime-contract--oci-image--knative-compatible-manifest) |
@@ -353,9 +351,10 @@ replica caps are still **deployment-specific** and tuned per environment; the sh
 | 10 | **Container Registry (ACR)** | Basic (Standard if geo-replication needed later) | signed images + build attestations | pin by digest, never a mutable tag |
 | 11 | **Azure OpenAI / AI Foundry account** (**opt-in**, `var.enable_llm`) | Standard | T1 embedding + T2 mixed-model reasoner deployments (one per capability from `resolved-models.json`) | provisioned only when the deployer holds `Cognitive Services Contributor` on the sub AND the region exposes the preferred family; otherwise the affected capabilities degrade to **`hil-only`** (see [dev-and-deploy-parity.md § Deployer-Scoped LLM Provisioning](dev-and-deploy-parity.md#deployer-scoped-llm-provisioning)). Terraform disables public access; tenant policy owns deny ACL details, which Terraform preserves. |
 | 12 | **ADLS Gen2 document account** (**opt-in**, `enable_document_ingestion`) | StorageV2 Standard ZRS, HNS | private quarantine, immutable governed versions, derived envelopes | Shared Key and public access disabled in private mode; soft delete + lifecycle; `blob` and `dfs` private endpoints |
-| 13 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | authenticated bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle events | dedicated UAMI; external HTTPS gateway cannot access executor permissions; durable worker consumes document lifecycle records from shared `aw.pipeline.stages` |
-| 14 | **Control-loop canary Job** | Consumption, every 5 minutes | publishes one idempotent event to `aw.control.canary` | dedicated UAMI has only ACR pull and Event Hubs send; the core records a no-op audit through a separate consumer path |
-| 15 | **Development operations Function App** (**opt-in**, `enable_dev_operations_gateway`) | Flex Consumption FC1 | relays registered read, write, and execute operations from local development to private resources | dev and private-networking only; dedicated `/27` subnet, private AAD-only deployment and idempotency storage, Easy Auth, separate reader/executor UAMIs, one-time server-issued mutation plan receipts, and no arbitrary URL, ARM path, command, or query surface |
+| 13 | **Case-history Blob account** (`enable_case_history`) | StorageV2 Standard ZRS | content-addressed prediction/incident case revisions for replay and governed Norns analysis | Shared Key disabled; private container, versioning, change feed, soft delete, bounded old-version lifecycle, dedicated case-history UAMI data role, and `blob` private endpoint; the executor MI receives no Blob role |
+| 14 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | authenticated bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle events | dedicated UAMI; external HTTPS gateway cannot access executor permissions; durable worker consumes document lifecycle records from shared `aw.pipeline.stages` |
+| 15 | **Control-loop canary Job** | Consumption, every 5 minutes | publishes one idempotent event to `aw.control.canary` | dedicated UAMI has only ACR pull and Event Hubs send; the core records a no-op audit through a separate consumer path |
+| 16 | **Development operations Function App** (**opt-in**, `enable_dev_operations_gateway`) | Flex Consumption FC1 | relays registered read, write, and execute operations from local development to private resources | dev and private-networking only; dedicated `/27` subnet, private AAD-only deployment and idempotency storage, Easy Auth, separate reader/executor UAMIs, one-time server-issued mutation plan receipts, and no arbitrary URL, ARM path, command, or query surface |
 Additional identity, channel, and console elements are deployment-owned or opt-in:
 
 - **App registrations × 3** - split audiences per
@@ -506,6 +505,7 @@ full expanded catalog and defaults are authored during the inventory PR.
 | `KAFKA_SECURITY_PROTOCOL` | env | deployment | `SASL_SSL` on Azure; provider-specific value elsewhere |
 | `KAFKA_SASL_MECHANISM` | env | deployment | `OAUTHBEARER` on Azure |
 | `FDAI_STATE_STORE_DSN` | KV ref | upstream | Postgres connection URI for audit + KPI; wired by `infra/main.tf` `azurerm_key_vault_secret.state_store_dsn` from `module.state_store.application_dsn`, exposed to the Container App via `secret{}` + `env{}` (see [project-structure.md](../architecture/project-structure.md) `infra/modules/compute/container-apps/`). Local/dev may use in-memory when absent; `RUNTIME_ENV=staging|prod` fails startup. |
+| `FDAI_CASE_HISTORY_CONTAINER_URL` / `FDAI_CASE_HISTORY_MI_CLIENT_ID` / `FDAI_CASE_HISTORY_RETENTION_DAYS` / `FDAI_CASE_HISTORY_DELETION_DAYS` / `FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS` | env | upstream / deployment | Private Blob container URL, dedicated attached UAMI client id, active-retention/deletion-due offsets, and the bounded Muninn retention cadence for immutable case revisions. Terraform derives the storage and identity bindings, validates deletion is not earlier than retention, and production startup fails if the dedicated identity id is missing; the executor identity and public/key-auth fallback are not used. The retention tick defaults to `86400`. |
 | `FDAI_OPERATOR_MEMORY_DSN` | KV ref | upstream | Postgres DSN for HIL-approved operator memory. Same source as `FDAI_STATE_STORE_DSN` day-zero (single Flexible Server); a deployment MAY split it later without touching core code. |
 | `FDAI_T1_PATTERN_LIBRARY_DSN` | KV ref | upstream | Postgres DSN for the pgvector-backed T1 pattern library. Same source day-zero; wired identically. |
 | `FDAI_INVENTORY_DSN` | KV ref | upstream | PostgreSQL DSN used only by the scheduled inventory collector to stage immutable candidates and atomically promote the active graph. |

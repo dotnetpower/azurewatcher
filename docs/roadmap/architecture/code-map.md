@@ -54,6 +54,7 @@ the safety-core modules held to the >= 90% coverage floor.
 | Subsystem | Responsibility | Source | Tests |
 |-----------|----------------|--------|-------|
 | detection | Anomaly, forecast, and 50 catalog-driven operational insight producers (re-enter event-ingest) | [src/fdai/core/detection/](../../../src/fdai/core/detection/) | [tests/core/detection/](../../../tests/core/detection/) |
+| case_history | Canonical case revisions, scoped failure/control retrieval, and governed Norns analysis ([design](../rules-and-detection/prediction-learning-and-case-history.md)) | [src/fdai/core/case_history/](../../../src/fdai/core/case_history/) and [src/fdai/shared/providers/case_history.py](../../../src/fdai/shared/providers/case_history.py) | [tests/core/case_history/](../../../tests/core/case_history/), [tests/persistence/test_state_store_case_history.py](../../../tests/persistence/test_state_store_case_history.py), and [tests/agents/test_forecast_learning_chain.py](../../../tests/agents/test_forecast_learning_chain.py) |
 | rca | Root-cause analysis (T0 + T2 behind seam) | [src/fdai/core/rca/](../../../src/fdai/core/rca/) | [tests/core/rca/](../../../tests/core/rca/) |
 | incident | Incident lifecycle registry + state machine | [src/fdai/core/incident/](../../../src/fdai/core/incident/) | [tests/core/incident/](../../../tests/core/incident/) |
 | slo | Workload SLO / burn-rate evaluator | [src/fdai/core/slo/](../../../src/fdai/core/slo/) | [tests/core/slo/](../../../tests/core/slo/) |
@@ -160,6 +161,7 @@ for the fork-locked role bindings and change contract.
 | programmatic_pipeline | Local isolated child runner and broker transport | [src/fdai/delivery/programmatic_pipeline/](../../../src/fdai/delivery/programmatic_pipeline/) |
 | browser | Optional isolated async Playwright capture with GET/HEAD interception and no general browser handle | [src/fdai/delivery/browser/](../../../src/fdai/delivery/browser/) |
 | trajectory | Deterministic streaming exporter, PostgreSQL metadata/quarantine store, Owner-only read projection, and offline CLI | [src/fdai/delivery/trajectory/](../../../src/fdai/delivery/trajectory/), [postgres_trajectory.py](../../../src/fdai/delivery/persistence/postgres_trajectory.py), [trajectory_datasets.py](../../../src/fdai/delivery/read_api/routes/trajectory_datasets.py), [deployment_cli/trajectory.py](../../../src/fdai/deployment_cli/trajectory.py) |
+| case_history | StateStore CAS metadata plus managed-identity Azure Blob artifacts | [state_store_case_history.py](../../../src/fdai/delivery/persistence/state_store_case_history.py), [case_history_artifacts.py](../../../src/fdai/delivery/azure/case_history_artifacts.py), and [runtime/case_history.py](../../../src/fdai/runtime/case_history.py) |
 | azure_devops | Azure DevOps PR / pipeline gate | [src/fdai/delivery/azure_devops/](../../../src/fdai/delivery/azure_devops/) |
 | github | GitHub App / Checks API | [src/fdai/delivery/github/](../../../src/fdai/delivery/github/) |
 | gitops_pr | PR-native remediation packager | [src/fdai/delivery/gitops_pr/](../../../src/fdai/delivery/gitops_pr/) |

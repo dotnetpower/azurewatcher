@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: f93fba708cf538f87554b5bfb6b3c2bf4644201d
+translation_source_sha: 7e94a1479f09a357c06ef669a47cc3aa2ffa7a0e
 translation_revised: 2026-07-23
 ---
 
@@ -327,7 +327,6 @@ additional_tags = {
   `additional_tags` 에 있음.
 - **질의에 쓰이는 값은 안정적이고 소문자**(`true`, `dev`, `resilience`); Cost Management 와
   Resource Graph 는 리터럴로 그룹핑하므로 드리프트가 집계를 깨뜨림.
-
 ## Azure 리소스 인벤토리 (최소 세트)
 
 인벤토리는 **비용 효율 우선**을 위해 의도적으로 최소화. 아래 모든 선택은 이 문서 끝의
@@ -335,7 +334,6 @@ additional_tags = {
 에 정의된 네 개의 CSP-중립 계약 (이벤트버스, 런타임, 시크릿, 워크로드 아이덴티티) 에서
 렌더링된것; Azure는 오늘의 각 계약의 구현. 구체적 티어 값, 정확한 이름, 리전, 앱별 replica
 상한은 여전히 **deployment별** 이며 환경마다 튜닝하고 형상은 안정적으로 유지합니다.
-
 | # | 리소스 | 티어 | 목적 | 노트 |
 |---|--------|------|------|------|
 | 1 | **Container Apps environment** | Consumption | 공유 서버리스 컴퓨트 호스트 | 코어 앱과 예약 작업이 하나의 environment를 공유하며 [Runtime 계약](../architecture/csp-neutrality-ko.md#2-런타임-계약--oci-이미지--knative-호환-매니페스트)을 구현합니다. |
@@ -350,9 +348,10 @@ additional_tags = {
 | 10 | **Container Registry (ACR)** | Basic (나중에 geo-replication 필요 시 Standard) | 서명된 이미지 + 빌드 attestation | digest로 고정, mutable 태그 절대 아님 |
 | 11 | **Azure OpenAI / AI Foundry account** (**opt-in**, `var.enable_llm`) | Standard | T1 embedding + T2 mixed-model reasoner deployment (`resolved-models.json`의 각 capability 당 하나) | 배포자가 sub에 `Cognitive Services Contributor`를 갖고 AND 리전이 preferred family 노출할 때만 프로비저닝; 그렇지 않으면 해당 capability는 **`hil-only`**로 강등 ([dev-and-deploy-parity-ko.md § 배포자-스코프 LLM 프로비저닝](dev-and-deploy-parity-ko.md#배포자-스코프-llm-프로비저닝) 참조). Terraform은 public access를 비활성화하고 tenant policy가 소유하는 deny ACL 세부 정보를 보존합니다. |
 | 12 | **ADLS Gen2 document account** (**opt-in**, `enable_document_ingestion`) | StorageV2 Standard ZRS, HNS | private quarantine, immutable governed version, derived envelope | Private mode에서 Shared Key와 public access 비활성화; soft delete + lifecycle; `blob`과 `dfs` private endpoint |
-| 13 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | 인증된 bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle event | Dedicated UAMI를 사용하며 external HTTPS gateway에는 executor permission이 없습니다. Durable worker는 shared `aw.pipeline.stages`의 document lifecycle record를 consume합니다. |
-| 14 | **Control-loop canary Job** | Consumption, 5분마다 실행 | `aw.control.canary`에 멱등 이벤트 하나를 게시합니다. | 전용 UAMI에는 ACR pull과 Event Hubs send만 있으며, 코어는 별도 consumer 경로에서 no-op audit을 기록합니다. |
-| 15 | **Development operations Function App** (**opt-in**, `enable_dev_operations_gateway`) | Flex Consumption FC1 | 로컬 개발에서 private resource로 registered read, write, execute operation을 relay합니다. | dev 및 private-networking 전용이며 전용 `/27` subnet, private AAD-only deployment 및 idempotency storage, Easy Auth, 분리된 reader/executor UAMI, 일회용 server-issued mutation plan receipt를 사용합니다. 임의 URL, ARM path, command, query surface는 제공하지 않습니다. |
+| 13 | **Case-history Blob account** (`enable_case_history`) | StorageV2 Standard ZRS | Replay 및 governed Norns 분석용 content-addressed prediction/incident case revision | Shared Key 비활성화, private container, versioning, change feed, soft delete, bounded old-version lifecycle, 전용 case-history UAMI data role, `blob` private endpoint. Executor MI에는 Blob role을 부여하지 않습니다. |
+| 14 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | 인증된 bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle event | Dedicated UAMI를 사용하며 external HTTPS gateway에는 executor permission이 없습니다. Durable worker는 shared `aw.pipeline.stages`의 document lifecycle record를 consume합니다. |
+| 15 | **Control-loop canary Job** | Consumption, 5분마다 실행 | `aw.control.canary`에 멱등 이벤트 하나를 게시합니다. | 전용 UAMI에는 ACR pull과 Event Hubs send만 있으며, 코어는 별도 consumer 경로에서 no-op audit을 기록합니다. |
+| 16 | **Development operations Function App** (**opt-in**, `enable_dev_operations_gateway`) | Flex Consumption FC1 | 로컬 개발에서 private resource로 registered read, write, execute operation을 relay합니다. | dev 및 private-networking 전용이며 전용 `/27` subnet, private AAD-only deployment 및 idempotency storage, Easy Auth, 분리된 reader/executor UAMI, 일회용 server-issued mutation plan receipt를 사용합니다. 임의 URL, ARM path, command, query surface는 제공하지 않습니다. |
 추가 identity/channel/console 요소는 deployment 또는 opt-in 기능이 소유합니다:
 
 - **App registration × 3** - 오디언스 분리
@@ -501,6 +500,7 @@ state를 제공합니다.
 | `KAFKA_SECURITY_PROTOCOL` | env | deployment | Azure 에서 `SASL_SSL`; 다른 곳에서는 프로바이더별 값 |
 | `KAFKA_SASL_MECHANISM` | env | deployment | Azure 에서 `OAUTHBEARER` |
 | `FDAI_STATE_STORE_DSN` | KV ref | upstream | audit + KPI 용 Postgres 연결 URI. `infra/main.tf` 의 `azurerm_key_vault_secret.state_store_dsn` 이 `module.state_store.application_dsn` 으로부터 배선하고, Container App 은 `secret{}` + `env{}` 로 노출 ([project-structure-ko.md](../architecture/project-structure-ko.md) 의 `infra/modules/compute/container-apps/` 참조). Local/dev는 없을 때 in-memory를 사용할 수 있지만 `RUNTIME_ENV=staging|prod`는 시작을 차단합니다. |
+| `FDAI_CASE_HISTORY_CONTAINER_URL` / `FDAI_CASE_HISTORY_MI_CLIENT_ID` / `FDAI_CASE_HISTORY_RETENTION_DAYS` / `FDAI_CASE_HISTORY_DELETION_DAYS` / `FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS` | env | upstream / deployment | Immutable case revision용 private Blob container URL, 전용 attached UAMI client id, active-retention/deletion-due offset 및 제한된 Muninn retention cadence입니다. Terraform은 storage와 identity binding을 파생하고 deletion이 retention보다 이르지 않게 검증하며, production startup은 전용 identity id가 없으면 실패합니다. Executor identity와 public/key-auth fallback은 사용하지 않습니다. Retention tick 기본값은 `86400`입니다. |
 | `FDAI_OPERATOR_MEMORY_DSN` | KV ref | upstream | HIL 승인 operator memory 용 Postgres DSN. day-zero 는 `FDAI_STATE_STORE_DSN` 과 동일 소스 (단일 Flexible Server); deployment는 core를 건드리지 않고 나중에 분리할 수 있습니다. |
 | `FDAI_T1_PATTERN_LIBRARY_DSN` | KV ref | upstream | pgvector 기반 T1 패턴 라이브러리 용 Postgres DSN. day-zero 동일 소스, 동일 배선. |
 | `FDAI_INVENTORY_DSN` | KV ref | upstream | Scheduled inventory collector가 immutable candidate를 stage하고 active graph를 atomic promotion하는 데만 사용하는 PostgreSQL DSN. |

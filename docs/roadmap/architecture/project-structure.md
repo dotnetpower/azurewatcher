@@ -28,6 +28,7 @@ fdai/
 │   │   ├── operator_memory/    # HIL-approved operator memory injected as untrusted `<operator_note>` data
 │   │   ├── learning/           # consent-gated off-path turn eligibility, consensus, dedup ledger, and inert proposal routing
 │   │   ├── trajectory/         # authorization-first observable trajectory projection, version policy, reviewed aggregate, and offline validation
+│   │   ├── case_history/       # canonical case revisions, scoped cohort retrieval, and inert off-path analysis
 │   │   ├── task_worker/        # isolated depth-one read-only workers: capability attenuation, lifecycle, durable state, and parent synthesis
 │   │   ├── background_task/    # durable detached reads: lease/CAS, atomic completion outbox, bounded retry, process-loss, and retention purge
 │   │   ├── read_investigation/ # exact-resource VM/network planning, evidence, latency policy, owner-scoped direct/stream replay, honest cost usage, SSE heartbeats, and stream-close cancellation; no cloud SDK or execution authority
@@ -87,6 +88,7 @@ fdai/
 │   │   ├── behavior_knowledge/ # in-memory hybrid behavior index, tracked-source freshness, and built-in behavior seeds
 │   │   ├── pgvector/           # persistent document and behavior vector indexes
 │   │   ├── azure/              # Azure-specific adapters, including bounded logs/metrics/App Insights trace evidence (the only tree allowed to import `azure-*`)
+│   │   │                       #   `case_history_artifacts.py` stores content-addressed case revisions in private Blob through workload identity
 │   │   │                       #   `vm_task.py` uses Managed Run Command; `container_apps_job_backend.py` starts pinned Job templates; `llm/python_task_author.py` generates inert drafts
 │   │   ├── vm_task/            # planning-only read adapter + ontology ToolExecutor bridge; no cloud SDK imports
 │   │   ├── execution_backend/  # bubblewrap and VM-task lifecycle adapters over existing sandbox authority

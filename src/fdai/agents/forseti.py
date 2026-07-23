@@ -109,7 +109,7 @@ class Forseti(Agent):
             elif topic == "object.anomaly" and payload.get("stage") == "protection_check":
                 await self.judge_document_safety(payload)
             return
-        if topic in ("object.event", "object.anomaly", "object.drift"):
+        if topic in ("object.event", "object.anomaly", "object.drift", "object.forecast"):
             await self.maybe_request_arbitration(payload)
             await self.judge(payload)
         elif topic == "object.cost-anomaly":
