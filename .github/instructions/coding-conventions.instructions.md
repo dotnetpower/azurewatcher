@@ -176,19 +176,10 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
 
 - **Edit loop**: run the smallest executable test that can falsify the current change. Do not run a
   package, subsystem, or repository suite when one test file or node id is sufficient.
-- **Parallel sessions**: use a separate Git worktree per concurrent session whenever practical.
-  Bare `make test-changed` includes every tracked, staged, and untracked working-tree change, so a
-  session MUST NOT use it when unrelated dirty files from another session are present. More pytest
-  workers do not fix incorrect ownership scope and can make concurrent runs slower through CPU and
-  memory contention.
-- **Completed batch**: run the route-selected focused checks before committing. When the worktree
-  contains only the current batch, run `make test-changed`. In a shared dirty worktree, commit only
-  owned paths after the focused checks, capture that commit, then run
-  `make test-changed DIFF=<commit>^..<commit>` so the selector sees only that batch. A failure on the
-  exact commit MUST be repaired before reporting completion. For a branch integration batch, use
-  `make test-changed DIFF=<base>...HEAD`. Run `bash scripts/verify.sh --fast` once per stable completed
-  batch, not once per concurrent session against the same shared snapshot. The selector uses
-  conservative whole-suite fallbacks for global Python test configuration.
+- **Parallel sessions**: prefer separate worktrees; never run bare `make test-changed` over another session's dirty or untracked paths.
+- **Completed batch**: run focused checks, then use bare `make test-changed` only for an isolated batch.
+  In a shared dirty tree, commit owned paths and run `make test-changed DIFF=<commit>^..<commit>`;
+  fix failures before reporting. Use `DIFF=<base>...HEAD` for integration and run `bash scripts/verify.sh --fast` once per stable batch; the selector may fall back broadly.
 - **Focused pytest facade**: use `bash scripts/verify.sh --full <path>` when the completed slice
   needs pytest through the common gate runner. A path is mandatory; pathless `--full` is rejected.
 - **Whole-repository suite**: `bash scripts/verify.sh --all` is reserved for an explicit user
