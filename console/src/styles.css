@@ -3814,9 +3814,172 @@ pre {
   text-decoration: none;
 }
 .analytics-links a:hover { border-color: var(--fg-muted); }
+
+/* Control Assurance keeps the static prototype's information hierarchy while
+   rendering only server-owned measurements and explicit unavailable states. */
+.control-assurance { gap: 20px; }
+.assurance-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1px solid var(--overview-border);
+  border-radius: 8px;
+  color: var(--overview-muted);
+  background: var(--overview-card);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.assurance-banner strong { color: var(--overview-text); font-size: 13px; }
+.assurance-banner.is-healthy {
+  background: color-mix(in oklab, var(--overview-sage) 8%, var(--overview-card));
+}
+.assurance-banner.is-attention {
+  background: color-mix(in oklab, var(--overview-terracotta) 9%, var(--overview-card));
+}
+.assurance-banner.is-unknown { background: var(--overview-shade); }
+.assurance-section { margin-top: 10px; }
+.assurance-section-head,
+.assurance-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+.assurance-section-head h3,
+.assurance-panel-head h3 { margin: 0 0 3px; font-size: 16px; }
+.assurance-section-head p,
+.assurance-panel-head p {
+  margin: 0;
+  color: var(--overview-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.assurance-section-head > span,
+.assurance-panel-head > span {
+  flex: 0 0 auto;
+  color: var(--overview-muted);
+  font-size: 11px;
+}
+.assurance-guard-list { display: grid; gap: 9px; }
+.assurance-guard {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.85fr) minmax(220px, 1.3fr) auto;
+  align-items: center;
+  gap: 22px;
+  padding: 16px 18px;
+  border: 1px solid var(--overview-border);
+  border-radius: 8px;
+  color: inherit;
+  background: var(--overview-card);
+  text-decoration: none;
+}
+.assurance-guard:hover,
+.assurance-guard:focus-visible { border-color: var(--fg-muted); }
+.assurance-guard-name { display: grid; gap: 4px; min-width: 0; }
+.assurance-guard-name strong { overflow-wrap: anywhere; font-size: 13px; }
+.assurance-guard-name small { color: var(--overview-muted); font-size: 10.5px; }
+.assurance-meter-column { display: grid; gap: 7px; }
+.assurance-meter {
+  display: block;
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--overview-shade);
+}
+.assurance-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--overview-sage);
+}
+.assurance-meter.is-blocked > span { background: var(--overview-terracotta); }
+.assurance-meter.is-simulated > span { background: var(--overview-muted); }
+.assurance-meter-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--overview-muted);
+  font-size: 10.5px;
+}
+.assurance-meter-meta strong { color: var(--overview-text); }
+.assurance-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 20px;
+  margin-top: 10px;
+}
+.assurance-panel {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--overview-border);
+  border-radius: 8px;
+  background: var(--overview-card);
+  box-shadow: 0 4px 16px rgba(46, 54, 64, 0.06);
+}
+.assurance-panel .overview-distribution-bar { margin-top: 24px; }
+.assurance-path-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 15px;
+  margin-top: 13px;
+}
+.assurance-path-legend a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--overview-muted);
+  font-size: 11.5px;
+  text-decoration: none;
+}
+.assurance-path-legend a:hover,
+.assurance-path-legend a:focus-visible { text-decoration: underline; }
+.assurance-path-legend strong { color: var(--overview-text); }
+.assurance-path-legend small { font-variant-numeric: tabular-nums; }
+.assurance-attention-list { display: grid; }
+.assurance-attention-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-top: 1px solid var(--overview-border);
+  color: inherit;
+  font-size: 12px;
+  text-decoration: none;
+}
+.assurance-attention-list a:first-child { border-top: 0; }
+.assurance-attention-list a:hover span,
+.assurance-attention-list a:focus-visible span { text-decoration: underline; }
+.assurance-attention-list strong { font-size: 14px; font-variant-numeric: tabular-nums; }
+.assurance-attention-list strong.is-unavailable {
+  color: var(--overview-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.assurance-panel-unavailable {
+  display: block;
+  padding: 18px;
+  border: 1px dashed var(--overview-border);
+  border-radius: 8px;
+  color: var(--overview-muted);
+  font-size: 12px;
+  text-align: center;
+  text-decoration: none;
+}
+.assurance-panel-unavailable:hover,
+.assurance-panel-unavailable:focus-visible { text-decoration: underline; }
 @media (max-width: 760px) {
   .outcome-intro { align-items: flex-start; flex-direction: column; gap: 8px; }
   .outcome-analysis-grid { grid-template-columns: minmax(0, 1fr); }
+  .assurance-section-head,
+  .assurance-panel-head { flex-direction: column; gap: 6px; }
+  .assurance-guard { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .assurance-guard .status-pill { justify-self: start; }
+  .assurance-lower-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .filter-summary {
   display: flex;

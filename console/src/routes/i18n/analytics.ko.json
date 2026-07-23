@@ -127,7 +127,32 @@
     "posture": "운영 상태",
     "escapes": "정책위반 탈출",
     "shadow": "Shadow 비율",
-    "ready": "승격 준비도"
+    "ready": "승격 준비도",
+    "escapeHint": "승격 projection에서 관측된 통제되지 않은 실행",
+    "shadowHint": "Shadow 모드로 기록된 대상 감사 이벤트",
+    "readyHint": "차단된 기능: {blocked}개",
+    "banner": {
+      "healthyTitle": "안전 통제가 정상 작동 중입니다.",
+      "healthyBody": "정책위반 탈출: {escapes}건. 실패 가드: {guards}개. 승인 대기: {approvals}건.",
+      "attentionTitle": "자율 운영에 조치가 필요합니다.",
+      "attentionBody": "정책위반 탈출: {escapes}건. 실패 가드: {guards}개. 승인 대기: {approvals}건.",
+      "unknownTitle": "운영 통제 보증을 확인할 수 없습니다.",
+      "unknownBody": "정책위반 탈출: {escapes}. 실패 가드: {guards}. 승인 대기: {approvals}건. 누락되거나 합성된 근거로 정상 판정을 만들지 않습니다."
+    },
+    "guardsTitle": "승격 가드",
+    "guardsSubtitle": "각 안전 조건의 현재 측정값을 권위 있는 임계값과 비교합니다.",
+    "guardsMeta": "가드를 열어 필터된 근거 보기",
+    "guardsUnavailable": "이 근거 기간에 보고된 가드 측정값이 없습니다.",
+    "guardBaseline": "기준선 {value}",
+    "guardThreshold": "임계값 {value}",
+    "controlPath": "통제 경로",
+    "controlPathSubtitle": "관측된 감사 이벤트의 종단 판정 구성입니다.",
+    "attentionTitle": "조치 필요",
+    "attentionSubtitle": "측정된 통제 신호만 집계합니다.",
+    "failedGuards": "실패 가드",
+    "pendingApprovals": "승인 대기",
+    "blockedCapabilities": "차단된 기능",
+    "policyEscapes": "정책위반 탈출"
   },
   "vertical": {
     "resilience": "복원력",

@@ -127,7 +127,32 @@
     "posture": "Operating posture",
     "escapes": "Policy escapes",
     "shadow": "Shadow coverage",
-    "ready": "Promotion readiness"
+    "ready": "Promotion readiness",
+    "escapeHint": "Ungoverned executions observed in the promotion projection",
+    "shadowHint": "Eligible audit events recorded in shadow mode",
+    "readyHint": "Blocked capabilities: {blocked}",
+    "banner": {
+      "healthyTitle": "Safety controls are holding.",
+      "healthyBody": "Policy escapes: {escapes}. Failed guards: {guards}. Approvals pending: {approvals}.",
+      "attentionTitle": "Autonomous operation requires attention.",
+      "attentionBody": "Policy escapes: {escapes}. Failed guards: {guards}. Approvals pending: {approvals}.",
+      "unknownTitle": "Operational assurance is unavailable.",
+      "unknownBody": "Policy escapes: {escapes}. Failed guards: {guards}. Approvals pending: {approvals}. Missing or simulated evidence does not create a healthy verdict."
+    },
+    "guardsTitle": "Promotion guards",
+    "guardsSubtitle": "Current measurement against the authoritative threshold for each safety condition.",
+    "guardsMeta": "Open a guard for filtered evidence",
+    "guardsUnavailable": "No guard measurements were reported for this evidence window.",
+    "guardBaseline": "Baseline {value}",
+    "guardThreshold": "Threshold {value}",
+    "controlPath": "Control path",
+    "controlPathSubtitle": "Terminal decision mix for observed audit events.",
+    "attentionTitle": "Required attention",
+    "attentionSubtitle": "Aggregated measured control signals only.",
+    "failedGuards": "Failed guards",
+    "pendingApprovals": "Approvals pending",
+    "blockedCapabilities": "Capabilities blocked",
+    "policyEscapes": "Policy escapes"
   },
   "vertical": {
     "resilience": "Resilience",

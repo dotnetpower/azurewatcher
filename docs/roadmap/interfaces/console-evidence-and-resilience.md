@@ -53,6 +53,14 @@ table or deriving values in the browser. Cost views also state that displayed am
 prices and can differ from billed amounts after discounts, commitments, credits, taxes, exchange
 rates, and provider billing adjustments.
 
+Control Assurance presents the operating banner, evidence metadata, posture metrics, promotion
+guards, terminal control-path distribution, and required-attention totals from the audit KPI,
+autonomy measurement, and promotion registry projections. Guard rows compare current, baseline,
+and threshold values and link to filtered evidence; distribution segments and attention rows link to
+their narrowest audit, approval, or promotion destination. Synthetic guards never produce an
+operational pass or failure, and a missing projection renders unavailable instead of supplying a
+prototype value or inferred zero.
+
 ## Loading presentation
 
 Every route, panel, and bounded content region renders a skeleton from its first loading frame.

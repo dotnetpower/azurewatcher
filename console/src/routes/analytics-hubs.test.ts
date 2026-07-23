@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { AutonomyPayload } from "../types";
 import {
   formatMeasuredSavings,
-  guardDisplayState,
   measuredTierValue,
   routingParamsForTier,
   searchParamsRecord,
   verticalResolutionRate,
 } from "./analytics-hubs";
+import { guardDisplayState, measuredFailedGuardCount, meterPercent } from "./control-assurance";
 import { buildOperatingOutcomeViewSnapshot } from "./analytics-hubs.view";
 import {
   OUTCOME_KEYS,
@@ -147,6 +147,16 @@ describe("trust-routing measurements", () => {
     expect(guardDisplayState(true, false)).toBe("simulated");
     expect(guardDisplayState(false, true)).toBe("passing");
     expect(guardDisplayState(false, false)).toBe("blocked");
+  });
+
+  it("keeps synthetic guard failures out of measured attention", () => {
+    expect(measuredFailedGuardCount({ ...AUTONOMY, synthetic: true })).toBeNull();
+    expect(measuredFailedGuardCount({
+      ...AUTONOMY,
+      guards: [{ key: "rollback", value: 0.9, baseline: 1, threshold: 1, ok: false }],
+    })).toBe(1);
+    expect(meterPercent(-0.1)).toBe(0);
+    expect(meterPercent(1.2)).toBe(100);
   });
 
   it("preserves active query state across analytical tabs", () => {

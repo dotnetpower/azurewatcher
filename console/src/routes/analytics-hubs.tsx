@@ -15,9 +15,10 @@ import {
 import { getLocale } from "../i18n";
 import { t } from "./i18n/analytics";
 import { currentRoute, routeHref } from "../router";
-import { formatShare, formatUsd, overviewHealth } from "./dashboard.model";
+import { formatShare, formatUsd } from "./dashboard.model";
 import { useAnalyticsData, type AnalyticsData } from "./analytics-data";
 import { buildOperatingOutcomeViewSnapshot } from "./analytics-hubs.view";
+import { ControlAssuranceBody } from "./control-assurance";
 import {
   OperatingOutcomeBody,
   OUTCOME_KEYS,
@@ -54,14 +55,6 @@ export function routingParamsForTier(
 
 export function verticalResolutionRate(vertical: VerticalSummary): number | null {
   return vertical.events > 0 ? vertical.auto_resolved / vertical.events : null;
-}
-
-export function guardDisplayState(
-  synthetic: boolean,
-  ok: boolean,
-): "simulated" | "passing" | "blocked" {
-  if (synthetic) return "simulated";
-  return ok ? "passing" : "blocked";
 }
 
 function HubTabs({
@@ -163,71 +156,17 @@ export function ControlAssuranceRoute({ client }: Props) {
     <div class="stack analytics-route">
       <PageHeader title={t("analytics.assurance.title")} subtitle={t("analytics.assurance.subtitle")} />
       <AsyncBoundary state={state} resourceLabel={t("analytics.assurance.title")}>
-        {(data) => <AssuranceBody data={data} guardKey={guardKey} />}
+        {(data) => (
+          <ControlAssuranceBody
+            data={data}
+            evidence={data.autonomy ? <EvidenceStrip autonomy={data.autonomy} /> : null}
+            guardKey={guardKey}
+            context={searchParamsRecord(currentRoute().search)}
+          />
+        )}
       </AsyncBoundary>
     </div>
   );
-}
-
-function AssuranceBody({
-  data,
-  guardKey,
-}: {
-  readonly data: AnalyticsData;
-  readonly guardKey: string | null;
-}) {
-  const escapes = data.gates?.rows.reduce((sum, row) => sum + row.policy_escapes, 0) ?? null;
-  const health = overviewHealth(data.kpi, escapes, data.autonomy);
-  const context = searchParamsRecord(currentRoute().search);
-  const window = data.autonomy ? `${data.autonomy.window_days}d` : context["window"];
-  return (
-    <div class="stack">
-      {data.autonomy ? <EvidenceStrip autonomy={data.autonomy} /> : null}
-      <KpiGrid>
-        <KpiCard href={routeHref("control-assurance", { params: context })} label={t("analytics.assurance.posture")} value={t(`analytics.health.${health}`)} tone={health === "healthy" ? "positive" : health === "attention" ? "warning" : "default"} />
-        <KpiCard evidenceState={escapes === null ? "not-measured" : "measured"} href={routeHref("promotion-gates", { params: { ...context, status: "blocked" } })} label={t("analytics.assurance.escapes")} value={escapes ?? kpiEvidenceLabel("not-measured")} hint={escapes === null ? t("analytics.notMeasuredHint") : undefined} tone={escapes === null ? "default" : escapes === 0 ? "positive" : "warning"} />
-        <KpiCard href={routeHref("audit", { params: { ...context, window, mode: "shadow" } })} label={t("analytics.assurance.shadow")} value={formatShare(data.kpi.shadow_share)} />
-        <KpiCard evidenceState={data.gates ? "measured" : "not-connected"} href={routeHref("promotion-gates", { params: { ...context, status: "ready" } })} label={t("analytics.assurance.ready")} value={data.gates ? `${data.gates.ready_count}/${data.gates.rows.length}` : kpiEvidenceLabel("not-connected")} hint={data.gates ? undefined : t("analytics.notConnectedHint")} />
-      </KpiGrid>
-      {data.autonomy ? (
-        <GuardTable autonomy={data.autonomy} guardKey={guardKey} />
-      ) : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
-      <EvidenceLinks links={[
-        [t("analytics.viewPromotion"), routeHref("promotion-gates", { params: { status: "blocked" } })],
-        [t("analytics.viewApprovals"), routeHref("hil-queue")],
-        [t("analytics.viewShadowAudit"), routeHref("audit", { params: { mode: "shadow" } })],
-      ]} />
-    </div>
-  );
-}
-
-function GuardTable({
-  autonomy,
-  guardKey,
-}: {
-  readonly autonomy: AutonomyPayload;
-  readonly guardKey: string | null;
-}) {
-  const rows = guardKey === null
-    ? autonomy.guards
-    : autonomy.guards.filter((row) => row.key === guardKey);
-  if (rows.length === 0) return <UnavailableState message={t("analytics.invalidGuard")} />;
-  const columns: readonly Column<AutonomyPayload["guards"][number]>[] = [
-    { key: "guard", header: t("analytics.guard"), render: (row) => t(`overview.guardFull.${row.key}`) },
-    { key: "value", header: t("analytics.current"), render: (row) => `${(row.value * 100).toFixed(1)}%`, cellClass: "num" },
-    { key: "threshold", header: t("analytics.threshold"), render: (row) => `${(row.threshold * 100).toFixed(1)}%`, cellClass: "num" },
-    {
-      key: "status",
-      header: t("analytics.status"),
-      render: (row) => {
-        const state = guardDisplayState(autonomy.synthetic, row.ok);
-        return state === "simulated"
-          ? <StatusPill kind="neutral" label={t("analytics.simulatedStatus")} />
-          : <StatusPill kind={state === "passing" ? "success" : "danger"} label={t(`analytics.${state}`)} />;
-      },
-    },
-  ];
-  return <DataTable columns={columns} rows={rows} keyOf={(row) => row.key} />;
 }
 
 const VERTICAL_KEYS = ["resilience", "change-safety", "cost-governance"] as const;
