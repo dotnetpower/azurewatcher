@@ -61,13 +61,15 @@ their narrowest audit, approval, or promotion destination. Synthetic guards neve
 operational pass or failure, and a missing projection renders unavailable instead of supplying a
 prototype value or inferred zero.
 
-Vertical Outcomes presents all implemented verticals as comparable summary links, then shows the
-selected vertical's measured activity, auto-resolution, unresolved risk, savings, and supporting
-destinations. The cross-vertical table includes only fields shared by every vertical projection.
-Global confidence and trend values aren't repeated as vertical-specific claims; missing trend or
-domain-specific evidence remains unavailable until the read model supplies an attributed source.
-An empty vertical has no inferred resolution rate, and synthetic evidence never creates an
-operational health label or a filtered runtime-evidence claim.
+Vertical Outcomes is one portfolio overview rather than three selected-detail routes. Each vertical
+card uses the same visual grammar but names a distinct primary outcome and links directly to its
+owning evidence surface: Incidents for Resilience, promotion evidence for Change Safety, and Audit
+for Cost Governance. The shared comparison table is the only place that repeats events,
+auto-resolution, unresolved risk, and savings across verticals. A domain metric such as change
+failure rate or recovery drill success remains unavailable until the read model supplies attributed
+evidence; global confidence and trend values aren't relabeled as vertical-specific claims. An empty
+vertical has no inferred resolution rate, and synthetic evidence never creates an operational health
+label or a filtered runtime-evidence claim.
 
 ## Loading presentation
 

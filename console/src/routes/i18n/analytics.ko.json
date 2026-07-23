@@ -161,18 +161,58 @@
   },
   "verticals": {
     "title": "영역별 성과",
-    "subtitle": "근거 계약을 혼합하지 않고 FDAI 영역별 운영 성과를 비교합니다.",
-    "comparison": "영역 비교",
-    "comparisonSubtitle": "공유 지표만 비교하며 영역별 고유 근거는 선택한 보기에 유지합니다.",
-    "unavailable": "현재 측정 projection에 이 영역이 없습니다.",
+    "subtitle": "각 영역을 고유한 근거 계약으로 측정하며 FDAI 영역 전체를 하나의 운영 화면에서 보여줍니다.",
+    "signalsTitle": "영역별 신호",
+    "signalsSubtitle": "각 운영 영역에서 중요한 대표 성과와 도메인 근거입니다.",
+    "comparison": "공유 운영 비교",
+    "comparisonSubtitle": "모든 영역에서 의미와 계산 방식이 같은 지표만 비교합니다.",
+    "contractsTitle": "근거 계약",
+    "contractsSubtitle": "각 영역 신호를 뒷받침하는 source와 도메인 지표입니다.",
     "summaryLabel": "영역 요약",
     "simulatedTitle": "예시 비교입니다.",
-    "outcomeTitle": "{vertical} 성과",
-    "outcomeSubtitle": "이 근거 기간에 측정된 활동과 자동 해결 결과입니다.",
-    "evidenceTitle": "{vertical} 근거",
-    "evidenceSubtitle": "선택한 영역에 연결된 성과 주장입니다.",
-    "trendEvidence": "영역별 성과 추세",
-    "specificEvidence": "영역별 고유 근거",
+    "primary": {
+      "autoResolution": "자동 해결률",
+      "changeFailureRate": "변경 실패율",
+      "monthlySavings": "측정된 월 절감액"
+    },
+    "card": {
+      "resilience": {
+        "purpose": "인시던트, 복구 훈련 및 검증된 rollback 경로에서 확인한 복구 신뢰도입니다.",
+        "link": "복원력 인시던트 열기"
+      },
+      "change-safety": {
+        "purpose": "변경 결과, 승격 가드 및 rollback 검증에서 확인한 전달 안전성입니다.",
+        "link": "변경 승격 근거 열기"
+      },
+      "cost-governance": {
+        "purpose": "통제된 비용 조치와 표준 가격 귀속에서 확인한 실현 가치입니다.",
+        "link": "비용 조치 검사"
+      }
+    },
+    "fact": {
+      "recoveryDrills": "통과한 복구 훈련",
+      "medianMttr": "중앙값 MTTR",
+      "rollbackPaths": "검증된 rollback 경로",
+      "rollbackSuccess": "Rollback 성공률",
+      "medianLeadTime": "중앙값 리드 타임",
+      "promotionGuards": "통과한 승격 가드",
+      "observedCostEvents": "관측된 비용 이벤트",
+      "budgetVariance": "예산 편차"
+    },
+    "contract": {
+      "resilience": {
+        "source": "공유 projection: {source}; 복구 귀속은 연결되지 않음",
+        "measures": "MTTR, RTO/RPO, 복구 성공률"
+      },
+      "change-safety": {
+        "source": "공유 projection: {source}; 변경 귀속은 연결되지 않음",
+        "measures": "CFR, 리드 타임, rollback 성공률"
+      },
+      "cost-governance": {
+        "source": "공유 projection: {source}; 표시 절감액의 가격 귀속은 연결됨",
+        "measures": "실현 절감액, 예산 편차"
+      }
+    },
     "state": {
       "measured": "측정됨",
       "review": "검토",

@@ -161,18 +161,58 @@
   },
   "verticals": {
     "title": "Vertical outcomes",
-    "subtitle": "Comparable operating results across FDAI verticals without mixing their evidence contracts.",
-    "comparison": "Cross-vertical comparison",
-    "comparisonSubtitle": "Shared measures only; vertical-specific evidence stays in the selected view.",
-    "unavailable": "This vertical is not present in the current measurement projection.",
+    "subtitle": "One operating view across FDAI verticals, with each domain measured by its own evidence contract.",
+    "signalsTitle": "Vertical signals",
+    "signalsSubtitle": "The primary outcome and domain evidence that matter for each operating vertical.",
+    "comparison": "Shared operating comparison",
+    "comparisonSubtitle": "Only measures with the same meaning and calculation across all verticals.",
+    "contractsTitle": "Evidence contracts",
+    "contractsSubtitle": "The source and domain measures behind each vertical signal.",
     "summaryLabel": "Vertical summaries",
     "simulatedTitle": "Illustrative comparison.",
-    "outcomeTitle": "{vertical} outcomes",
-    "outcomeSubtitle": "Measured activity and automatically resolved outcomes in this evidence window.",
-    "evidenceTitle": "{vertical} evidence",
-    "evidenceSubtitle": "Outcome claims attached to the selected vertical.",
-    "trendEvidence": "Vertical outcome trend",
-    "specificEvidence": "Vertical-specific evidence",
+    "primary": {
+      "autoResolution": "Auto-resolution rate",
+      "changeFailureRate": "Change failure rate",
+      "monthlySavings": "Measured monthly savings"
+    },
+    "card": {
+      "resilience": {
+        "purpose": "Recovery confidence from incidents, drills, and verified rollback paths.",
+        "link": "Open resilience incidents"
+      },
+      "change-safety": {
+        "purpose": "Delivery safety from change outcomes, promotion guards, and rollback verification.",
+        "link": "Open change promotion evidence"
+      },
+      "cost-governance": {
+        "purpose": "Realized value from governed cost actions and standard-price attribution.",
+        "link": "Inspect cost actions"
+      }
+    },
+    "fact": {
+      "recoveryDrills": "Recovery drills passed",
+      "medianMttr": "Median MTTR",
+      "rollbackPaths": "Rollback paths tested",
+      "rollbackSuccess": "Rollback success",
+      "medianLeadTime": "Median lead time",
+      "promotionGuards": "Promotion guards passing",
+      "observedCostEvents": "Observed cost events",
+      "budgetVariance": "Budget variance"
+    },
+    "contract": {
+      "resilience": {
+        "source": "Shared projection: {source}; recovery attribution not connected",
+        "measures": "MTTR, RTO/RPO, recovery success"
+      },
+      "change-safety": {
+        "source": "Shared projection: {source}; change attribution not connected",
+        "measures": "CFR, lead time, rollback success"
+      },
+      "cost-governance": {
+        "source": "Shared projection: {source}; price attribution connected for displayed savings",
+        "measures": "Realized savings, budget variance"
+      }
+    },
     "state": {
       "measured": "Measured",
       "review": "Review",

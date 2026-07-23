@@ -22,7 +22,12 @@ import {
   outcomeMetric,
   outcomeViewContract,
 } from "./operating-outcomes";
-import { verticalDisplayState, verticalPayloadKey, verticalRouteSlug } from "./vertical-outcomes";
+import {
+  verticalDisplayState,
+  verticalPayloadKey,
+  verticalPrimaryMetric,
+  verticalRouteSlug,
+} from "./vertical-outcomes";
 
 const AUTONOMY: AutonomyPayload = {
   synthetic: false,
@@ -156,6 +161,16 @@ describe("trust-routing measurements", () => {
     expect(verticalDisplayState(AUTONOMY.verticals[1]!, false)).toBe("measured");
     expect(verticalDisplayState({ ...AUTONOMY.verticals[1]!, open_risks: 2 }, false)).toBe("review");
     expect(verticalDisplayState(AUTONOMY.verticals[1]!, true)).toBe("simulated");
+  });
+
+  it("gives each vertical a distinct primary outcome contract", () => {
+    const metrics = [
+      verticalPrimaryMetric("resilience"),
+      verticalPrimaryMetric("change-safety"),
+      verticalPrimaryMetric("cost-governance"),
+    ];
+    expect(metrics).toEqual(["auto-resolution", "change-failure-rate", "monthly-savings"]);
+    expect(new Set(metrics)).toHaveLength(3);
   });
 
   it("never turns synthetic guard values into operational verdicts", () => {

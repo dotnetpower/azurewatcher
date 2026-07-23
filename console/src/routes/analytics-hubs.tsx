@@ -163,30 +163,16 @@ export function ControlAssuranceRoute({ client }: Props) {
   );
 }
 
-const VERTICAL_KEYS = ["resilience", "change-safety", "cost-governance"] as const;
-
 export function VerticalOutcomesRoute({ client }: Props) {
   const state = useAnalyticsData(client);
-  const segment = currentRoute().segments[0];
-  const active = segment === undefined
-    ? "resilience"
-    : VERTICAL_KEYS.includes(segment as (typeof VERTICAL_KEYS)[number]) ? segment : null;
   return (
     <div class="stack analytics-route">
       <PageHeader title={t("analytics.verticals.title")} subtitle={t("analytics.verticals.subtitle")} />
-      <HubTabs panelId="verticals" values={VERTICAL_KEYS} active={active ?? ""} label={(key) => t(`analytics.vertical.${key}`)} />
-      {active === null ? <UnavailableState message={t("analytics.invalidDetail")} /> : (
-        <AsyncBoundary state={state} resourceLabel={t("analytics.verticals.title")}>
-          {(data) => data.autonomy ? (
-            <VerticalOutcomesBody
-              active={active}
-              autonomy={data.autonomy}
-              context={searchParamsRecord(currentRoute().search)}
-              evidence={<EvidenceStrip autonomy={data.autonomy} />}
-            />
-          ) : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
-        </AsyncBoundary>
-      )}
+      <AsyncBoundary state={state} resourceLabel={t("analytics.verticals.title")}>
+        {(data) => data.autonomy ? (
+          <VerticalOutcomesBody autonomy={data.autonomy} context={searchParamsRecord(currentRoute().search)} evidence={<EvidenceStrip autonomy={data.autonomy} />} />
+        ) : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
+      </AsyncBoundary>
     </div>
   );
 }
