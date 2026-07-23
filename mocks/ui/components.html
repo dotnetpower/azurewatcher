@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Components - Calm Slate</title>
-  <link rel="stylesheet" href="assets/calm-slate.css?v=components-v5" />
+  <link rel="stylesheet" href="assets/calm-slate.css?v=components-v8" />
 </head>
 <body>
   <main class="cs-container cs-page">
@@ -406,11 +406,250 @@
         </div>
       </div>
     </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">15</span>
+        <div class="cs-section-title"><h2>Grid lists</h2><p class="cs-desc">Responsive cards for agents, resources, and capabilities with shared metadata and actions.</p></div>
+      </div>
+      <div class="cs-grid-list">
+        <article class="cs-grid-item">
+          <div class="cs-grid-item-main">
+            <header class="cs-grid-item-head"><span class="cs-grid-item-avatar is-plum" aria-hidden="true">Fo</span><div class="cs-grid-item-title"><h3>Forseti</h3><p>Governance judge</p></div><span class="cs-presence is-watching cs-grid-item-state"><span class="cs-presence-dot" aria-hidden="true"></span>Watching</span></header>
+            <p class="cs-grid-item-summary">Reviewing a proposed policy change against the current evidence set.</p>
+            <dl class="cs-grid-item-meta"><div><dt>Layer</dt><dd>governance</dd></div><div><dt>Reports to</dt><dd>Odin</dd></div><div><dt>Recent events</dt><dd>14</dd></div><div><dt>Authority</dt><dd>advise</dd></div></dl>
+          </div>
+          <footer class="cs-grid-item-actions"><button type="button">Open</button><a href="#">Activity</a></footer>
+        </article>
+        <article class="cs-grid-item">
+          <div class="cs-grid-item-main">
+            <header class="cs-grid-item-head"><span class="cs-grid-item-avatar is-teal" aria-hidden="true">DB</span><div class="cs-grid-item-title"><h3>example-db</h3><p>Managed database</p></div><span class="cs-status ok cs-grid-item-state">healthy</span></header>
+            <p class="cs-grid-item-summary">Point-in-time recovery is enabled and the latest restore check passed.</p>
+            <dl class="cs-grid-item-meta"><div><dt>Scope</dt><dd>example-team</dd></div><div><dt>Region</dt><dd>primary</dd></div><div><dt>Findings</dt><dd>0 open</dd></div><div><dt>Observed</dt><dd>2m ago</dd></div></dl>
+          </div>
+          <footer class="cs-grid-item-actions"><button type="button">Inspect</button><a href="#">Evidence</a></footer>
+        </article>
+        <article class="cs-grid-item">
+          <div class="cs-grid-item-main">
+            <header class="cs-grid-item-head"><span class="cs-grid-item-avatar" aria-hidden="true">AT</span><div class="cs-grid-item-title"><h3>database.enable-pitr</h3><p>Recovery capability</p></div><span class="cs-mode shadow cs-grid-item-state">shadow</span></header>
+            <p class="cs-grid-item-summary">Evaluates recovery posture and proposes a governed correction when required.</p>
+            <dl class="cs-grid-item-meta"><div><dt>Risk</dt><dd>high</dd></div><div><dt>Path</dt><dd>pr_native</dd></div><div><dt>Success</dt><dd>98.4%</dd></div><div><dt>Samples</dt><dd>184</dd></div></dl>
+          </div>
+          <footer class="cs-grid-item-actions"><button type="button">Details</button><a href="#">Shadow log</a></footer>
+        </article>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">16</span>
+        <div class="cs-section-title"><h2>Feeds &amp; timelines</h2><p class="cs-desc">Chronological activity with mixed event types, evidence links, and compact journal rows.</p></div>
+      </div>
+      <div class="cs-feed-layout">
+        <div class="cs-card">
+          <p class="cs-label">Mixed event feed</p>
+          <ol class="cs-feed">
+            <li class="cs-feed-item"><span class="cs-feed-marker is-success" aria-hidden="true">OK</span><div class="cs-feed-body"><p><strong>Heimdall</strong> detected a recovery-policy drift on <code>example-db</code>.</p><small>Evidence snapshot attached - correlation <code>corr-example-17</code></small></div><time class="cs-feed-time">09:42:18</time></li>
+            <li class="cs-feed-item"><span class="cs-feed-marker is-plum" aria-hidden="true">T1</span><div class="cs-feed-body"><p><strong>Mimir</strong> matched a prior resolved case with confidence 0.93.</p><small>Verifier and grounding checks passed.</small></div><time class="cs-feed-time">09:42:21</time></li>
+            <li class="cs-feed-item"><span class="cs-feed-marker is-warning" aria-hidden="true">H</span><div class="cs-feed-body"><p>The decision was routed to <strong>human approval</strong> because risk is high.</p><small>No change was applied.</small></div><time class="cs-feed-time">09:42:24</time></li>
+            <li class="cs-feed-item"><span class="cs-feed-marker" aria-hidden="true">A</span><div class="cs-feed-body"><p><strong>Saga</strong> sealed the decision and evidence references in the audit log.</p><small>Append-only record complete.</small></div><time class="cs-feed-time">09:42:25</time></li>
+          </ol>
+        </div>
+        <div>
+          <p class="cs-label">Compact live journal</p>
+          <div class="cs-feed-compact">
+            <div class="cs-feed-compact-row"><span class="cs-tier t0">T0</span><strong>Rule match completed</strong><time>09:43:02</time></div>
+            <div class="cs-feed-compact-row"><span class="cs-tier t1">T1</span><strong>Prior case retrieved</strong><time>09:43:05</time></div>
+            <div class="cs-feed-compact-row"><span class="cs-mode hil">approval</span><strong>Review requested</strong><time>09:43:08</time></div>
+            <div class="cs-feed-compact-row"><span class="cs-status ok">audit</span><strong>Evidence sealed</strong><time>09:43:09</time></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">17</span>
+        <div class="cs-section-title"><h2>Select menus &amp; combobox</h2><p class="cs-desc">Native selection, rich options with status and secondary text, and searchable operational scope.</p></div>
+      </div>
+      <div class="cs-select-showcase">
+        <div class="cs-select-demo">
+          <label class="cs-label" for="native-agent-select">Native select</label>
+          <select class="cs-select" id="native-agent-select"><option>All agents</option><option>Governance</option><option>Pipeline</option><option>Domain</option></select>
+          <p class="cs-help">Use native controls for short, stable option sets.</p>
+        </div>
+        <div class="cs-select-demo">
+          <span class="cs-label">Rich select</span>
+          <div class="cs-select-wrap" data-cs-rich-select>
+            <button class="cs-rich-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" data-cs-select-trigger><span class="cs-rich-select-status"></span><span class="cs-rich-select-value"><strong data-cs-select-label>Heimdall</strong><small data-cs-select-secondary>Observability - engaged</small></span><span class="cs-rich-select-chevron" aria-hidden="true">v</span></button>
+            <div class="cs-select-menu" role="listbox" aria-label="Choose agent" data-cs-select-menu hidden>
+              <button class="cs-select-option" type="button" role="option" aria-selected="true" data-value="Heimdall" data-secondary="Observability - engaged" data-status="ok"><span class="cs-select-option-check">✓</span><span class="cs-rich-select-status"></span><span class="cs-rich-select-value"><strong>Heimdall</strong><small>Observability - engaged</small></span></button>
+              <button class="cs-select-option" type="button" role="option" aria-selected="false" data-value="Forseti" data-secondary="Governance - watching" data-status="watching"><span class="cs-select-option-check"></span><span class="cs-rich-select-status is-watching"></span><span class="cs-rich-select-value"><strong>Forseti</strong><small>Governance - watching</small></span></button>
+              <button class="cs-select-option" type="button" role="option" aria-selected="false" data-value="Muninn" data-secondary="Learning - idle" data-status="idle"><span class="cs-select-option-check"></span><span class="cs-rich-select-status is-idle"></span><span class="cs-rich-select-value"><strong>Muninn</strong><small>Learning - idle</small></span></button>
+            </div>
+          </div>
+          <p class="cs-help">Use when option status changes the operator's choice.</p>
+        </div>
+        <div class="cs-select-demo is-combobox">
+          <label class="cs-label" for="scope-combobox">Scoped combobox</label>
+          <div class="cs-combobox" data-cs-combobox>
+            <div class="cs-combobox-control"><span aria-hidden="true">/</span><input id="scope-combobox" type="text" role="combobox" aria-expanded="false" aria-controls="scope-options" aria-autocomplete="list" placeholder="Search agent, rule, or resource" autocomplete="off" data-cs-combobox-input /></div>
+            <div class="cs-combobox-list" id="scope-options" role="listbox" data-cs-combobox-list hidden>
+              <div class="cs-combobox-option" role="option" tabindex="-1" data-search="forseti governance agent"><span class="cs-combobox-kind">AG</span><span><strong>Forseti</strong><small>Governance judge</small></span><span class="cs-combobox-type">agent</span></div>
+              <div class="cs-combobox-option" role="option" tabindex="-1" data-search="database enable pitr rule"><span class="cs-combobox-kind">RL</span><span><strong>database.enable-pitr</strong><small>Recovery capability</small></span><span class="cs-combobox-type">rule</span></div>
+              <div class="cs-combobox-option" role="option" tabindex="-1" data-search="example db resource"><span class="cs-combobox-kind">DB</span><span><strong>example-db</strong><small>Managed database</small></span><span class="cs-combobox-type">resource</span></div>
+              <div class="cs-combobox-option" role="option" tabindex="-1" data-search="corr example 17 correlation"><span class="cs-combobox-kind">ID</span><span><strong>corr-example-17</strong><small>Recent investigation</small></span><span class="cs-combobox-type">trace</span></div>
+              <div class="cs-combobox-empty" data-cs-combobox-empty hidden>No matching scope</div>
+            </div>
+          </div>
+          <p class="cs-help">Arrow keys move, Enter selects, and Escape closes.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">18</span>
+        <div class="cs-section-title"><h2>Drawers &amp; command menus</h2><p class="cs-desc">Row-action dropdowns, power-user command search, and a focused detail panel.</p></div>
+      </div>
+      <div class="cs-overlay-showcase">
+        <div class="cs-menu-demo">
+          <p class="cs-label">Dropdown menu</p>
+          <p>Compact actions for a selected rule or resource.</p>
+          <button class="cs-btn cs-menu-trigger" type="button" aria-haspopup="menu" aria-expanded="false" data-cs-menu-trigger>More actions <span aria-hidden="true">...</span></button>
+          <div class="cs-dropdown" role="menu" aria-label="Example actions" data-cs-menu hidden>
+            <button type="button" role="menuitem">Open details <kbd>Enter</kbd></button>
+            <button type="button" role="menuitem">Copy correlation id <kbd>C</kbd></button>
+            <button type="button" role="menuitem" data-cs-drawer-open="component-drawer">Inspect evidence <kbd>I</kbd></button>
+            <button class="is-danger" type="button" role="menuitem">Remove filter</button>
+          </div>
+        </div>
+        <div>
+          <p class="cs-label">Command palette</p>
+          <div class="cs-command-palette" data-cs-command>
+            <label class="cs-command-search"><span aria-hidden="true">/</span><input type="search" placeholder="Search commands, agents, or views" aria-label="Search commands" data-cs-command-input /></label>
+            <div class="cs-command-group" role="listbox" aria-label="Commands">
+              <span class="cs-command-group-label">Suggested</span>
+              <button class="cs-command-item is-active" type="button" role="option" data-search="open incident timeline"><span class="cs-command-icon">IN</span><span><strong>Open incident timeline</strong><small>Navigate to current incident activity</small></span><kbd>↵</kbd></button>
+              <button class="cs-command-item" type="button" role="option" data-search="ask forseti governance"><span class="cs-command-icon">Fo</span><span><strong>Ask Forseti</strong><small>Start a governance-scoped conversation</small></span><kbd>↵</kbd></button>
+              <button class="cs-command-item" type="button" role="option" data-search="inspect evidence drawer"><span class="cs-command-icon">EV</span><span><strong>Inspect evidence</strong><small>Open the selected record in a drawer</small></span><kbd>↵</kbd></button>
+              <button class="cs-command-item" type="button" role="option" data-search="go to live cockpit"><span class="cs-command-icon">LV</span><span><strong>Go to Live</strong><small>Watch current control-plane activity</small></span><kbd>↵</kbd></button>
+              <div class="cs-command-empty" data-cs-command-empty hidden>No matching command</div>
+            </div>
+            <footer class="cs-command-foot"><span><kbd>↑↓</kbd> move</span><span><kbd>Enter</kbd> select</span><span><kbd>Esc</kbd> clear</span><output class="cs-command-result" aria-live="polite" data-cs-command-result>Ready</output></footer>
+          </div>
+        </div>
+      </div>
+      <div class="cs-flex cs-gap-8" style="margin-top:14px"><button class="cs-btn is-navy" type="button" data-cs-drawer-open="component-drawer">Open detail drawer</button></div>
+      <div class="cs-drawer-overlay" id="component-drawer" data-cs-drawer-overlay hidden>
+        <aside class="cs-drawer" role="dialog" aria-modal="true" aria-labelledby="component-drawer-title" tabindex="-1" data-cs-drawer>
+          <header class="cs-drawer-head"><div><h3 id="component-drawer-title"><code>database.enable-pitr</code></h3><p>Rule detail - read-only evidence</p></div><button class="cs-alert-dismiss" type="button" aria-label="Close detail drawer" data-cs-drawer-close>&times;</button></header>
+          <div class="cs-drawer-body">
+            <section class="cs-drawer-section"><div class="cs-flex cs-wrap cs-gap-8 cs-mb-16"><span class="cs-mode shadow">shadow</span><span class="cs-risk high">high</span><span class="cs-tag is-teal">reliability</span></div><p class="cs-muted">Detects missing point-in-time recovery and prepares a governed correction.</p></section>
+            <section class="cs-drawer-section"><h4>Decision facts</h4><dl class="cs-drawer-facts"><div><dt>Tier</dt><dd>T1</dd></div><div><dt>Confidence</dt><dd>0.93</dd></div><div><dt>Execution path</dt><dd>pr_native</dd></div><div><dt>Policy escapes</dt><dd>0</dd></div></dl></section>
+            <section class="cs-drawer-section"><h4>Evidence</h4><ol class="cs-feed"><li class="cs-feed-item"><span class="cs-feed-marker is-success">1</span><div class="cs-feed-body"><p>Recovery policy snapshot</p><small>Observed 2 minutes ago</small></div></li><li class="cs-feed-item"><span class="cs-feed-marker is-plum">2</span><div class="cs-feed-body"><p>Prior resolved case</p><small>Similarity 0.93</small></div></li></ol></section>
+          </div>
+          <footer class="cs-drawer-foot"><button class="cs-btn" type="button" data-cs-drawer-close>Close</button><button class="cs-btn is-primary" type="button">View audit</button></footer>
+        </aside>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">19</span>
+        <div class="cs-section-title"><h2>Production data states</h2><p class="cs-desc">Responsive selectable rows plus consistent loading, error, unavailable, and empty feedback.</p></div>
+      </div>
+      <div class="cs-data-table-wrap">
+        <table class="cs-data-table" data-cs-data-table>
+          <caption>Rows become labeled stacks below 700px.</caption>
+          <thead><tr><th>Rule</th><th>Resource</th><th>Decision</th><th>Observed</th></tr></thead>
+          <tbody>
+            <tr class="is-selected"><td data-label="Rule"><button class="cs-data-row-action" type="button" aria-pressed="true" data-cs-row-select><code>database.enable-pitr</code></button></td><td data-label="Resource">example-db</td><td data-label="Decision"><span class="cs-mode hil">approval</span></td><td data-label="Observed">2m ago</td></tr>
+            <tr><td data-label="Rule"><button class="cs-data-row-action" type="button" aria-pressed="false" data-cs-row-select><code>storage.public-blob.deny</code></button></td><td data-label="Resource">example-storage</td><td data-label="Decision"><span class="cs-mode enforce">auto</span></td><td data-label="Observed">8m ago</td></tr>
+            <tr><td data-label="Rule"><button class="cs-data-row-action" type="button" aria-pressed="false" data-cs-row-select><code>cost.rightsize.candidate</code></button></td><td data-label="Resource">example-workload</td><td data-label="Decision"><span class="cs-mode shadow">shadow</span></td><td data-label="Observed">14m ago</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="cs-async-heading"><h3>Async boundary states</h3><p>Keep the final layout stable while data changes state.</p></div>
+      <div class="cs-state-grid">
+        <div class="cs-state-block" role="status" aria-busy="true"><span class="cs-state-icon" aria-hidden="true">...</span><div class="cs-state-loading-lines" aria-label="Loading audit entries"><span></span><span></span><span></span></div></div>
+        <div class="cs-state-block is-error" role="alert"><span class="cs-state-icon" aria-hidden="true">!</span><div class="cs-state-content"><strong>Audit load failed</strong><p>The last verified snapshot remains visible.</p><button class="cs-btn is-sm" type="button">Retry</button></div></div>
+        <div class="cs-state-block is-unavailable" role="status"><span class="cs-state-icon" aria-hidden="true">?</span><div class="cs-state-content"><strong>Source unavailable</strong><p>The provider did not return current evidence.</p></div></div>
+        <div class="cs-state-block is-empty"><span class="cs-state-icon" aria-hidden="true">-</span><div class="cs-state-content"><strong>No matching rows</strong><p>Clear filters or widen the time window.</p></div></div>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">20</span>
+        <div class="cs-section-title"><h2>Structured lists</h2><p class="cs-desc">Dense stacked rows, responsive description facts, and media objects for attached evidence.</p></div>
+      </div>
+      <div class="cs-structured-layout">
+        <div>
+          <p class="cs-label">Stacked incident list</p>
+          <div class="cs-list-container">
+            <ul class="cs-stacked-list">
+              <li class="cs-stacked-item"><span class="cs-stacked-icon is-warning" aria-hidden="true">DB</span><div class="cs-stacked-body"><strong>Point-in-time recovery disabled</strong><p>example-db - awaiting human approval</p></div><div class="cs-stacked-side"><span class="cs-risk high">high</span><time>2m</time></div></li>
+              <li class="cs-stacked-item"><span class="cs-stacked-icon" aria-hidden="true">ST</span><div class="cs-stacked-body"><strong>Public blob access detected</strong><p>example-storage - corrected automatically</p></div><div class="cs-stacked-side"><span class="cs-risk medium">medium</span><time>8m</time></div></li>
+              <li class="cs-stacked-item"><span class="cs-stacked-icon is-plum" aria-hidden="true">CO</span><div class="cs-stacked-body"><strong>Compute cost above baseline</strong><p>example-workload - observing in shadow</p></div><div class="cs-stacked-side"><span class="cs-risk low">low</span><time>14m</time></div></li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <p class="cs-label">Description list</p>
+          <dl class="cs-description-list">
+            <div><dt>Decision</dt><dd>Human approval</dd></div><div><dt>Tier</dt><dd>T1</dd></div><div><dt>Correlation</dt><dd><code>corr-example-17</code></dd></div><div><dt>Confidence</dt><dd>0.93</dd></div><div><dt>Execution path</dt><dd><code>pr_native</code></dd></div><div><dt>Rollback</dt><dd>restore previous policy</dd></div>
+          </dl>
+          <div class="cs-media-list">
+            <p class="cs-label">Evidence media objects</p>
+            <article class="cs-media-object"><span class="cs-media-thumb" aria-hidden="true">JSON</span><div class="cs-media-body"><strong>decision-evidence.json</strong><small>Signed decision facts and citations</small></div><span class="cs-media-meta">18 KB</span></article>
+            <article class="cs-media-object"><span class="cs-media-thumb is-log" aria-hidden="true">LOG</span><div class="cs-media-body"><strong>provider-observation.log</strong><small>Sanitized observation excerpt</small></div><span class="cs-media-meta">42 KB</span></article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">21</span>
+        <div class="cs-section-title"><h2>Page context &amp; notifications</h2><p class="cs-desc">Domain-aware headings, breadcrumbs, input groups, action panels, and non-intrusive UI feedback.</p></div>
+      </div>
+      <div class="cs-page-context-demo">
+        <nav class="cs-breadcrumbs" aria-label="Breadcrumb"><a href="#">Governance</a><span aria-hidden="true">/</span><a href="#">Rules</a><span aria-hidden="true">/</span><strong>database.enable-pitr</strong></nav>
+        <header class="cs-context-header"><div><h3><span class="cs-context-domain">Governance</span><span class="cs-context-separator" aria-hidden="true">/</span>Rule detail</h3><p>Review decision facts, evidence, and current observation mode.</p></div><div class="cs-context-actions"><button class="cs-btn" type="button">Copy link</button><button class="cs-btn is-navy" type="button">Open audit</button></div></header>
+      </div>
+      <div class="cs-action-layout">
+        <div><label class="cs-input-group-label" for="correlation-input">Input group</label><div class="cs-input-group"><span class="cs-input-addon">corr/</span><input id="correlation-input" type="text" value="example-17" /><button class="cs-btn is-primary" type="button">Find trace</button></div><p class="cs-help">Prefix and action remain attached to the input.</p></div>
+        <div class="cs-action-panel"><div><strong>Review draft filters</strong><small>3 local preferences changed. No operational state is affected.</small></div><div class="cs-action-panel-actions"><button class="cs-btn is-sm" type="button">Reset</button><button class="cs-btn is-primary is-sm" type="button">Save</button></div></div>
+      </div>
+      <div class="cs-notification-demo"><p><strong>Notifications are for local UI feedback.</strong> Operational alerts remain in the audit and incident surfaces.</p><button class="cs-btn" type="button" data-cs-toast-show>Show notification</button></div>
+      <div class="cs-toast-region" aria-live="polite" aria-atomic="true"><div class="cs-toast" role="status" data-cs-toast hidden><span class="cs-toast-icon" aria-hidden="true">✓</span><div><strong>Preferences saved</strong><small>The current filter layout is stored for this browser session.</small></div><button class="cs-alert-dismiss" type="button" aria-label="Close notification" data-cs-toast-close>&times;</button></div></div>
+    </section>
+
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">22</span>
+        <div class="cs-section-title"><h2>Calendar &amp; scheduling</h2><p class="cs-desc">Compact month view for maintenance windows, scheduled reviews, and experiment cadence.</p></div>
+      </div>
+      <div class="cs-calendar-layout">
+        <div class="cs-calendar" data-cs-calendar data-year="2026" data-month="6" data-selected-date="2026-07-22">
+          <header class="cs-calendar-head"><strong data-cs-calendar-title>July 2026</strong><div class="cs-calendar-nav"><button type="button" aria-label="Previous month" data-cs-calendar-nav="-1">&lsaquo;</button><button type="button" aria-label="Next month" data-cs-calendar-nav="1">&rsaquo;</button></div></header>
+          <table class="cs-calendar-grid"><thead><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr></thead><tbody data-cs-calendar-body>
+            <tr><td><button class="cs-calendar-day is-outside" type="button">28</button></td><td><button class="cs-calendar-day is-outside" type="button">29</button></td><td><button class="cs-calendar-day is-outside" type="button">30</button></td><td><button class="cs-calendar-day" type="button">1</button></td><td><button class="cs-calendar-day" type="button">2</button></td><td><button class="cs-calendar-day" type="button">3</button></td><td><button class="cs-calendar-day" type="button">4</button></td></tr>
+            <tr><td><button class="cs-calendar-day" type="button">5</button></td><td><button class="cs-calendar-day has-event" type="button">6</button></td><td><button class="cs-calendar-day" type="button">7</button></td><td><button class="cs-calendar-day" type="button">8</button></td><td><button class="cs-calendar-day" type="button">9</button></td><td><button class="cs-calendar-day" type="button">10</button></td><td><button class="cs-calendar-day" type="button">11</button></td></tr>
+            <tr><td><button class="cs-calendar-day" type="button">12</button></td><td><button class="cs-calendar-day" type="button">13</button></td><td><button class="cs-calendar-day has-event" type="button">14</button></td><td><button class="cs-calendar-day" type="button">15</button></td><td><button class="cs-calendar-day" type="button">16</button></td><td><button class="cs-calendar-day" type="button">17</button></td><td><button class="cs-calendar-day" type="button">18</button></td></tr>
+            <tr><td><button class="cs-calendar-day" type="button">19</button></td><td><button class="cs-calendar-day" type="button">20</button></td><td><button class="cs-calendar-day" type="button">21</button></td><td><button class="cs-calendar-day has-event" type="button" aria-pressed="true" data-cs-calendar-day>22</button></td><td><button class="cs-calendar-day" type="button">23</button></td><td><button class="cs-calendar-day" type="button">24</button></td><td><button class="cs-calendar-day" type="button">25</button></td></tr>
+            <tr><td><button class="cs-calendar-day" type="button">26</button></td><td><button class="cs-calendar-day" type="button">27</button></td><td><button class="cs-calendar-day" type="button">28</button></td><td><button class="cs-calendar-day" type="button">29</button></td><td><button class="cs-calendar-day" type="button">30</button></td><td><button class="cs-calendar-day" type="button">31</button></td><td><button class="cs-calendar-day is-outside" type="button">1</button></td></tr>
+          </tbody></table>
+        </div>
+        <aside class="cs-schedule-panel"><span class="cs-schedule-date" data-cs-schedule-date>July 22, 2026</span><h3>Recovery review window</h3><p>Scheduled validation of restore evidence. This calendar does not initiate operational work.</p><div class="cs-schedule-facts"><div><span>Window</span><strong>09:00-10:00</strong></div><div><span>Scope</span><strong>example-team</strong></div><div><span>Mode</span><strong>observation</strong></div></div></aside>
+      </div>
+    </section>
   </main>
 
   <footer class="cs-footer">
     <div class="cs-container"><span>FDAI UI kit - Calm Slate theme.</span></div>
   </footer>
-  <script src="assets/calm-slate.js?v=components-v5"></script>
+  <script src="assets/calm-slate.js?v=components-v8"></script>
 </body>
 </html>

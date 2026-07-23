@@ -114,6 +114,354 @@
     if (dismissible) dismissible.remove();
   });
 
+  function closeSelectMenus(except) {
+    document.querySelectorAll("[data-cs-rich-select]").forEach(function (select) {
+      if (select === except) return;
+      select.querySelector("[data-cs-select-trigger]").setAttribute("aria-expanded", "false");
+      select.querySelector("[data-cs-select-menu]").hidden = true;
+    });
+  }
+
+  document.addEventListener("click", function (event) {
+    var trigger = event.target.closest("[data-cs-select-trigger]");
+    if (trigger) {
+      var select = trigger.closest("[data-cs-rich-select]");
+      var menu = select.querySelector("[data-cs-select-menu]");
+      var open = menu.hidden;
+      closeSelectMenus(select);
+      menu.hidden = !open;
+      trigger.setAttribute("aria-expanded", String(open));
+      if (open) menu.querySelector('[role="option"][aria-selected="true"]').focus();
+      return;
+    }
+    var option = event.target.closest("[data-cs-rich-select] [role=option]");
+    if (option) {
+      var owner = option.closest("[data-cs-rich-select]");
+      owner.querySelectorAll('[role="option"]').forEach(function (candidate) {
+        var selected = candidate === option;
+        candidate.setAttribute("aria-selected", String(selected));
+        candidate.querySelector(".cs-select-option-check").textContent = selected ? "✓" : "";
+      });
+      owner.querySelector("[data-cs-select-label]").textContent = option.getAttribute("data-value");
+      owner.querySelector("[data-cs-select-secondary]").textContent = option.getAttribute("data-secondary");
+      var status = owner.querySelector(".cs-rich-select-button .cs-rich-select-status");
+      status.className = "cs-rich-select-status" + (option.getAttribute("data-status") === "watching" ? " is-watching" : option.getAttribute("data-status") === "idle" ? " is-idle" : "");
+      owner.querySelector("[data-cs-select-menu]").hidden = true;
+      owner.querySelector("[data-cs-select-trigger]").setAttribute("aria-expanded", "false");
+      owner.querySelector("[data-cs-select-trigger]").focus();
+      return;
+    }
+    if (!event.target.closest("[data-cs-rich-select]")) closeSelectMenus();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    var option = event.target.closest("[data-cs-rich-select] [role=option]");
+    if (!option || !["ArrowDown", "ArrowUp", "Home", "End", "Enter", " ", "Escape"].includes(event.key)) return;
+    var owner = option.closest("[data-cs-rich-select]");
+    var options = Array.prototype.slice.call(owner.querySelectorAll('[role="option"]'));
+    var index = options.indexOf(option);
+    if (event.key === "Escape") {
+      owner.querySelector("[data-cs-select-menu]").hidden = true;
+      owner.querySelector("[data-cs-select-trigger]").setAttribute("aria-expanded", "false");
+      owner.querySelector("[data-cs-select-trigger]").focus();
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      option.click();
+      return;
+    }
+    event.preventDefault();
+    var next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : index + (event.key === "ArrowDown" ? 1 : -1);
+    options[(next + options.length) % options.length].focus();
+  });
+
+  function visibleComboboxOptions(combobox) {
+    return Array.prototype.slice.call(combobox.querySelectorAll(".cs-combobox-option:not([hidden])"));
+  }
+
+  document.addEventListener("input", function (event) {
+    var input = event.target.closest("[data-cs-combobox-input]");
+    if (!input) return;
+    var combobox = input.closest("[data-cs-combobox]");
+    var query = input.value.trim().toLowerCase();
+    var visible = 0;
+    combobox.querySelectorAll(".cs-combobox-option").forEach(function (option) {
+      option.hidden = query !== "" && !option.getAttribute("data-search").includes(query);
+      option.classList.remove("is-active");
+      if (!option.hidden) visible += 1;
+    });
+    combobox.querySelector("[data-cs-combobox-empty]").hidden = visible !== 0;
+    combobox.querySelector("[data-cs-combobox-list]").hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  });
+
+  document.addEventListener("focusin", function (event) {
+    var input = event.target.closest("[data-cs-combobox-input]");
+    if (!input) return;
+    input.closest("[data-cs-combobox]").querySelector("[data-cs-combobox-list]").hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  });
+
+  document.addEventListener("keydown", function (event) {
+    var input = event.target.closest("[data-cs-combobox-input]");
+    if (!input || !["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(event.key)) return;
+    var combobox = input.closest("[data-cs-combobox]");
+    var options = visibleComboboxOptions(combobox);
+    var activeIndex = options.findIndex(function (option) { return option.classList.contains("is-active"); });
+    if (event.key === "Escape") {
+      combobox.querySelector("[data-cs-combobox-list]").hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      return;
+    }
+    if (event.key === "Enter" && activeIndex >= 0) {
+      event.preventDefault();
+      input.value = options[activeIndex].querySelector("strong").textContent;
+      combobox.querySelector("[data-cs-combobox-list]").hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      var nextIndex = activeIndex + (event.key === "ArrowDown" ? 1 : -1);
+      if (activeIndex < 0) nextIndex = event.key === "ArrowDown" ? 0 : options.length - 1;
+      options.forEach(function (option) { option.classList.remove("is-active"); });
+      if (options.length) options[(nextIndex + options.length) % options.length].classList.add("is-active");
+    }
+  });
+
+  document.addEventListener("click", function (event) {
+    var option = event.target.closest("[data-cs-combobox] .cs-combobox-option");
+    if (option) {
+      var combobox = option.closest("[data-cs-combobox]");
+      var input = combobox.querySelector("[data-cs-combobox-input]");
+      input.value = option.querySelector("strong").textContent;
+      input.setAttribute("aria-expanded", "false");
+      combobox.querySelector("[data-cs-combobox-list]").hidden = true;
+      input.focus();
+      return;
+    }
+    if (!event.target.closest("[data-cs-combobox]")) {
+      document.querySelectorAll("[data-cs-combobox]").forEach(function (combobox) {
+        combobox.querySelector("[data-cs-combobox-list]").hidden = true;
+        combobox.querySelector("[data-cs-combobox-input]").setAttribute("aria-expanded", "false");
+      });
+    }
+  });
+
+  function closeDropdownMenu() {
+    var trigger = document.querySelector("[data-cs-menu-trigger]");
+    var menu = document.querySelector("[data-cs-menu]");
+    if (!trigger || !menu) return;
+    trigger.setAttribute("aria-expanded", "false");
+    menu.hidden = true;
+  }
+
+  document.addEventListener("click", function (event) {
+    var trigger = event.target.closest("[data-cs-menu-trigger]");
+    if (trigger) {
+      var menu = document.querySelector("[data-cs-menu]");
+      var open = menu.hidden;
+      menu.hidden = !open;
+      trigger.setAttribute("aria-expanded", String(open));
+      if (open) menu.querySelector('[role="menuitem"]').focus();
+      return;
+    }
+    if (event.target.closest("[data-cs-menu] [role=menuitem]")) closeDropdownMenu();
+    else if (!event.target.closest("[data-cs-menu]")) closeDropdownMenu();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    var item = event.target.closest("[data-cs-menu] [role=menuitem]");
+    if (!item || !["ArrowDown", "ArrowUp", "Home", "End", "Escape"].includes(event.key)) return;
+    var items = Array.prototype.slice.call(item.closest("[data-cs-menu]").querySelectorAll('[role="menuitem"]'));
+    var index = items.indexOf(item);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeDropdownMenu();
+      document.querySelector("[data-cs-menu-trigger]").focus();
+      return;
+    }
+    event.preventDefault();
+    var next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : index + (event.key === "ArrowDown" ? 1 : -1);
+    items[(next + items.length) % items.length].focus();
+  });
+
+  document.addEventListener("input", function (event) {
+    var input = event.target.closest("[data-cs-command-input]");
+    if (!input) return;
+    var command = input.closest("[data-cs-command]");
+    var query = input.value.trim().toLowerCase();
+    var visible = 0;
+    command.querySelectorAll(".cs-command-item").forEach(function (item) {
+      item.hidden = query !== "" && !item.getAttribute("data-search").includes(query);
+      item.classList.remove("is-active");
+      if (!item.hidden) visible += 1;
+    });
+    var options = Array.prototype.slice.call(command.querySelectorAll(".cs-command-item:not([hidden])"));
+    if (options.length) options[0].classList.add("is-active");
+    command.querySelector("[data-cs-command-empty]").hidden = visible !== 0;
+  });
+
+  document.addEventListener("keydown", function (event) {
+    var input = event.target.closest("[data-cs-command-input]");
+    if (!input || !["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(event.key)) return;
+    var command = input.closest("[data-cs-command]");
+    var options = Array.prototype.slice.call(command.querySelectorAll(".cs-command-item:not([hidden])"));
+    var activeIndex = options.findIndex(function (item) { return item.classList.contains("is-active"); });
+    if (event.key === "Escape") {
+      input.value = "";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      return;
+    }
+    if (event.key === "Enter" && activeIndex >= 0) {
+      event.preventDefault();
+      var label = options[activeIndex].querySelector("strong").textContent;
+      command.querySelector("[data-cs-command-result]").textContent = "Selected: " + label;
+      return;
+    }
+    event.preventDefault();
+    var next = activeIndex + (event.key === "ArrowDown" ? 1 : -1);
+    options.forEach(function (item) { item.classList.remove("is-active"); });
+    if (options.length) options[(next + options.length) % options.length].classList.add("is-active");
+  });
+
+  var drawerLastTrigger = null;
+  function closeDrawer() {
+    var overlay = document.querySelector("[data-cs-drawer-overlay]");
+    if (!overlay || overlay.hidden) return;
+    overlay.hidden = true;
+    document.body.classList.remove("cs-drawer-open");
+    if (drawerLastTrigger) drawerLastTrigger.focus();
+  }
+
+  document.addEventListener("click", function (event) {
+    var openButton = event.target.closest("[data-cs-drawer-open]");
+    if (openButton) {
+      var overlay = document.getElementById(openButton.getAttribute("data-cs-drawer-open"));
+      drawerLastTrigger = openButton;
+      overlay.hidden = false;
+      document.body.classList.add("cs-drawer-open");
+      overlay.querySelector("[data-cs-drawer]").focus();
+      return;
+    }
+    if (event.target.closest("[data-cs-drawer-close]")) {
+      closeDrawer();
+      return;
+    }
+    if (event.target.matches("[data-cs-drawer-overlay]")) closeDrawer();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    var drawer = event.target.closest("[data-cs-drawer]");
+    if (drawer && event.key === "Tab") {
+      var focusables = Array.prototype.slice.call(drawer.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'));
+      if (focusables.length) {
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    if (event.key === "Escape") {
+      closeDropdownMenu();
+      closeDrawer();
+    }
+  });
+
+  document.addEventListener("click", function (event) {
+    var rowButton = event.target.closest("[data-cs-row-select]");
+    if (!rowButton) return;
+    var table = rowButton.closest("[data-cs-data-table]");
+    table.querySelectorAll("[data-cs-row-select]").forEach(function (button) {
+      var selected = button === rowButton;
+      button.setAttribute("aria-pressed", String(selected));
+      button.closest("tr").classList.toggle("is-selected", selected);
+    });
+  });
+
+  var toastTimer = null;
+  function hideToast() {
+    var toast = document.querySelector("[data-cs-toast]");
+    if (toast) toast.hidden = true;
+    if (toastTimer) window.clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+
+  document.addEventListener("click", function (event) {
+    if (event.target.closest("[data-cs-toast-show]")) {
+      var toast = document.querySelector("[data-cs-toast]");
+      toast.hidden = false;
+      if (toastTimer) window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(hideToast, 5000);
+      return;
+    }
+    if (event.target.closest("[data-cs-toast-close]")) hideToast();
+  });
+
+  var calendarMonths = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  var calendarEventDays = { "2026-07-06": true, "2026-07-14": true, "2026-07-22": true };
+
+  function calendarDateKey(year, month, day) {
+    return year + "-" + String(month + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+  }
+
+  function renderCalendar(calendar) {
+    var year = Number(calendar.getAttribute("data-year"));
+    var month = Number(calendar.getAttribute("data-month"));
+    var selectedDate = calendar.getAttribute("data-selected-date");
+    var firstWeekday = new Date(year, month, 1).getDay();
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var weeks = Math.ceil((firstWeekday + daysInMonth) / 7);
+    var start = new Date(year, month, 1 - firstWeekday);
+    var html = "";
+    for (var week = 0; week < weeks; week += 1) {
+      html += "<tr>";
+      for (var weekday = 0; weekday < 7; weekday += 1) {
+        var date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + week * 7 + weekday);
+        var key = calendarDateKey(date.getFullYear(), date.getMonth(), date.getDate());
+        var outside = date.getMonth() !== month;
+        var classes = "cs-calendar-day" + (outside ? " is-outside" : "") + (calendarEventDays[key] ? " has-event" : "");
+        html += '<td><button class="' + classes + '" type="button" data-date="' + key + '" aria-pressed="' + String(key === selectedDate) + '">' + date.getDate() + "</button></td>";
+      }
+      html += "</tr>";
+    }
+    calendar.querySelector("[data-cs-calendar-title]").textContent = calendarMonths[month] + " " + year;
+    calendar.querySelector("[data-cs-calendar-body]").innerHTML = html;
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("[data-cs-calendar]").forEach(renderCalendar);
+  });
+
+  document.addEventListener("click", function (event) {
+    var navigation = event.target.closest("[data-cs-calendar-nav]");
+    if (navigation) {
+      var calendar = navigation.closest("[data-cs-calendar]");
+      var date = new Date(Number(calendar.getAttribute("data-year")), Number(calendar.getAttribute("data-month")) + Number(navigation.getAttribute("data-cs-calendar-nav")), 1);
+      calendar.setAttribute("data-year", String(date.getFullYear()));
+      calendar.setAttribute("data-month", String(date.getMonth()));
+      calendar.setAttribute("data-selected-date", calendarDateKey(date.getFullYear(), date.getMonth(), 1));
+      document.querySelector("[data-cs-schedule-date]").textContent = calendarMonths[date.getMonth()] + " 1, " + date.getFullYear();
+      renderCalendar(calendar);
+      return;
+    }
+    var day = event.target.closest(".cs-calendar-day");
+    if (!day) return;
+    var owner = day.closest("[data-cs-calendar]");
+    var selected = day.getAttribute("data-date").split("-").map(Number);
+    owner.setAttribute("data-year", String(selected[0]));
+    owner.setAttribute("data-month", String(selected[1] - 1));
+    owner.setAttribute("data-selected-date", day.getAttribute("data-date"));
+    document.querySelector("[data-cs-schedule-date]").textContent = calendarMonths[selected[1] - 1] + " " + selected[2] + ", " + selected[0];
+    renderCalendar(owner);
+  });
+
   document.addEventListener("click", function (event) {
     var selection = event.target.closest("[data-cs-segmented] button");
     if (selection) {

@@ -63,7 +63,7 @@ Report and kit:
 | File | Purpose |
 |------|---------|
 | [report.html](report.html) | Weekly review layout: numbered sections, KPI grid, AS-IS / TO-BE compare, critique table |
-| [components.html](components.html) | Component gallery: metrics, tables, tokens, alerts, forms, selection controls, date and time inputs, sliders, filters, navigation, feedback states, overlays, structured summaries, and syntax-highlighted code |
+| [components.html](components.html) | Component gallery: 22 sections covering metrics, tables, tokens, forms, selection, navigation, feedback, code, grid lists, feeds, comboboxes, menus, drawers, data states, structured lists, notifications, and calendars |
 | [index.html](index.html) | Kit landing: palette, page index, design principles |
 
 ## Assets
@@ -72,10 +72,13 @@ Report and kit:
   layout container (max-width 1160px), section number badges, cards, KPI grid, AS-IS/TO-BE
   comparison, critique table, pill tags, severity badges, trust-tier chips, buttons, forms,
   selection controls, native date and time inputs, range controls, alerts, tabs, pagination,
-  loading and empty states, tooltips, dialogs, syntax-highlighted code, meters, and the Live
-  cockpit (activity swarm, sparkline strip, audit ticker). All classes are prefixed `cs-`.
-- [assets/calm-slate.js](assets/calm-slate.js) - shared left navigation, tab switching, code
-  example switching and copy feedback, and chart detail modals; no privileged calls. Direct page loads render the full navigation.
+  loading and empty states, tooltips, dialogs, syntax-highlighted code, grid and stacked lists,
+  feeds, rich selects, comboboxes, dropdowns, drawers, responsive data states, notifications,
+  calendars, meters, and the Live cockpit (activity swarm, sparkline strip, audit ticker). All
+  classes are prefixed `cs-`.
+- [assets/calm-slate.js](assets/calm-slate.js) - shared left navigation, tab switching, local
+  select and menu behavior, code copy feedback, drawers, notifications, calendar selection, and
+  chart detail modals; no privileged calls. Direct page loads render the full navigation.
   Pages embedded by the kit landing suppress their local shell so the navigation is not nested.
 - [assets/live.js](assets/live.js) - Live cockpit only. Generates synthetic control-plane events,
   routes them through T0 / T1 / T2 with the roadmap's distribution, and renders the swarm,
