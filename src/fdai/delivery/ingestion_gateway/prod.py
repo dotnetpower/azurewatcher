@@ -178,6 +178,11 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
             auto_offset_reset="earliest",
         ),
     )
+    pantheon_bus = MultiplexedEventBus(
+        bus=event_bus,
+        logical_topics=OWNED_OBJECT_TOPICS,
+        physical_topic=env.get("FDAI_PANTHEON_OBJECT_TOPIC", "aw.pantheon.objects").strip(),
+    )
     state_store = PostgresStateStore(config=PostgresStateStoreConfig(dsn=dsn))
     handover_drafts = StateStoreHandoverDraftStore(state_store=state_store)
     stewardship_governance = build_production_stewardship_governance(
@@ -192,13 +197,7 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
             event_bus=event_bus,
             event_topic=env["FDAI_DOCUMENT_EVENT_TOPIC"].strip(),
         ),
-        ingress=EventBusDocumentIngestionIntake(
-            bus=MultiplexedEventBus(
-                bus=event_bus,
-                logical_topics=OWNED_OBJECT_TOPICS,
-                physical_topic=env.get("FDAI_PANTHEON_OBJECT_TOPIC", "aw.pantheon.objects").strip(),
-            )
-        ),
+        ingress=EventBusDocumentIngestionIntake(bus=pantheon_bus),
     )
     access = ClaimsDocumentAccessProvider()
     capabilities = IngestionCapabilities(
@@ -246,10 +245,10 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         ),
     )
     worker_service = DocumentIngestionEventConsumer(
-        event_bus=event_bus,
+        event_bus=pantheon_bus,
         worker=worker,
         metadata=metadata,
-        topic=env["FDAI_DOCUMENT_EVENT_TOPIC"].strip(),
+        topic="object.verdict",
     )
     verifier = EntraJwtVerifier.from_env(env)
     resolver = RoleResolver(group_mapping=_group_mapping(env))

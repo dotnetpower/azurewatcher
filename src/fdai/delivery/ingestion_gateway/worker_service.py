@@ -1,4 +1,4 @@
-"""Kafka-driven document worker service for at-least-once processing."""
+"""Forseti-gated document worker service for at-least-once processing."""
 
 from __future__ import annotations
 
@@ -23,19 +23,19 @@ class DocumentIngestionEventConsumer:
         worker: DocumentIngestionWorker,
         metadata: DocumentMetadataStore,
         topic: str,
-        group_id: str = "fdai-document-worker",
+        group_id: str = "fdai-document-admission-worker",
         retry_seconds: float = 2.0,
         reconcile_interval_seconds: float = 30.0,
         reconcile_batch_size: int = 100,
     ) -> None:
         if (
-            not topic
+            topic != "object.verdict"
             or not group_id
             or retry_seconds <= 0
             or reconcile_interval_seconds <= 0
             or reconcile_batch_size < 1
         ):
-            raise ValueError("document worker configuration is invalid")
+            raise ValueError("document worker MUST consume object.verdict with valid limits")
         self._event_bus: Final = event_bus
         self._worker: Final = worker
         self._metadata: Final = metadata
@@ -51,11 +51,15 @@ class DocumentIngestionEventConsumer:
         while True:
             try:
                 async for event in self._event_bus.subscribe(self._topic, self._group_id):
-                    if event.payload.get("event_type") != "document.received":
+                    if (
+                        event.payload.get("kind") != "document_ingestion"
+                        or event.payload.get("stage") != "received"
+                        or event.payload.get("decision") != "admit"
+                    ):
                         continue
                     upload_id = event.payload.get("upload_id")
                     if not isinstance(upload_id, str):
-                        raise ValueError("document.received event is missing upload_id")
+                        raise ValueError("document admission verdict is missing upload_id")
                     await self._process_once(UUID(upload_id))
                 await asyncio.sleep(self._retry_seconds)
             except asyncio.CancelledError:
@@ -71,7 +75,6 @@ class DocumentIngestionEventConsumer:
         while True:
             try:
                 for state in (
-                    DocumentState.RECEIVED,
                     DocumentState.QUARANTINED,
                     DocumentState.SCANNING,
                     DocumentState.PROTECTION_CHECK,

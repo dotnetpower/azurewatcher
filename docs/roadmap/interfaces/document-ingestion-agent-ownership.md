@@ -60,9 +60,12 @@ bus as Huginn's owned `object.event`. The `EventBusDocumentIngestionIntake` clai
 `object.event` subscribers) receive an actionable first-class event. Forseti emits a
 `kind = document_ingestion` admissibility verdict with no action type; malformed ingress is held.
 Thor explicitly ignores this non-action verdict, so an upload can never create an `ActionRun`.
-The delivery layer never holds Thor's executor identity. Later stage transitions stay on the
-durable audit trail until their owning agents drive them; wiring the verdict consumer, Var
-approval, Muninn indexing, and the Saga audit-entry seal as typed objects is the next increment.
+The delivery layer never holds Thor's executor identity. The ingestion worker consumes only
+Forseti's `stage = received`, `decision = admit` verdict. A plain `RECEIVED` document is excluded
+from reconciliation and remains fail-closed until that verdict arrives; post-admission states are
+still reconciled for crash recovery. Later stage transitions stay on the durable audit trail until
+their owning agents drive them; wiring Var approval, Muninn indexing, and the Saga audit-entry seal
+as typed objects is the next increment.
 
 ## Related docs
 

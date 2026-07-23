@@ -37,11 +37,13 @@ class _Metadata:
     def __init__(self, upload_id: UUID) -> None:
         self._upload_id = upload_id
         self.calls = 0
+        self.states: list[str] = []
 
     async def list_uploads_by_state(self, state: str, *, limit: int):
         self.calls += 1
+        self.states.append(state)
         assert limit == 100
-        if state == "received" and self.calls == 1:
+        if state == "quarantined" and self.calls == 1:
             return (SimpleNamespace(upload_id=self._upload_id),)
         return ()
 
@@ -49,27 +51,34 @@ class _Metadata:
 class _PersistentMetadata(_Metadata):
     async def list_uploads_by_state(self, state: str, *, limit: int):
         self.calls += 1
+        self.states.append(state)
         assert limit == 100
-        if state == "received":
+        if state == "quarantined":
             return (SimpleNamespace(upload_id=self._upload_id),)
         return ()
 
 
-async def test_worker_processes_received_and_ignores_other_events() -> None:
+async def test_worker_processes_forseti_admit_and_ignores_other_verdicts() -> None:
     bus = InMemoryEventBus()
     worker = _Worker()
     upload_id = UUID("00000000-0000-0000-0000-000000000401")
-    await bus.publish("aw.document.events", "doc", {"event_type": "upload.created"})
+    await bus.publish("object.verdict", "doc", {"kind": "action", "decision": "admit"})
     await bus.publish(
-        "aw.document.events",
+        "object.verdict",
         "doc",
-        {"event_type": "document.received", "upload_id": str(upload_id)},
+        {
+            "producer_principal": "Forseti",
+            "kind": "document_ingestion",
+            "stage": "received",
+            "decision": "admit",
+            "upload_id": str(upload_id),
+        },
     )
     consumer = DocumentIngestionEventConsumer(
         event_bus=bus,
         worker=worker,  # type: ignore[arg-type]
         metadata=InMemoryDocumentMetadataStore(),
-        topic="aw.document.events",
+        topic="object.verdict",
         retry_seconds=0.01,
     )
 
@@ -87,14 +96,15 @@ async def test_worker_processes_received_and_ignores_other_events() -> None:
     assert worker.upload_ids == [upload_id]
 
 
-async def test_reconcile_processes_durable_received_upload() -> None:
+async def test_reconcile_processes_only_post_admission_uploads() -> None:
     upload_id = UUID("00000000-0000-0000-0000-000000000402")
     worker = _Worker()
+    metadata = _Metadata(upload_id)
     consumer = DocumentIngestionEventConsumer(
         event_bus=InMemoryEventBus(),
         worker=worker,  # type: ignore[arg-type]
-        metadata=_Metadata(upload_id),  # type: ignore[arg-type]
-        topic="aw.document.events",
+        metadata=metadata,  # type: ignore[arg-type]
+        topic="object.verdict",
         reconcile_interval_seconds=0.01,
     )
 
@@ -110,6 +120,7 @@ async def test_reconcile_processes_durable_received_upload() -> None:
         pass
 
     assert worker.upload_ids == [upload_id]
+    assert "received" not in metadata.states
 
 
 async def test_reconcile_retries_after_worker_runtime_error() -> None:
@@ -119,7 +130,7 @@ async def test_reconcile_retries_after_worker_runtime_error() -> None:
         event_bus=InMemoryEventBus(),
         worker=worker,  # type: ignore[arg-type]
         metadata=_PersistentMetadata(upload_id),  # type: ignore[arg-type]
-        topic="aw.document.events",
+        topic="object.verdict",
         reconcile_interval_seconds=0.01,
     )
 

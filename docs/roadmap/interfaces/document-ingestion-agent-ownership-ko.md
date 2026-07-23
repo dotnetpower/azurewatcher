@@ -1,6 +1,6 @@
 ---
 translation_of: document-ingestion-agent-ownership.md
-translation_source_sha: cced9d1f9df365db4405a4a7096ac34fa469f754
+translation_source_sha: 45d78823c026fbf1f1e5548cf2ea411f4c8a5493
 translation_revised: 2026-07-23
 ---
 
@@ -66,9 +66,12 @@ pantheon 버스에 승격합니다. `EventBusDocumentIngestionIntake`가 Huginn 
 Heimdall이 실행 가능한 일급 이벤트로 업로드를 수신합니다. Forseti는 action type이 없는
 `kind = document_ingestion` admissibility verdict를 발행하고 malformed ingress는 hold합니다.
 Thor는 이 non-action verdict를 명시적으로 무시하므로 업로드가 `ActionRun`을 만들 수 없습니다.
-Delivery 계층은 Thor의 executor identity를 보유하지 않습니다. 이후 단계 전이는 소유 에이전트가
-구동하기 전까지 durable 감사 트레일에 남으며, verdict consumer, Var 승인, Muninn 인덱싱,
-Saga audit-entry 봉인을 typed object로 배선하는 것은 다음 증분입니다.
+Delivery 계층은 Thor의 executor identity를 보유하지 않습니다. Ingestion worker는 Forseti의
+`stage = received`, `decision = admit` verdict만 소비합니다. 일반 `RECEIVED` 문서는 reconcile
+대상에서 제외되어 verdict가 도착할 때까지 fail-closed 상태로 유지되며, admission 이후 상태는
+crash recovery를 위해 계속 reconcile합니다. 이후 단계 전이는 소유 에이전트가 구동하기 전까지
+durable 감사 트레일에 남으며, Var 승인, Muninn 인덱싱, Saga audit-entry 봉인을 typed object로
+배선하는 것은 다음 증분입니다.
 
 ## 관련 문서
 
