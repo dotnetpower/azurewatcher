@@ -7,425 +7,272 @@
   <link rel="stylesheet" href="assets/calm-slate.css?v=page-context-v3" />
   <script src="assets/calm-slate.js?v=page-context-v3" defer></script>
   <style>
-    /* Fleet roster: live status of the 15 pantheon agents. */
-    .fl-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    /* Fleet roster: exception-first live status for the fixed pantheon. */
+    .fl-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+    .fl-title-copy { min-width: 0; }
+    .fl-source { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; margin-top: 5px; color: var(--cs-text-soft); font-size: 12.5px; white-space: nowrap; }
+    .fl-source-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cs-sage); box-shadow: 0 0 0 3px rgba(94,130,89,.12); }
 
-    .fl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-    .fl-card { display: block; padding: 14px 16px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); }
-    .fl-card-head { display: flex; align-items: center; gap: 10px; }
-    .fl-avatar { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; flex: 0 0 auto; letter-spacing: -.02em; }
-    .fl-avatar.is-governance { background: var(--cs-plum); }
-    .fl-avatar.is-pipeline   { background: var(--cs-steel); }
-    .fl-avatar.is-domain     { background: var(--cs-teal); }
-    .fl-name { font-weight: 600; font-size: 15px; margin: 0; line-height: 1.2; }
-    .fl-role { color: var(--cs-text-soft); font-size: 12.5px; margin: 0; }
+    .fl-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 18px 0 14px; overflow: hidden; border: 1px solid var(--cs-hairline); border-radius: 8px; background: var(--cs-card); }
+    .fl-summary button { min-width: 0; padding: 15px 16px; border: 0; border-right: 1px solid var(--cs-hairline); background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+    .fl-summary button:last-child { border-right: 0; }
+    .fl-summary button:hover, .fl-summary button[aria-pressed="true"] { background: var(--cs-shade); }
+    .fl-summary-label { display: block; color: var(--cs-text-soft); font-size: 11.5px; font-weight: 650; text-transform: uppercase; }
+    .fl-summary-value { display: inline-block; margin-top: 3px; font-size: 25px; font-weight: 650; line-height: 1; }
+    .fl-summary-note { display: block; overflow: hidden; margin-top: 5px; color: var(--cs-text-soft); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .fl-summary button.is-attention .fl-summary-value { color: var(--cs-terracotta); }
 
-    .fl-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
-    .fl-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-    .fl-state.is-running    { color: var(--cs-sage);       background: rgba(94,130,89,.12); }
-    .fl-state.is-idle       { color: var(--cs-text-soft);  background: var(--cs-shade); }
-    .fl-state.is-recover    { color: var(--cs-terracotta); background: rgba(188,116,73,.12); }
-    .fl-state.is-degraded   { color: var(--cs-dusty-red);  background: rgba(172,90,90,.12); }
-    .fl-state.is-shadow     { color: var(--cs-plum);       background: rgba(123,108,156,.12); }
+    .fl-context { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; color: var(--cs-text-soft); font-size: 12.5px; }
+    .fl-context strong { color: var(--cs-text); font-weight: 600; }
+    .fl-context-meta { flex: 0 0 auto; }
 
-    .fl-heart { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--cs-sage); box-shadow: 0 0 0 0 rgba(94,130,89,.35); animation: fl-hb 1.6s ease-out infinite; vertical-align: 1px; margin-right: 5px; }
-    @keyframes fl-hb { 0% { box-shadow: 0 0 0 0 rgba(94,130,89,.45); } 60% { box-shadow: 0 0 0 8px rgba(94,130,89,0); } 100% { box-shadow: 0 0 0 0 rgba(94,130,89,0); } }
+    .fl-filterbar { margin-bottom: 14px; border-radius: 8px; }
+    .fl-results { margin-left: auto; color: var(--cs-text-soft); font-size: 12.5px; white-space: nowrap; }
+    .fl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .fl-card { display: flex; min-width: 0; flex-direction: column; padding: 15px 16px 13px; border: 1px solid var(--cs-hairline); border-radius: 8px; background: var(--cs-card); box-shadow: 0 2px 8px rgba(46,54,64,.045); }
+    .fl-card.is-attention { border-left: 4px solid var(--cs-terracotta); padding-left: 13px; }
+    .fl-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .fl-avatar { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border: 1px solid var(--cs-hairline); border-radius: 8px; background: var(--cs-shade); }
+    .fl-avatar img { width: 23px; height: 23px; object-fit: contain; }
+    .fl-identity { min-width: 0; flex: 1; }
+    .fl-name { overflow: hidden; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+    .fl-role { overflow: hidden; margin: 1px 0 0; color: var(--cs-text-soft); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .fl-badges { display: flex; align-items: center; justify-content: flex-end; gap: 5px; flex-wrap: wrap; }
+    .fl-state, .fl-mode, .fl-alert { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 650; line-height: 1.45; text-transform: uppercase; white-space: nowrap; }
+    .fl-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .fl-state.is-engaged { color: var(--cs-steel); background: rgba(68,104,142,.11); }
+    .fl-state.is-watching { color: var(--cs-teal); background: rgba(79,132,126,.11); }
+    .fl-state.is-idle { color: var(--cs-text-soft); background: var(--cs-shade); }
+    .fl-state.is-unobserved { color: var(--cs-dusty-red); background: rgba(172,90,90,.11); }
+    .fl-mode { color: var(--cs-plum); background: rgba(123,108,156,.12); }
+    .fl-alert { color: var(--cs-terracotta); background: rgba(188,116,73,.12); }
 
-    .fl-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px 12px; font-size: 12.5px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--cs-hairline); }
-    .fl-meta > div { display: flex; flex-direction: column; }
-    .fl-meta > div > span:first-child { color: var(--cs-text-soft); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
-    .fl-meta > div > span:last-child { color: var(--cs-text); font-weight: 500; }
+    .fl-work { min-height: 50px; margin-top: 12px; }
+    .fl-work-label { display: block; color: var(--cs-text-soft); font-size: 10.5px; font-weight: 650; text-transform: uppercase; }
+    .fl-work strong { display: block; margin-top: 2px; font-size: 13px; font-weight: 550; line-height: 1.35; }
+    .fl-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 9px; padding-top: 10px; border-top: 1px solid var(--cs-hairline); }
+    .fl-metric { min-width: 0; }
+    .fl-metric span { display: block; overflow: hidden; color: var(--cs-text-soft); font-size: 10.5px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+    .fl-metric strong { display: block; overflow: hidden; margin-top: 1px; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 
-    .fl-actions { display: flex; gap: 8px; margin-top: 12px; }
-    .fl-actions .cs-btn { font-size: 12.5px; padding: 6px 10px; }
+    .fl-card-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 11px; }
+    .fl-details { position: relative; flex: 1; }
+    .fl-details summary { width: max-content; color: var(--cs-steel); font-size: 12.5px; cursor: pointer; list-style: none; }
+    .fl-details summary::-webkit-details-marker { display: none; }
+    .fl-details summary::after { content: " +"; }
+    .fl-details[open] summary::after { content: " -"; }
+    .fl-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; margin: 9px 0 0; padding: 10px; border-radius: 6px; background: var(--cs-shade); }
+    .fl-detail-grid div { min-width: 0; }
+    .fl-detail-grid dt { color: var(--cs-text-soft); font-size: 10.5px; text-transform: uppercase; }
+    .fl-detail-grid dd { overflow-wrap: anywhere; margin: 1px 0 0; font-size: 12px; font-weight: 550; }
+    .fl-actions { display: flex; gap: 6px; }
+    .fl-actions .cs-btn { min-height: 30px; padding: 5px 9px; font-size: 12px; }
+    .fl-empty { grid-column: 1 / -1; padding: 36px; border: 1px dashed var(--cs-hairline); border-radius: 8px; color: var(--cs-text-soft); text-align: center; }
 
-    .fl-spark { display: inline-block; vertical-align: middle; margin-left: 6px; }
+    @media (max-width: 900px) {
+      .fl-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .cs-page { padding-top: 20px; }
+      .fl-title-row, .fl-context { align-items: flex-start; flex-direction: column; gap: 8px; }
+      .fl-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .fl-summary button:nth-child(2) { border-right: 0; }
+      .fl-summary button:nth-child(-n+2) { border-bottom: 1px solid var(--cs-hairline); }
+      .fl-results { width: 100%; margin-left: 0; }
+    }
+    @media (max-width: 480px) {
+      .cs-page { padding-top: 10px; }
+      .fl-summary button { padding: 10px 12px; }
+      .fl-summary-value { font-size: 22px; }
+      .fl-summary-note, .fl-context-meta { display: none; }
+      .fl-filterbar { padding: 10px; }
+      .fl-card-head { align-items: flex-start; }
+      .fl-badges { max-width: 118px; }
+      .fl-card-foot { align-items: flex-start; flex-direction: column; }
+      .fl-actions { width: 100%; }
+      .fl-actions .cs-btn { flex: 1; justify-content: center; }
+    }
   </style>
 </head>
 <body>
   <main class="cs-container cs-page">
-    <div class="cs-subnav">
-      <a href="agents.html" class="cs-active">Roster</a>
+    <div class="cs-subnav" aria-label="Agent views">
+      <a href="agents.html" class="cs-active" aria-current="page">Fleet</a>
       <a href="agents-constellation.html">Constellation</a>
       <a href="pantheon.html">Pantheon</a>
       <a href="agent-activity.html">Activity</a>
-      <a href="blast-radius.html">Blast radius</a>
-      <a href="provision.html">Provisioning</a>
     </div>
 
-    <div class="cs-page-header cs-mb-16">
-      <div class="cs-eyebrow">Read-only &middot; live status</div>
-      <h1>Fleet</h1>
-      <p class="cs-lead">Live status of the 15 pantheon agents. Every card shows the agent's
-        current lifecycle state, when it last did something, its recent throughput, and its two
-        ports (typed pub/sub + conversational). Approvals and executions still happen through
-        their normal channels - this page just tells you who is at their post.</p>
+    <header class="cs-page-header">
+      <div class="fl-title-row">
+        <div class="fl-title-copy">
+          <h1>Fleet</h1>
+          <p class="cs-lead">Current work and attention across the fixed 15-agent pantheon.</p>
+        </div>
+        <div class="fl-source" aria-label="Runtime data is current">
+          <span class="fl-source-dot" aria-hidden="true"></span>
+          <span><strong>Runtime observed</strong> - updated 12s ago</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="fl-summary" aria-label="Fleet summary">
+      <button type="button" data-summary-state="engaged" aria-pressed="false">
+        <span class="fl-summary-label">Engaged</span>
+        <span class="fl-summary-value">3</span>
+        <span class="fl-summary-note">handling work now</span>
+      </button>
+      <button type="button" data-summary-state="watching" aria-pressed="false">
+        <span class="fl-summary-label">Watching</span>
+        <span class="fl-summary-value">8</span>
+        <span class="fl-summary-note">sensing signals</span>
+      </button>
+      <button type="button" data-summary-state="idle" aria-pressed="false">
+        <span class="fl-summary-label">Idle</span>
+        <span class="fl-summary-value">4</span>
+        <span class="fl-summary-note">ready to wake</span>
+      </button>
+      <button type="button" class="is-attention" data-summary-state="attention" aria-pressed="false">
+        <span class="fl-summary-label">Attention</span>
+        <span class="fl-summary-value">1</span>
+        <span class="fl-summary-note">Vidar recovery probe</span>
+      </button>
+    </section>
+
+    <div class="fl-context">
+      <span><strong>Idle is healthy.</strong> Agents wake on subscribed topics; attention items sort first.</span>
+      <span class="fl-context-meta">15 bindings - 15 observed</span>
     </div>
 
-    <div class="cs-readonly-banner">
-      <strong>State is descriptive, not prescriptive.</strong> An "idle" agent is fine - it wakes
-      on its subscribed topics. Reach for the details view if a hard-dependency agent (Saga,
-      Vidar) is in <em>recovering</em> or <em>degraded</em> - the executor blocks until they are
-      back.
-    </div>
-
-    <!-- Summary strip -->
-    <div class="fl-strip">
-      <div class="cs-card cs-kpi">
-        <span class="cs-kpi-label">Running</span>
-        <span class="cs-kpi-value">11</span>
-        <span class="cs-kpi-foot"><span class="fl-heart"></span> heartbeats healthy</span>
-      </div>
-      <div class="cs-card cs-kpi">
-        <span class="cs-kpi-label">Idle</span>
-        <span class="cs-kpi-value">3</span>
-        <span class="cs-kpi-foot">no work in last 5m</span>
-      </div>
-      <div class="cs-card cs-kpi">
-        <span class="cs-kpi-label">Recovering</span>
-        <span class="cs-kpi-value">1</span>
-        <span class="cs-kpi-foot">Vidar - DR probe</span>
-      </div>
-      <div class="cs-card cs-kpi">
-        <span class="cs-kpi-label">Shadow-only</span>
-        <span class="cs-kpi-value">2</span>
-        <span class="cs-kpi-foot">judge + log, no execute</span>
-      </div>
-    </div>
-
-    <!-- Filter -->
-    <div class="cs-filterbar">
+    <div class="cs-filterbar fl-filterbar" aria-label="Fleet filters">
       <span class="cs-fb-label">Layer</span>
-      <div class="cs-chipset">
-        <button class="cs-chip cs-active">All</button>
-        <button class="cs-chip">Governance</button>
-        <button class="cs-chip">Pipeline</button>
-        <button class="cs-chip">Domain</button>
+      <div class="cs-chipset" data-filter-group="layer">
+        <button type="button" class="cs-chip cs-active" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" class="cs-chip" data-filter="governance" aria-pressed="false">Governance</button>
+        <button type="button" class="cs-chip" data-filter="pipeline" aria-pressed="false">Pipeline</button>
+        <button type="button" class="cs-chip" data-filter="domain" aria-pressed="false">Domain</button>
       </div>
-      <span class="cs-fb-label" style="margin-left:8px">State</span>
-      <div class="cs-chipset">
-        <button class="cs-chip cs-active">All</button>
-        <button class="cs-chip">Running</button>
-        <button class="cs-chip">Idle</button>
-        <button class="cs-chip">Recovering</button>
-        <button class="cs-chip">Shadow</button>
+      <span class="cs-fb-label">State</span>
+      <div class="cs-chipset" data-filter-group="state">
+        <button type="button" class="cs-chip cs-active" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" class="cs-chip" data-filter="engaged" aria-pressed="false">Engaged</button>
+        <button type="button" class="cs-chip" data-filter="watching" aria-pressed="false">Watching</button>
+        <button type="button" class="cs-chip" data-filter="idle" aria-pressed="false">Idle</button>
       </div>
       <label class="cs-fb-search">
-        <span class="cs-muted" style="font-size:13px">&#128269;</span>
-        <input type="text" placeholder="filter by agent name or owned type" />
+        <span class="cs-muted" aria-hidden="true">&#128269;</span>
+        <input id="fleetSearch" type="search" placeholder="Filter by agent or role" autocomplete="off" />
       </label>
+      <span id="fleetResults" class="fl-results" role="status" aria-live="polite">15 agents</span>
     </div>
 
-    <div class="fl-grid">
-      <!-- Odin -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-governance">Od</span>
-          <div style="flex:1">
-            <p class="fl-name">Odin <span style="margin-left:6px" class="fl-state is-idle">idle</span></p>
-            <p class="fl-role">Master Planner &middot; governance</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Last decision</span><span>17m ago</span></div>
-          <div><span>Owned type</span><span>ArbitrationDecision</span></div>
-          <div><span>Throughput (1h)</span><span>2</span></div>
-          <div><span>Reports to</span><span>-</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open</a>
-          <a class="cs-btn" href="#">Ask Odin</a>
-        </div>
-      </div>
-
-      <!-- Forseti -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-pipeline">Fo</span>
-          <div style="flex:1">
-            <p class="fl-name">Forseti <span style="margin-left:6px" class="fl-state is-running"><span class="fl-heart"></span> running</span></p>
-            <p class="fl-role">Judge &middot; pipeline &middot; hot-path LLM</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Last verdict</span><span>3s ago</span></div>
-          <div><span>Auto share (1h)</span><span>82%</span></div>
-          <div><span>HIL share (1h)</span><span>11%</span></div>
-          <div><span>Abstain (1h)</span><span>7%</span></div>
-          <div><span>Cross-check</span><span>2 models</span></div>
-          <div><span>Reports to</span><span>Odin</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open</a>
-          <a class="cs-btn" href="#">Ask Forseti</a>
-        </div>
-      </div>
-
-      <!-- Thor -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-pipeline">Th</span>
-          <div style="flex:1">
-            <p class="fl-name">Thor <span style="margin-left:6px" class="fl-state is-running"><span class="fl-heart"></span> running</span></p>
-            <p class="fl-role">Responder &middot; sole privileged executor</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Last dispatch</span><span>28s ago</span></div>
-          <div><span>Executes (1h)</span><span>47</span></div>
-          <div><span>Failures (1h)</span><span>0</span></div>
-          <div><span>Identity</span><span>msi-fdai-exec</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open</a>
-          <a class="cs-btn" href="#">Ask Thor</a>
-        </div>
-      </div>
-
-      <!-- Var -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-pipeline">Va</span>
-          <div style="flex:1">
-            <p class="fl-name">Var <span style="margin-left:6px" class="fl-state is-running"><span class="fl-heart"></span> running</span></p>
-            <p class="fl-role">Approver &middot; HIL principal</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Pending</span><span>3</span></div>
-          <div><span>Approved (1h)</span><span>6</span></div>
-          <div><span>Rejected (1h)</span><span>1</span></div>
-          <div><span>Distinct from</span><span>Thor</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="hil.html">HIL queue</a>
-          <a class="cs-btn" href="#">Ask Var</a>
-        </div>
-      </div>
-
-      <!-- Vidar (recovering) -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-pipeline">Vi</span>
-          <div style="flex:1">
-            <p class="fl-name">Vidar <span style="margin-left:6px" class="fl-state is-recover">recovering</span></p>
-            <p class="fl-role">Recovery &middot; hard dependency</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>DR probe</span><span>in progress</span></div>
-          <div><span>Rollbacks (24h)</span><span>2</span></div>
-          <div><span>Last success</span><span>4m ago</span></div>
-          <div><span>Blocks executes</span><span>no (running fine)</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open</a>
-          <a class="cs-btn" href="#">Ask Vidar</a>
-        </div>
-      </div>
-
-      <!-- Bragi -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-pipeline">Br</span>
-          <div style="flex:1">
-            <p class="fl-name">Bragi <span style="margin-left:6px" class="fl-state is-running"><span class="fl-heart"></span> running</span></p>
-            <p class="fl-role">Narrator &middot; translator only, never a judge</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Conversations (1h)</span><span>21</span></div>
-          <div><span>Deferred to typed</span><span>19</span></div>
-          <div><span>Locale mix</span><span>en 74% &middot; ko 26%</span></div>
-          <div><span>Median latency</span><span>420ms</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open deck</a>
-        </div>
-      </div>
-
-      <!-- Huginn -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-pipeline">Hu</span>
-          <div style="flex:1">
-            <p class="fl-name">Huginn <span style="margin-left:6px" class="fl-state is-running"><span class="fl-heart"></span> running</span></p>
-            <p class="fl-role">Event Collector</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Events (1h)</span><span>1,842</span></div>
-          <div><span>Dedup ratio</span><span>39%</span></div>
-          <div><span>Lag</span><span>&lt; 1s</span></div>
-          <div><span>Sources</span><span>4 healthy</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open</a>
-          <a class="cs-btn" href="#">Ask Huginn</a>
-        </div>
-      </div>
-
-      <!-- Heimdall -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-pipeline">He</span>
-          <div style="flex:1">
-            <p class="fl-name">Heimdall <span style="margin-left:6px" class="fl-state is-running"><span class="fl-heart"></span> running</span></p>
-            <p class="fl-role">Observer &middot; deterministic-first</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Anomalies (1h)</span><span>7</span></div>
-          <div><span>Drifts (1h)</span><span>2</span></div>
-          <div><span>Forecasts (24h)</span><span>18</span></div>
-          <div><span>Hot-path LLM</span><span>no</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open</a>
-          <a class="cs-btn" href="#">Ask Heimdall</a>
-        </div>
-      </div>
-
-      <!-- Saga -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-governance">Sa</span>
-          <div style="flex:1">
-            <p class="fl-name">Saga <span style="margin-left:6px" class="fl-state is-running"><span class="fl-heart"></span> running</span></p>
-            <p class="fl-role">Auditor &middot; hard dependency</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Entries (1h)</span><span>2,014</span></div>
-          <div><span>Issues opened</span><span>3</span></div>
-          <div><span>Retention</span><span>append-only</span></div>
-          <div><span>Blocks executes</span><span>yes if down</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="audit.html">Audit stream</a>
-        </div>
-      </div>
-
-      <!-- Mimir -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-governance">Mi</span>
-          <div style="flex:1">
-            <p class="fl-name">Mimir <span style="margin-left:6px" class="fl-state is-idle">idle</span></p>
-            <p class="fl-role">Rule Steward</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Rules loaded</span><span>287</span></div>
-          <div><span>Candidates</span><span>12</span></div>
-          <div><span>Last reload</span><span>41m ago</span></div>
-          <div><span>Overrides scoped</span><span>4</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="rules.html">Rule catalog</a>
-        </div>
-      </div>
-
-      <!-- Muninn -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-governance">Mu</span>
-          <div style="flex:1">
-            <p class="fl-name">Muninn <span style="margin-left:6px" class="fl-state is-running"><span class="fl-heart"></span> running</span></p>
-            <p class="fl-role">Memory &middot; RAG index</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Snapshots</span><span>52</span></div>
-          <div><span>Index size</span><span>1.8M chunks</span></div>
-          <div><span>Last snapshot</span><span>2m ago</span></div>
-          <div><span>Recall @ 5</span><span>0.91</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open</a>
-        </div>
-      </div>
-
-      <!-- Norns (shadow) -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-governance">No</span>
-          <div style="flex:1">
-            <p class="fl-name">Norns <span style="margin-left:6px" class="fl-state is-shadow">shadow</span></p>
-            <p class="fl-role">Learner &middot; off-path LLM</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Patterns (7d)</span><span>39</span></div>
-          <div><span>Candidates proposed</span><span>4</span></div>
-          <div><span>Accepted</span><span>1</span></div>
-          <div><span>Off-path budget</span><span>OK</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="promotion.html">Promotion</a>
-        </div>
-      </div>
-
-      <!-- Njord -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-domain">Nj</span>
-          <div style="flex:1">
-            <p class="fl-name">Njord <span style="margin-left:6px" class="fl-state is-running"><span class="fl-heart"></span> running</span></p>
-            <p class="fl-role">Cost specialist &middot; advisory</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Anomalies (24h)</span><span>3</span></div>
-          <div><span>Budget headroom</span><span>18%</span></div>
-          <div><span>Advises</span><span>Forseti</span></div>
-          <div><span>Executes</span><span>never</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="llm-cost.html">Cost view</a>
-        </div>
-      </div>
-
-      <!-- Freyr -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-domain">Fr</span>
-          <div style="flex:1">
-            <p class="fl-name">Freyr <span style="margin-left:6px" class="fl-state is-idle">idle</span></p>
-            <p class="fl-role">Capacity specialist &middot; advisory</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Forecast horizon</span><span>7d</span></div>
-          <div><span>Sizing recs (7d)</span><span>11</span></div>
-          <div><span>Confidence</span><span>0.86</span></div>
-          <div><span>Executes</span><span>never</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open</a>
-        </div>
-      </div>
-
-      <!-- Loki -->
-      <div class="fl-card">
-        <div class="fl-card-head">
-          <span class="fl-avatar is-domain">Lo</span>
-          <div style="flex:1">
-            <p class="fl-name">Loki <span style="margin-left:6px" class="fl-state is-shadow">shadow</span></p>
-            <p class="fl-role">Chaos specialist &middot; ALWAYS HIL to execute</p>
-          </div>
-        </div>
-        <div class="fl-meta">
-          <div><span>Experiments (30d)</span><span>6</span></div>
-          <div><span>Resilience score</span><span>0.83</span></div>
-          <div><span>Next scheduled</span><span>Tue 03:00</span></div>
-          <div><span>Executes</span><span>only via HIL</span></div>
-        </div>
-        <div class="fl-actions">
-          <a class="cs-btn" href="#">Open</a>
-        </div>
-      </div>
-    </div>
+    <section id="fleetGrid" class="fl-grid" aria-label="Agent fleet"></section>
   </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var iconRoot = "../../console/public/agent-icons/";
+      var agents = [
+        { name: "Vidar", role: "Recovery - Pipeline", layer: "pipeline", state: "engaged", attention: "Recovering", work: "DR probe validating rollback readiness", metrics: [["Last success", "4m ago"], ["Rollbacks (24h)", "2"]], details: [["Reports to", "Thor"], ["Binding", "event-bus subscriber"], ["Authority", "Recover / rollback"], ["State since", "6m ago"]] },
+        { name: "Forseti", role: "Judge - Pipeline", layer: "pipeline", state: "engaged", work: "Cross-checking a change verdict", metrics: [["Auto share (1h)", "82%"], ["Abstain (1h)", "7%"]], details: [["Reports to", "Odin"], ["Binding", "decision subscriber"], ["Authority", "Judge / abstain"], ["State since", "3m ago"]] },
+        { name: "Thor", role: "Responder - Pipeline", layer: "pipeline", state: "engaged", work: "Dispatching verified remediation", metrics: [["Executes (1h)", "47"], ["Failures (1h)", "0"]], details: [["Reports to", "Odin"], ["Binding", "approved-action subscriber"], ["Authority", "Execute approved actions"], ["State since", "28s ago"]] },
+        { name: "Var", role: "Approver - Pipeline", layer: "pipeline", state: "watching", work: "Monitoring the human approval queue", metrics: [["Pending", "3"], ["Decisions (1h)", "7"]], details: [["Reports to", "Thor"], ["Binding", "approval subscriber"], ["Authority", "Approve / reject"], ["State since", "12m ago"]] },
+        { name: "Huginn", role: "Event Collector - Pipeline", layer: "pipeline", state: "watching", work: "Collecting raw ingress events", metrics: [["Events (1h)", "1,842"], ["Ingest lag", "< 1s"]], details: [["Reports to", "Forseti"], ["Binding", "raw ingress subscriber"], ["Authority", "Observe / normalize"], ["State since", "1h 12m"]] },
+        { name: "Heimdall", role: "Observer - Pipeline", layer: "pipeline", state: "watching", work: "Scanning for drift and anomalies", metrics: [["Anomalies (1h)", "7"], ["Drifts (1h)", "2"]], details: [["Reports to", "Forseti"], ["Binding", "event-bus subscriber"], ["Authority", "Observe / advise"], ["State since", "48m ago"]] },
+        { name: "Bragi", role: "Narrator - Pipeline", layer: "pipeline", state: "watching", work: "Answering grounded operator questions", metrics: [["Conversations (1h)", "21"], ["Median latency", "420ms"]], details: [["Reports to", "Thor"], ["Binding", "conversation port"], ["Authority", "Narrate / translate"], ["State since", "24m ago"]] },
+        { name: "Saga", role: "Auditor - Governance", layer: "governance", state: "watching", work: "Appending immutable audit records", metrics: [["Entries (1h)", "2,014"], ["Issues opened", "3"]], details: [["Reports to", "Odin"], ["Binding", "audit subscriber"], ["Authority", "Record / attest"], ["State since", "2h 08m"]] },
+        { name: "Muninn", role: "Memory - Governance", layer: "governance", state: "watching", work: "Refreshing the evidence index", metrics: [["Snapshots", "52"], ["Recall @ 5", "0.91"]], details: [["Reports to", "Odin"], ["Binding", "evidence subscriber"], ["Authority", "Index / retrieve"], ["State since", "18m ago"]] },
+        { name: "Njord", role: "Cost specialist - Domain", layer: "domain", state: "watching", work: "Monitoring cost anomalies", metrics: [["Anomalies (24h)", "3"], ["Budget headroom", "18%"]], details: [["Reports to", "Forseti"], ["Binding", "cost-signal subscriber"], ["Authority", "Observe / advise"], ["State since", "36m ago"]] },
+        { name: "Loki", role: "Chaos specialist - Domain", layer: "domain", state: "watching", mode: "Shadow", work: "Observing a scheduled resilience experiment", metrics: [["Experiments (30d)", "6"], ["Resilience score", "0.83"]], details: [["Reports to", "Thor"], ["Binding", "scenario subscriber"], ["Authority", "Propose only"], ["State since", "11m ago"]] },
+        { name: "Odin", role: "Master Planner - Governance", layer: "governance", state: "idle", work: "Waiting for arbitration work", metrics: [["Decisions (1h)", "2"], ["Last decision", "17m ago"]], details: [["Reports to", "-"], ["Binding", "event-bus subscriber"], ["Authority", "Plan / coordinate"], ["State since", "17m ago"]] },
+        { name: "Mimir", role: "Rule Steward - Governance", layer: "governance", state: "idle", work: "Waiting for catalog changes", metrics: [["Rules loaded", "287"], ["Candidates", "12"]], details: [["Reports to", "Odin"], ["Binding", "catalog subscriber"], ["Authority", "Propose rules"], ["State since", "41m ago"]] },
+        { name: "Norns", role: "Learner - Governance", layer: "governance", state: "idle", mode: "Shadow", work: "Evaluating candidate patterns off path", metrics: [["Patterns (7d)", "39"], ["Accepted", "1"]], details: [["Reports to", "Odin"], ["Binding", "outcome subscriber"], ["Authority", "Propose only"], ["State since", "1h 05m"]] },
+        { name: "Freyr", role: "Capacity specialist - Domain", layer: "domain", state: "idle", work: "Waiting for capacity signals", metrics: [["Sizing recs (7d)", "11"], ["Confidence", "0.86"]], details: [["Reports to", "Forseti"], ["Binding", "capacity subscriber"], ["Authority", "Observe / advise"], ["State since", "29m ago"]] }
+      ];
+
+      var filters = { layer: "all", state: "all", query: "", attention: false };
+      var grid = document.getElementById("fleetGrid");
+      var resultStatus = document.getElementById("fleetResults");
+
+      function agentCard(agent) {
+        var slug = agent.name.toLowerCase();
+        var badges = '<span class="fl-state is-' + agent.state + '">' + agent.state + "</span>";
+        if (agent.mode) badges += '<span class="fl-mode">' + agent.mode + "</span>";
+        if (agent.attention) badges += '<span class="fl-alert">' + agent.attention + "</span>";
+        var metrics = agent.metrics.map(function (metric) {
+          return '<div class="fl-metric"><span>' + metric[0] + "</span><strong>" + metric[1] + "</strong></div>";
+        }).join("");
+        var details = agent.details.map(function (detail) {
+          return "<div><dt>" + detail[0] + "</dt><dd>" + detail[1] + "</dd></div>";
+        }).join("");
+        var search = (agent.name + " " + agent.role + " " + agent.work).toLowerCase();
+
+        return '<article class="fl-card' + (agent.attention ? " is-attention" : "") + '" data-layer="' + agent.layer + '" data-state="' + agent.state + '" data-attention="' + Boolean(agent.attention) + '" data-search="' + search + '">' +
+          '<div class="fl-card-head"><span class="fl-avatar"><img src="' + iconRoot + slug + '.svg" alt="" /></span>' +
+          '<div class="fl-identity"><h2 class="fl-name">' + agent.name + '</h2><p class="fl-role">' + agent.role + "</p></div>" +
+          '<div class="fl-badges">' + badges + "</div></div>" +
+          '<div class="fl-work"><span class="fl-work-label">Current work</span><strong>' + agent.work + "</strong></div>" +
+          '<div class="fl-metrics">' + metrics + "</div>" +
+          '<div class="fl-card-foot"><details class="fl-details"><summary>Details</summary><dl class="fl-detail-grid">' + details + "</dl></details>" +
+          '<div class="fl-actions"><a class="cs-btn" href="agent-activity.html?agent=' + slug + '">Activity</a><a class="cs-btn" href="deck.html?agent=' + slug + '">Ask</a></div></div></article>';
+      }
+
+      function render() {
+        var visible = agents.filter(function (agent) {
+          if (filters.attention && !agent.attention) return false;
+          if (!filters.attention && filters.state !== "all" && agent.state !== filters.state) return false;
+          if (filters.layer !== "all" && agent.layer !== filters.layer) return false;
+          return (agent.name + " " + agent.role + " " + agent.work).toLowerCase().includes(filters.query);
+        });
+        grid.innerHTML = visible.length ? visible.map(agentCard).join("") : '<p class="fl-empty">No agents match these filters.</p>';
+        resultStatus.textContent = visible.length + (visible.length === 1 ? " agent" : " agents");
+      }
+
+      document.querySelectorAll("[data-filter-group]").forEach(function (group) {
+        group.addEventListener("click", function (event) {
+          var button = event.target.closest("button[data-filter]");
+          if (!button) return;
+          var key = group.getAttribute("data-filter-group");
+          filters[key] = button.getAttribute("data-filter");
+          group.querySelectorAll("button[data-filter]").forEach(function (candidate) {
+            var active = candidate === button;
+            candidate.classList.toggle("cs-active", active);
+            candidate.setAttribute("aria-pressed", String(active));
+          });
+          if (key === "state") {
+            filters.attention = false;
+            document.querySelectorAll("[data-summary-state]").forEach(function (summary) { summary.setAttribute("aria-pressed", "false"); });
+          }
+          render();
+        });
+      });
+
+      document.querySelectorAll("[data-summary-state]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var selected = button.getAttribute("aria-pressed") !== "true";
+          document.querySelectorAll("[data-summary-state]").forEach(function (summary) { summary.setAttribute("aria-pressed", "false"); });
+          button.setAttribute("aria-pressed", String(selected));
+          var state = button.getAttribute("data-summary-state");
+          filters.state = selected && state !== "attention" ? state : "all";
+          filters.attention = selected && state === "attention";
+          document.querySelectorAll('[data-filter-group="state"] button[data-filter]').forEach(function (chip) {
+            var active = !selected && chip.getAttribute("data-filter") === "all";
+            chip.classList.toggle("cs-active", active);
+            chip.setAttribute("aria-pressed", String(active));
+          });
+          render();
+        });
+      });
+
+      document.getElementById("fleetSearch").addEventListener("input", function (event) {
+        filters.query = event.target.value.trim().toLowerCase();
+        render();
+      });
+
+      render();
+    }());
+  </script>
 </body>
 </html>
