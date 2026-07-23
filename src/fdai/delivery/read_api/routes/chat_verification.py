@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -668,7 +669,9 @@ def _result(
 
 
 def _changed(provisional: str, canonical: str) -> VerificationStatus:
-    return "verified" if provisional.strip() == canonical.strip() else "corrected"
+    provisional_nfc = unicodedata.normalize("NFC", provisional.strip())
+    canonical_nfc = unicodedata.normalize("NFC", canonical.strip())
+    return "verified" if provisional_nfc == canonical_nfc else "corrected"
 
 
 def _answer_text_is_well_formed(value: str) -> bool:

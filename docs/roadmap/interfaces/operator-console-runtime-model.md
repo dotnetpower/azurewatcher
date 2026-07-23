@@ -289,6 +289,8 @@ class ConversationSession:
   unpaired surrogate code points, disallowed C0/C1 controls, and bidirectional override or isolate
   controls. The route returns a localized unverified answer instead of persisting malformed text.
   Newlines, tabs, and script-shaping zero-width joiners remain allowed.
+  Verification compares trimmed answers in Unicode NFC form so canonically equivalent Korean text
+  does not create a false correction revision. The returned canonical evidence text is not rewritten.
   The navigation list groups conversations as **Current screen**, **Other
   screens**, and **Agents**. Each pathname owns one non-removable default
   screen conversation. **New conversation** creates an ephemeral empty thread

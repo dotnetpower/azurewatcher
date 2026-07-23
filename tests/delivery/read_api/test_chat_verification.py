@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fdai.delivery.read_api.routes.chat_verification import verify_answer
+import unicodedata
+
+from fdai.delivery.read_api.routes.chat_verification import _changed, verify_answer
 
 
 def _context(evidence: dict[str, object]) -> dict[str, object]:
@@ -145,6 +147,21 @@ def test_invalid_answer_character_abstention_follows_korean_locale() -> None:
     assert result.reason_code == "answer_text_invalid"
     assert "\uc720\ud6a8\ud558\uc9c0 \uc54a\uc740 \ubb38\uc790" in result.answer
     assert "\ufffd" not in result.answer
+
+
+def test_canonically_equivalent_korean_text_does_not_trigger_correction() -> None:
+    canonical = "\ud55c\uae00 \ub2f5\ubcc0"
+    decomposed = unicodedata.normalize("NFD", canonical)
+
+    assert decomposed != canonical
+    assert _changed(decomposed, canonical) == "verified"
+
+
+def test_unicode_normalization_does_not_hide_real_text_changes() -> None:
+    canonical = "\ud55c\uae00 \ub2f5\ubcc0"
+    different = unicodedata.normalize("NFD", "\ud55c\uae00 \uc218\uc815")
+
+    assert _changed(different, canonical) == "corrected"
 
 
 def test_korean_settings_explanation_does_not_false_reject_universal_prose() -> None:
