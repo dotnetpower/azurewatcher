@@ -36,9 +36,8 @@ Fleet / Safety surfaces (mirror console panels under `Now` and `Safety`):
 
 | File | Purpose |
 |------|---------|
-| [agents.html](agents.html) | Fleet roster - lifecycle state of all 15 pantheon agents (running / idle / recovering / shadow) with per-agent throughput and chat entry |
-| [agents-constellation.html](agents-constellation.html) | Fleet constellation - console-style org chart with focus rings + the per-incident agent-to-agent conversation panel |
-| [pantheon.html](pantheon.html) | Pantheon directory - 15 agents grouped by governance / pipeline / domain layer, with the reporting tree |
+| [agents.html](agents.html) | Fleet - live state, current work, fixed ownership, role boundaries, throughput, and chat entry for all 15 agents |
+| [agents-constellation.html](agents-constellation.html) | Org - reporting lines with incident focus rings and the per-incident agent conversation panel |
 | [agent-activity.html](agent-activity.html) | Per-agent timeline projected from the audit log - who did what, when, and how; verbs = execute / approve / reject / rollback / hold for review / audit |
 | [impact scope.html](blast-radius.html) | Per-action impact view - responsive query controls, concentric target / direct / indirect rings, and cap bars enforced by the safety check |
 | [provision.html](provision.html) | In-flight re-provision - Terraform stream projected as status + resource list + live event log; console URL surfaces on `provision.done` |

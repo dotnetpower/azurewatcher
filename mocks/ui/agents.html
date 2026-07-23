@@ -8,28 +8,6 @@
   <script src="assets/calm-slate.js?v=page-context-v3" defer></script>
   <style>
     /* Fleet roster: exception-first live status for the fixed pantheon. */
-    body .cs-brand-mark { display: none; }
-    body .cs-sidebar-brand,
-    body .cs-sidebar-brand:hover { color: inherit; }
-    body .cs-sidebar-dot,
-    body .cs-sidebar-dot.is-sage,
-    body .cs-sidebar-dot.is-steel,
-    body .cs-sidebar-dot.is-plum,
-    body .cs-sidebar-dot.is-teal,
-    body .cs-sidebar-dot.is-terracotta { display: none; }
-    body .cs-sidebar-group a,
-    body .cs-sidebar-group a:hover,
-    body .cs-sidebar-group a.cs-active { border-color: transparent; background: transparent; color: inherit; }
-    body .cs-sidebar-group a:hover { text-decoration: underline; text-underline-offset: 3px; }
-    body .cs-sidebar-group a.cs-active { font-weight: 700; }
-    body .cs-page-domain { color: inherit; }
-    body .cs-subnav { gap: 18px; border-bottom: 1px solid var(--cs-hairline); }
-    body .cs-subnav a,
-    body .cs-subnav a:hover,
-    body .cs-subnav a.cs-active { margin-bottom: -1px; padding: 4px 0 7px; border: 0; border-bottom: 1px solid transparent; border-radius: 0; background: transparent; color: inherit; }
-    body .cs-subnav a:hover { text-decoration: none; border-bottom-color: var(--cs-text-soft); }
-    body .cs-subnav a.cs-active { border-bottom-color: currentColor; font-weight: 650; }
-
     .fl-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
     .fl-title-copy { min-width: 0; }
     .fl-source { display: flex; align-items: center; flex: 0 0 auto; margin-top: 5px; color: var(--cs-text-soft); font-size: 12.5px; white-space: nowrap; }
@@ -56,7 +34,7 @@
     .fl-filterbar .cs-chipset .cs-chip.cs-active { padding: 3px 0; border-bottom: 1px solid transparent; border-radius: 0; background: transparent; box-shadow: none; color: inherit; }
     .fl-filterbar .cs-chipset .cs-chip.cs-active { border-bottom-color: currentColor; font-weight: 650; }
     .fl-results { margin-left: auto; color: var(--cs-text-soft); font-size: 12.5px; white-space: nowrap; }
-    .fl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .fl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 10px; }
     .fl-card { display: flex; min-width: 0; flex-direction: column; padding: 12px; border: 1px solid var(--cs-hairline); border-radius: 8px; background: var(--cs-card); box-shadow: 0 2px 8px rgba(46,54,64,.04); }
     .fl-card.is-attention { border-left: 3px solid var(--cs-terracotta); padding-left: 10px; }
     .fl-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -98,8 +76,9 @@
     .fl-metric span { display: block; overflow: hidden; color: var(--cs-text-soft); font-size: 10.5px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
     .fl-metric strong { display: block; overflow: hidden; margin-top: 1px; font-size: 12.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 
-    .fl-card-foot { display: flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 8px; }
+    .fl-card-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 8px; }
     .fl-details { position: relative; flex: 1; }
+    .fl-details[open] { flex: 0 0 100%; }
     .fl-details summary { width: max-content; color: var(--cs-steel); font-size: 12.5px; cursor: pointer; list-style: none; }
     .fl-details summary::-webkit-details-marker { display: none; }
     .fl-details summary::after { content: " +"; }
@@ -148,8 +127,7 @@
   <main class="cs-container cs-page">
     <div class="cs-subnav" aria-label="Agent views">
       <a href="agents.html" class="cs-active" aria-current="page">Fleet</a>
-      <a href="agents-constellation.html">Constellation</a>
-      <a href="pantheon.html">Pantheon</a>
+      <a href="agents-constellation.html">Org</a>
       <a href="agent-activity.html">Activity</a>
     </div>
 
@@ -157,7 +135,7 @@
       <div class="fl-title-row">
         <div class="fl-title-copy">
           <h1>Fleet</h1>
-          <p class="cs-lead">Current work and attention across the fixed 15-agent pantheon.</p>
+          <p class="cs-lead">Current work, fixed ownership, and attention across the 15-agent fleet.</p>
         </div>
         <div class="fl-source" aria-label="Runtime data is current">
           <span class="fl-live-pulse" aria-hidden="true"></span>
@@ -190,7 +168,7 @@
     </section>
 
     <div class="fl-context">
-      <span><strong>Idle is healthy.</strong> Agents wake on subscribed topics; attention items sort first.</span>
+      <span><strong>Idle is healthy.</strong> Agents wake on subscribed topics. Fixed ownership and boundaries are in Details.</span>
       <span class="fl-context-meta">15 bindings - 15 observed</span>
     </div>
 
@@ -224,21 +202,21 @@
 
       var iconRoot = "../../console/public/agent-icons/";
       var agents = [
-        { name: "Vidar", role: "Recovery - Pipeline", layer: "pipeline", state: "engaged", attention: "Recovering", work: "DR probe validating rollback readiness", metrics: [["Last success", "4m ago"], ["Rollbacks (24h)", "2"]], details: [["Reports to", "Thor"], ["Binding", "event-bus subscriber"], ["Authority", "Recover / rollback"], ["State since", "6m ago"]] },
-        { name: "Forseti", role: "Judge - Pipeline", layer: "pipeline", state: "engaged", work: "Cross-checking a change verdict", metrics: [["Auto share (1h)", "82%"], ["Abstain (1h)", "7%"]], details: [["Reports to", "Odin"], ["Binding", "decision subscriber"], ["Authority", "Judge / abstain"], ["State since", "3m ago"]] },
-        { name: "Thor", role: "Responder - Pipeline", layer: "pipeline", state: "engaged", work: "Dispatching verified remediation", metrics: [["Executes (1h)", "47"], ["Failures (1h)", "0"]], details: [["Reports to", "Odin"], ["Binding", "approved-action subscriber"], ["Authority", "Execute approved actions"], ["State since", "28s ago"]] },
-        { name: "Var", role: "Approver - Pipeline", layer: "pipeline", state: "watching", work: "Monitoring the human approval queue", metrics: [["Pending", "3"], ["Decisions (1h)", "7"]], details: [["Reports to", "Thor"], ["Binding", "approval subscriber"], ["Authority", "Approve / reject"], ["State since", "12m ago"]] },
-        { name: "Huginn", role: "Event Collector - Pipeline", layer: "pipeline", state: "watching", work: "Collecting raw ingress events", metrics: [["Events (1h)", "1,842"], ["Ingest lag", "< 1s"]], details: [["Reports to", "Forseti"], ["Binding", "raw ingress subscriber"], ["Authority", "Observe / normalize"], ["State since", "1h 12m"]] },
-        { name: "Heimdall", role: "Observer - Pipeline", layer: "pipeline", state: "watching", work: "Scanning for drift and anomalies", metrics: [["Anomalies (1h)", "7"], ["Drifts (1h)", "2"]], details: [["Reports to", "Forseti"], ["Binding", "event-bus subscriber"], ["Authority", "Observe / advise"], ["State since", "48m ago"]] },
-        { name: "Bragi", role: "Narrator - Pipeline", layer: "pipeline", state: "watching", work: "Answering grounded operator questions", metrics: [["Conversations (1h)", "21"], ["Median latency", "420ms"]], details: [["Reports to", "Thor"], ["Binding", "conversation port"], ["Authority", "Narrate / translate"], ["State since", "24m ago"]] },
-        { name: "Saga", role: "Auditor - Governance", layer: "governance", state: "watching", work: "Appending immutable audit records", metrics: [["Entries (1h)", "2,014"], ["Issues opened", "3"]], details: [["Reports to", "Odin"], ["Binding", "audit subscriber"], ["Authority", "Record / attest"], ["State since", "2h 08m"]] },
-        { name: "Muninn", role: "Memory - Governance", layer: "governance", state: "watching", work: "Refreshing the evidence index", metrics: [["Snapshots", "52"], ["Recall @ 5", "0.91"]], details: [["Reports to", "Odin"], ["Binding", "evidence subscriber"], ["Authority", "Index / retrieve"], ["State since", "18m ago"]] },
-        { name: "Njord", role: "Cost specialist - Domain", layer: "domain", state: "watching", work: "Monitoring cost anomalies", metrics: [["Anomalies (24h)", "3"], ["Budget headroom", "18%"]], details: [["Reports to", "Forseti"], ["Binding", "cost-signal subscriber"], ["Authority", "Observe / advise"], ["State since", "36m ago"]] },
-        { name: "Loki", role: "Chaos specialist - Domain", layer: "domain", state: "watching", mode: "Shadow", work: "Observing a scheduled resilience experiment", metrics: [["Experiments (30d)", "6"], ["Resilience score", "0.83"]], details: [["Reports to", "Thor"], ["Binding", "scenario subscriber"], ["Authority", "Propose only"], ["State since", "11m ago"]] },
-        { name: "Odin", role: "Master Planner - Governance", layer: "governance", state: "idle", work: "Waiting for arbitration work", metrics: [["Decisions (1h)", "2"], ["Last decision", "17m ago"]], details: [["Reports to", "-"], ["Binding", "event-bus subscriber"], ["Authority", "Plan / coordinate"], ["State since", "17m ago"]] },
-        { name: "Mimir", role: "Rule Steward - Governance", layer: "governance", state: "idle", work: "Waiting for catalog changes", metrics: [["Rules loaded", "287"], ["Candidates", "12"]], details: [["Reports to", "Odin"], ["Binding", "catalog subscriber"], ["Authority", "Propose rules"], ["State since", "41m ago"]] },
-        { name: "Norns", role: "Learner - Governance", layer: "governance", state: "idle", mode: "Shadow", work: "Evaluating candidate patterns off path", metrics: [["Patterns (7d)", "39"], ["Accepted", "1"]], details: [["Reports to", "Odin"], ["Binding", "outcome subscriber"], ["Authority", "Propose only"], ["State since", "1h 05m"]] },
-        { name: "Freyr", role: "Capacity specialist - Domain", layer: "domain", state: "idle", work: "Waiting for capacity signals", metrics: [["Sizing recs (7d)", "11"], ["Confidence", "0.86"]], details: [["Reports to", "Forseti"], ["Binding", "capacity subscriber"], ["Authority", "Observe / advise"], ["State since", "29m ago"]] }
+        { name: "Vidar", role: "Recovery - Pipeline", layer: "pipeline", state: "engaged", attention: "Recovering", work: "DR probe validating rollback readiness", metrics: [["Last success", "4m ago"], ["Rollbacks (24h)", "2"]], details: [["Owns", "Rollback"], ["Boundary", "Hard dependency"], ["Reports to", "Thor"], ["Binding", "event-bus subscriber"], ["Authority", "Recover / rollback"], ["State since", "6m ago"]] },
+        { name: "Forseti", role: "Judge - Pipeline", layer: "pipeline", state: "engaged", work: "Cross-checking a change verdict", metrics: [["Auto share (1h)", "82%"], ["Abstain (1h)", "7%"]], details: [["Owns", "Verdict, RCA"], ["Boundary", "Adaptive judge"], ["Reports to", "Odin"], ["Binding", "decision subscriber"], ["Authority", "Judge / abstain"], ["State since", "3m ago"]] },
+        { name: "Thor", role: "Responder - Pipeline", layer: "pipeline", state: "engaged", work: "Dispatching verified remediation", metrics: [["Executes (1h)", "47"], ["Failures (1h)", "0"]], details: [["Owns", "ActionRun, ActionAttempt"], ["Boundary", "Sole executor"], ["Reports to", "Odin"], ["Binding", "approved-action subscriber"], ["Authority", "Execute approved actions"], ["State since", "28s ago"]] },
+        { name: "Var", role: "Approver - Pipeline", layer: "pipeline", state: "watching", work: "Monitoring the human approval queue", metrics: [["Pending", "3"], ["Decisions (1h)", "7"]], details: [["Owns", "Approval"], ["Boundary", "Independent approver"], ["Reports to", "Thor"], ["Binding", "approval subscriber"], ["Authority", "Approve / reject"], ["State since", "12m ago"]] },
+        { name: "Huginn", role: "Event Collector - Pipeline", layer: "pipeline", state: "watching", work: "Collecting raw ingress events", metrics: [["Events (1h)", "1,842"], ["Ingest lag", "< 1s"]], details: [["Owns", "Event"], ["Boundary", "Deterministic ingress"], ["Reports to", "Forseti"], ["Binding", "raw ingress subscriber"], ["Authority", "Observe / normalize"], ["State since", "1h 12m"]] },
+        { name: "Heimdall", role: "Observer - Pipeline", layer: "pipeline", state: "watching", work: "Scanning for drift and anomalies", metrics: [["Anomalies (1h)", "7"], ["Drifts (1h)", "2"]], details: [["Owns", "Anomaly, Drift, Forecast"], ["Boundary", "Deterministic-first"], ["Reports to", "Forseti"], ["Binding", "event-bus subscriber"], ["Authority", "Observe / advise"], ["State since", "48m ago"]] },
+        { name: "Bragi", role: "Narrator - Pipeline", layer: "pipeline", state: "watching", work: "Answering grounded operator questions", metrics: [["Conversations (1h)", "21"], ["Median latency", "420ms"]], details: [["Owns", "Conversation, Turn"], ["Boundary", "Narrator only"], ["Reports to", "Thor"], ["Binding", "conversation port"], ["Authority", "Narrate / translate"], ["State since", "24m ago"]] },
+        { name: "Saga", role: "Auditor - Governance", layer: "governance", state: "watching", work: "Appending immutable audit records", metrics: [["Entries (1h)", "2,014"], ["Issues opened", "3"]], details: [["Owns", "AuditEntry, Issue"], ["Boundary", "Hard dependency"], ["Reports to", "Odin"], ["Binding", "audit subscriber"], ["Authority", "Record / attest"], ["State since", "2h 08m"]] },
+        { name: "Muninn", role: "Memory - Governance", layer: "governance", state: "watching", work: "Refreshing the evidence index", metrics: [["Snapshots", "52"], ["Recall @ 5", "0.91"]], details: [["Owns", "StateSnapshot, ContextIndex"], ["Boundary", "Read / retrieve"], ["Reports to", "Odin"], ["Binding", "evidence subscriber"], ["Authority", "Index / retrieve"], ["State since", "18m ago"]] },
+        { name: "Njord", role: "Cost specialist - Domain", layer: "domain", state: "watching", work: "Monitoring cost anomalies", metrics: [["Anomalies (24h)", "3"], ["Budget headroom", "18%"]], details: [["Owns", "CostAnomaly, Budget"], ["Boundary", "Advisory only"], ["Reports to", "Forseti"], ["Binding", "cost-signal subscriber"], ["Authority", "Observe / advise"], ["State since", "36m ago"]] },
+        { name: "Loki", role: "Chaos specialist - Domain", layer: "domain", state: "watching", mode: "Shadow", work: "Observing a scheduled resilience experiment", metrics: [["Experiments (30d)", "6"], ["Resilience score", "0.83"]], details: [["Owns", "ChaosExperiment, ResilienceScore"], ["Boundary", "Human approval to execute"], ["Reports to", "Thor"], ["Binding", "scenario subscriber"], ["Authority", "Propose only"], ["State since", "11m ago"]] },
+        { name: "Odin", role: "Master Planner - Governance", layer: "governance", state: "idle", work: "Waiting for arbitration work", metrics: [["Decisions (1h)", "2"], ["Last decision", "17m ago"]], details: [["Owns", "ArbitrationDecision"], ["Boundary", "Top of tree"], ["Reports to", "-"], ["Binding", "event-bus subscriber"], ["Authority", "Plan / coordinate"], ["State since", "17m ago"]] },
+        { name: "Mimir", role: "Rule Steward - Governance", layer: "governance", state: "idle", work: "Waiting for catalog changes", metrics: [["Rules loaded", "287"], ["Candidates", "12"]], details: [["Owns", "Rule, Policy"], ["Boundary", "Proposes catalog changes"], ["Reports to", "Odin"], ["Binding", "catalog subscriber"], ["Authority", "Propose rules"], ["State since", "41m ago"]] },
+        { name: "Norns", role: "Learner - Governance", layer: "governance", state: "idle", mode: "Shadow", work: "Evaluating candidate patterns off path", metrics: [["Patterns (7d)", "39"], ["Accepted", "1"]], details: [["Owns", "RuleCandidate, PatternObservation"], ["Boundary", "Off-path learning"], ["Reports to", "Odin"], ["Binding", "outcome subscriber"], ["Authority", "Propose only"], ["State since", "1h 05m"]] },
+        { name: "Freyr", role: "Capacity specialist - Domain", layer: "domain", state: "idle", work: "Waiting for capacity signals", metrics: [["Sizing recs (7d)", "11"], ["Confidence", "0.86"]], details: [["Owns", "CapacityForecast, SizingRecommendation"], ["Boundary", "Advisory only"], ["Reports to", "Forseti"], ["Binding", "capacity subscriber"], ["Authority", "Observe / advise"], ["State since", "29m ago"]] }
       ];
 
       var filters = { layer: "all", state: "all", query: "", attention: false };

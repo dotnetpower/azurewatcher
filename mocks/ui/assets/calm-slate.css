@@ -103,18 +103,16 @@ body.cs-has-sidebar { padding-left: var(--cs-sidebar-w); }
 .cs-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 9px;
   margin: 0 4px 16px;
   padding: 2px 6px 14px;
   border-bottom: 1px solid var(--cs-hairline);
-  color: var(--cs-navy);
+  color: var(--cs-text);
   font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
 }
-.cs-sidebar-brand:hover { color: var(--cs-navy); text-decoration: none; }
-.cs-brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--cs-steel); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; transition: background .15s ease; }
-.cs-sidebar-brand:hover .cs-brand-mark { background: var(--cs-navy); }
+.cs-sidebar-brand:hover { color: var(--cs-text); text-decoration: none; }
+.cs-brand-mark { display: none; }
 .cs-sidebar-group { margin-top: 14px; }
 .cs-sidebar-group:first-of-type { margin-top: 0; }
 .cs-sidebar-group h2 {
@@ -130,26 +128,19 @@ body.cs-has-sidebar { padding-left: var(--cs-sidebar-w); }
 .cs-sidebar-group a {
   display: flex;
   align-items: center;
-  gap: 8px;
   padding: 6px 10px;
   border: 1px solid transparent;
-  border-radius: var(--cs-radius-sm);
   color: var(--cs-text);
   font-size: 13px;
 }
-.cs-sidebar-group a:hover { background: var(--cs-shade); text-decoration: none; }
+.cs-sidebar-group a:hover { background: transparent; text-decoration: underline; text-underline-offset: 3px; }
 .cs-sidebar-group a.cs-active {
-  border-color: rgba(68,104,142,.20);
-  background: rgba(68,104,142,.10);
-  color: var(--cs-navy);
-  font-weight: 600;
+  border-color: transparent;
+  background: transparent;
+  color: var(--cs-text);
+  font-weight: 700;
 }
-.cs-sidebar-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--cs-hairline); }
-.cs-sidebar-dot.is-sage { background: var(--cs-sage); }
-.cs-sidebar-dot.is-steel { background: var(--cs-steel); }
-.cs-sidebar-dot.is-plum { background: var(--cs-plum); }
-.cs-sidebar-dot.is-teal { background: var(--cs-teal); }
-.cs-sidebar-dot.is-terracotta { background: var(--cs-terracotta); }
+.cs-sidebar-dot { display: none; }
 .cs-sidebar-menu {
   display: none;
   position: fixed;
@@ -727,10 +718,10 @@ body.cs-has-sidebar { padding-left: var(--cs-sidebar-w); }
 .cs-hcard-foot .cs-link { color: var(--cs-steel); font-weight: 500; }
 
 /* Sub-nav row (used above pages that have logical siblings) */
-.cs-subnav { display: flex; flex-wrap: wrap; gap: 4px; margin: -6px 0 16px; }
-.cs-subnav a { padding: 5px 11px; font-size: 12.5px; border-radius: var(--cs-radius-pill); color: var(--cs-text-soft); background: var(--cs-shade); }
-.cs-subnav a:hover { color: var(--cs-text); text-decoration: none; }
-.cs-subnav a.cs-active { background: var(--cs-navy); color: #fff; }
+.cs-subnav { display: flex; flex-wrap: wrap; gap: 18px; margin: -6px 0 16px; border-bottom: 1px solid var(--cs-hairline); }
+.cs-subnav a { margin-bottom: -1px; padding: 5px 0 7px; border-bottom: 1px solid transparent; color: var(--cs-text); font-size: 12.5px; background: transparent; }
+.cs-subnav a:hover { border-bottom-color: var(--cs-text-soft); color: var(--cs-text); text-decoration: none; }
+.cs-subnav a.cs-active { border-bottom-color: currentColor; background: transparent; color: var(--cs-text); font-weight: 650; }
 
 /* Empty state / hint */
 .cs-empty { padding: 32px; text-align: center; color: var(--cs-text-soft); font-size: 14px; border: 1px dashed var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); }

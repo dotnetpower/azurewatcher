@@ -21,9 +21,8 @@
       ["deck.html", "Command deck", "is-plum"]
     ]],
     ["Agents", [
-      ["agents.html", "Fleet roster", "is-sage"],
-      ["agents-constellation.html", "Constellation", ""],
-      ["pantheon.html", "Pantheon", "is-plum"],
+      ["agents.html", "Fleet", "is-sage"],
+      ["agents-constellation.html", "Org", ""],
       ["agent-activity.html", "Agent activity", ""]
     ]],
     ["Governance", [
