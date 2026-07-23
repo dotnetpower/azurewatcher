@@ -485,6 +485,23 @@ def test_bridge_rejects_impostor_producer_principal_on_consume() -> None:
     assert bridge.metrics.dead_lettered == 1
 
 
+def test_bridge_rejects_missing_producer_principal_on_owned_topic() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg)
+    seen: list[dict] = []
+
+    async def handler(_topic: str, payload: dict) -> None:
+        seen.append(payload)
+
+    bridge.subscribe("object.verdict", "Thor", handler)
+    asyncio.run(provider.publish("object.verdict", "corr-1", {"correlation_id": "corr-1"}))
+    _drain(bridge)
+    assert seen == []
+    assert bridge.metrics.producer_principal_mismatch == 1
+    assert bridge.metrics.dead_lettered == 1
+
+
 def test_bridge_allows_authentic_producer_principal_on_consume() -> None:
     reg = load_pantheon()
     provider = InMemoryEventBus()

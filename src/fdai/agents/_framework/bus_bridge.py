@@ -477,11 +477,8 @@ class EventBusBridge:
         Returns ``True`` when the record may be delivered. A topic with no
         declared owner (the raw ingress topic, or an alternate stream) is
         not a pantheon object topic, so there is nothing to verify against -
-        allow it. A record whose ``producer_principal`` is present but not
-        the topic owner is an impostor and is rejected (counted). An absent
-        principal is allowed (a legacy / external producer that did not go
-        through the bridge) but the publish-side ``missing`` counters already
-        make that visible.
+        allow it. An owned topic requires its declared principal; a missing or
+        mismatched ``producer_principal`` is rejected and counted.
         """
         if not self.verify_producer_principal:
             return True
@@ -489,11 +486,11 @@ class EventBusBridge:
         if owner is None:
             return True
         principal = str(payload.get("producer_principal", ""))
-        if principal and principal != owner:
+        if principal != owner:
             self.metrics.producer_principal_mismatch += 1
             _LOG.warning(
                 "pantheon_producer_principal_mismatch",
-                extra={"topic": topic, "principal": principal, "owner": owner},
+                extra={"topic": topic, "principal": principal or "<missing>", "owner": owner},
             )
             return False
         return True

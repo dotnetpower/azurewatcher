@@ -27,7 +27,7 @@
     "src/fdai/agents/_framework/bragi_proposal.py": "a149dbd78f5b354a9808285819b962ab346f44ed6f4235fc72fd783831513ab9",
     "src/fdai/agents/_framework/bragi_routing.py": "422ca078846742277c45ea2148fd0c46e8bd5ad6fe9be19e681be044c0806d80",
     "src/fdai/agents/_framework/bus.py": "ce42733252e2dcfa755b730398360a3646f9b5096f2b39187deee1f4ab95e452",
-    "src/fdai/agents/_framework/bus_bridge.py": "75257ebde1fa8578749f66089d9e852c2d319ca4db4ca49535efa10541e94d89",
+    "src/fdai/agents/_framework/bus_bridge.py": "7ec7fd89135c9e23dd9e04ea00790e72c1c19c5817b5743b78e30c82a8942379",
     "src/fdai/agents/_framework/bus_metrics.py": "f5095b3bee25326ecad1ff35df783c0e3009faa9ea930a96dddd3d528a1eaf49",
     "src/fdai/agents/_framework/candidate_guard.py": "df471cd77e522e28284dac04966fb51739ef00812f01f0f7dbb727524fae2cee",
     "src/fdai/agents/_framework/divergence.py": "0304d6e035bf126bf02893794bef8453df40c042c264e89ceb7946254ddd8d0a",
@@ -774,7 +774,7 @@
     "src/fdai/shared/providers/workflow_definition.py": "01c40a52343b9b0f301a921d7931cc03ae5cc1d916b12f8fcaf06816d0b1c23a",
     "src/fdai/shared/providers/workload_identity.py": "96f26525f5d243ff4c818766d0ee9223a23f1c31c76b141708a01e405a8fd204"
   },
-  "generated_at": "2026-07-23T03:48:16Z",
+  "generated_at": "2026-07-23T03:49:51Z",
   "surface": [
     "src/fdai/core/",
     "src/fdai/composition.py",
