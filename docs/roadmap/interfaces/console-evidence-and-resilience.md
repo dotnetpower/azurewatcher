@@ -13,6 +13,9 @@ RBAC contract remains in [operator-console.md](operator-console.md).
 Selecting an Activity Bar domain opens its Explorer and navigates to the first visible panel under
 the operator's local order and visibility preferences. This navigation remains active when the
 Command Deck is closed or floating; a full-workspace Deck closes before the route changes.
+Selecting a cached conversation from another screen is the bounded exception: the console navigates
+to that conversation's origin, activates its transcript, and reopens the Deck after the synchronous
+route-close policy runs. Same-screen and agent conversations switch without route navigation.
 
 The shared page title renders the domain and panel labels when they differ, including
 `Overview / Dashboard`. A domain root whose panel title repeats the domain label and a standalone

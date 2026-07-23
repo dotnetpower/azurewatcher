@@ -32,9 +32,9 @@ export {
   type DeckLayoutMode,
 } from "./command-deck-session";
 import {
-  conversationPath,
   conversationUserScope,
 } from "./conversation-sessions";
+import { selectConversationWithRoute } from "./conversation-navigation";
 import { useViewContext } from "./context";
 import { getDeckUser } from "./deck-user";
 import { DEFAULT_NARRATOR, type Turn } from "./command-deck-presenters";
@@ -321,20 +321,18 @@ export function CommandDeck() {
       onSelectLayout={selectLayoutMode}
       onRemoveConversation={removeCachedConversation}
       onSelectConversation={(conversation) => {
-        if (
-          conversation.kind !== "agent" &&
-          conversation.originPath !== conversationPath(currentPathname())
-        ) {
-          navigate(conversation.originPath);
-        }
-        switchSession(
-          conversation.key,
-          conversation.agent ?? null,
-          undefined,
-          conversation.label,
-          conversation.kind,
-        );
-        focusInput();
+        selectConversationWithRoute(conversation, currentPathname(), {
+          navigate,
+          activate: (selected) => switchSession(
+            selected.key,
+            selected.agent ?? null,
+            undefined,
+            selected.label,
+            selected.kind,
+          ),
+          reopen: openDeck,
+          focus: focusInput,
+        });
       }}
       onTranscriptScroll={onTranscriptScroll}
       onSubmit={submit}
