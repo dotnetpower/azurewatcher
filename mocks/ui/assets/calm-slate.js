@@ -80,6 +80,8 @@
       titleBlock = titleBlock.parentElement;
     }
     heading.parentElement.prepend(heading);
+    var eyebrow = heading.parentElement.querySelector(":scope > .cs-eyebrow");
+    if (eyebrow) eyebrow.remove();
     pageRoot.prepend(titleBlock);
 
     var current = document.createElement("span");
