@@ -30,19 +30,20 @@
       background: radial-gradient(1200px 600px at 20% -10%, #16203010, transparent), var(--bg);
       color: var(--text);
       font: 14px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
-      padding: 40px 32px 64px;
+      padding: 40px 24px 64px;
     }
-    header { max-width: 1100px; margin: 0 auto 28px; }
+    body.cs-has-sidebar { padding-left: calc(var(--cs-sidebar-w) + 24px); }
+    header { max-width: 1100px; margin: 0 auto 28px 0; }
     h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: .3px; }
     .lead { color: var(--muted); margin: 0; max-width: 720px; }
-    .toolbar { max-width: 1100px; margin: 18px auto 0; display: flex; gap: 10px; flex-wrap: wrap; }
+    .toolbar { max-width: 1100px; margin: 18px auto 0 0; display: flex; gap: 10px; flex-wrap: wrap; }
     .toolbar button {
       background: var(--panel); color: var(--text); border: 1px solid var(--line);
       border-radius: 8px; padding: 7px 12px; font-size: 13px; cursor: pointer;
     }
     .toolbar button:hover { border-color: #33415a; }
     .grid {
-      max-width: 1100px; margin: 24px auto 0;
+      max-width: 1100px; margin: 24px auto 0 0;
       display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px;
     }
     .card {
@@ -65,8 +66,11 @@
       font-size: 10px; text-transform: uppercase; letter-spacing: .8px;
       padding: 2px 7px; border-radius: 999px; margin-top: 10px; border: 1px solid transparent;
     }
-    footer { max-width: 1100px; margin: 34px auto 0; color: var(--muted); font-size: 12.5px; }
+    footer { max-width: 1100px; margin: 34px auto 0 0; color: var(--muted); font-size: 12.5px; }
     code { background: #0c1220; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+    @media (max-width: 780px) {
+      body.cs-has-sidebar { padding-left: 24px; }
+    }
   </style>
 </head>
 <body>
