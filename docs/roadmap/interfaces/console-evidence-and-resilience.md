@@ -149,6 +149,12 @@ including keepalive comments, then use bounded reconnect. Provisioning also canc
 event delivery fails. Agent-stream `401` waits for full-screen login recovery; `403` reconnects so a
 new App Role can take effect without a page reload.
 
+Command Deck web-research turns stream truthful `status` frames while work is in progress. The
+server emits `web_search_classifying` only when semantic search intent invokes the narrator model,
+`web_search_searching` only before a public-web provider call, and `web_search_grounded` with the
+sanitized source count and previews after retrieval. The preparing-answer trace renders these
+stages immediately. A turn that doesn't perform a stage doesn't claim that stage.
+
 The interactive Live route pauses its SSE reader while the tab is hidden. An operator-enabled
 browser notification consumer is the bounded exception: it keeps the authenticated live reader open
 in the background, retries authentication failures with the existing capped backoff, and stops as

@@ -403,11 +403,37 @@ def make_chat_stream_route(
                         with suppress(asyncio.CancelledError):
                             await agent_task
                 enriched_context = _with_concept_evidence(clean_prompt, enriched_context)
-                enriched_context = await _with_web_evidence(
-                    clean_prompt,
-                    enriched_context,
-                    web_search_resolver,
+                web_progress_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=16)
+
+                async def observe_web_progress(event: Mapping[str, Any]) -> None:
+                    await web_progress_queue.put(dict(event))
+
+                web_task = asyncio.create_task(
+                    _with_web_evidence(
+                        clean_prompt,
+                        enriched_context,
+                        web_search_resolver,
+                        progress_observer=observe_web_progress,
+                    )
                 )
+                try:
+                    while not web_task.done() or not web_progress_queue.empty():
+                        try:
+                            progress_event = await asyncio.wait_for(
+                                web_progress_queue.get(),
+                                timeout=0.25,
+                            )
+                        except TimeoutError:
+                            continue
+                        event_name = progress_event.pop("event", None)
+                        if event_name == "status":
+                            yield frame("status", progress_event)
+                    enriched_context = await web_task
+                finally:
+                    if not web_task.done():
+                        web_task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await web_task
                 answer_plan, planning_task = start_shadow_answer_planning(
                     prompt=clean_prompt,
                     plan=answer_plan,

@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, Protocol
@@ -68,6 +68,9 @@ class ChatWebSearchIntentClassifier(Protocol):
         *,
         budget_ms: int,
     ) -> Mapping[str, object]: ...
+
+
+WebSearchProgressObserver = Callable[[Mapping[str, Any]], Awaitable[None]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +157,29 @@ class ChatWebSearchResolver:
         prompt: str,
         view_context: Mapping[str, Any],
     ) -> Mapping[str, Any] | None:
+        return await self._resolve(prompt, view_context, progress_observer=None)
+
+    async def resolve_with_progress(
+        self,
+        prompt: str,
+        view_context: Mapping[str, Any],
+        *,
+        progress_observer: WebSearchProgressObserver,
+    ) -> Mapping[str, Any] | None:
+        """Resolve public-web evidence while reporting only work actually performed."""
+        return await self._resolve(
+            prompt,
+            view_context,
+            progress_observer=progress_observer,
+        )
+
+    async def _resolve(
+        self,
+        prompt: str,
+        view_context: Mapping[str, Any],
+        *,
+        progress_observer: WebSearchProgressObserver | None,
+    ) -> Mapping[str, Any] | None:
         search_intent = _classify_search_intent(prompt)
         if _SENSITIVE_QUERY.search(prompt):
             if search_intent.route != "web":
@@ -164,10 +190,25 @@ class ChatWebSearchResolver:
                 "reason": "query_not_public_safe",
                 "sources": [],
             }
+        semantic_eligible = self._intent_classifier is not None and semantic_search_intent_eligible(
+            view_context
+        )
         alternative_requested = alternative_search_requested(prompt)
         if search_intent.route == "none":
+            if semantic_eligible:
+                await _report_progress(
+                    progress_observer,
+                    phase="web_search_classifying",
+                    label="Escalating search intent to the narrator model",
+                )
             search_intent = await self._semantic_search_intent(prompt, view_context)
         elif search_intent.route == "web":
+            if semantic_eligible:
+                await _report_progress(
+                    progress_observer,
+                    phase="web_search_classifying",
+                    label="Escalating search intent to the narrator model",
+                )
             enriched_intent = await self._semantic_search_intent(prompt, view_context)
             if enriched_intent.route == "web":
                 search_intent = enriched_intent
@@ -198,6 +239,21 @@ class ChatWebSearchResolver:
         if not decision.should_search:
             return None
 
+        await _report_progress(
+            progress_observer,
+            phase="web_search_searching",
+            label="Searching approved public web sources",
+            sources=[
+                {
+                    "kind": "public-web",
+                    "label": "Approved domain",
+                    "detail": domain,
+                    "side_effect_class": "read",
+                }
+                for domain in self._config.allowed_domains
+            ],
+        )
+
         query = WebSearchQuery(
             text=search_intent.query[:1000],
             allowed_domains=self._config.allowed_domains,
@@ -216,6 +272,11 @@ class ChatWebSearchResolver:
             _LOG.warning(
                 "chat.web_search_failed",
                 extra={"error_type": type(exc).__name__},
+            )
+            await _report_progress(
+                progress_observer,
+                phase="web_search_unavailable",
+                label="Public web search is unavailable",
             )
             return {
                 "status": "unavailable",
@@ -236,6 +297,25 @@ class ChatWebSearchResolver:
             for snippet in result.snippets
             if snippet.content_hash not in dropped_hashes
         ]
+        source_count = len(sources)
+        await _report_progress(
+            progress_observer,
+            phase="web_search_grounded",
+            label=(
+                f"Web evidence ready from {source_count} source{'s' if source_count != 1 else ''}"
+            ),
+            completed=source_count,
+            total=source_count,
+            sources=[
+                {
+                    "kind": "public-web",
+                    "label": source["title"],
+                    "detail": source["domain"],
+                    "side_effect_class": "ground",
+                }
+                for source in sources
+            ],
+        )
         return {
             "status": "matched" if sanitized.wrapped else "unavailable",
             "reason": decision.reason,
@@ -272,6 +352,29 @@ class ChatWebSearchResolver:
             )
             return SearchIntentDecision("none", 1.0, "semantic_unavailable", "", "none", "", ())
         return semantic_search_intent(raw)
+
+
+async def _report_progress(
+    observer: WebSearchProgressObserver | None,
+    *,
+    phase: str,
+    label: str,
+    completed: int | None = None,
+    total: int | None = None,
+    sources: list[dict[str, object]] | None = None,
+) -> None:
+    if observer is None:
+        return
+    await observer(
+        {
+            "event": "status",
+            "phase": phase,
+            "label": label,
+            "completed": completed,
+            "total": total,
+            "sources": sources or [],
+        }
+    )
 
 
 def chat_web_search_from_env(

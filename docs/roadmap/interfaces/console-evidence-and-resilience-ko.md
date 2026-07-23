@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: 6e2d88c6f3a69d5ff28d4baeeb37fb1d958845c4
+translation_source_sha: 081ca28df6f67e8c9496904b51499d3b57ebe3c4
 translation_revised: 2026-07-23
 ---
 
@@ -151,6 +151,12 @@ Cross-origin direct-upload target에는 content header를 보내지만 read API 
 cancel하고 bounded reconnect를 사용합니다. Provisioning은 event 전달 실패 시 reader도 cancel합니다.
 Agent stream의 `401`은 전체 화면 login recovery를 기다리고, `403`은 새 App Role을 page reload 없이
 반영할 수 있도록 reconnect합니다.
+
+Command Deck의 web research turn은 작업 진행 중 실제 상태를 나타내는 `status` frame을 stream합니다.
+Server는 semantic search intent가 narrator model을 호출할 때만 `web_search_classifying`을 emit하고,
+public-web provider 호출 직전에만 `web_search_searching`을 emit하며, retrieval 후에는 정제된 source
+수와 preview를 포함한 `web_search_grounded`를 emit합니다. 답변 준비 trace는 이 단계를 즉시
+렌더링합니다. 실행하지 않은 단계는 해당 turn의 진행 상태로 표시하지 않습니다.
 
 Interactive Live route는 tab이 hidden 상태일 때 SSE reader를 pause합니다. Operator가 활성화한
 browser notification consumer만 bounded exception으로 background에서 authenticated live reader를

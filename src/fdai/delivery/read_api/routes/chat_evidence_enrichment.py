@@ -286,6 +286,8 @@ async def _with_web_evidence(
     prompt: str,
     view_context: dict[str, Any],
     resolver: ChatWebSearchEvidenceResolver | None,
+    *,
+    progress_observer: AgentProgressObserver | None = None,
 ) -> dict[str, Any]:
     """Replace client-supplied web data with a bounded server-owned snapshot."""
 
@@ -293,7 +295,16 @@ async def _with_web_evidence(
     enriched.pop("_web_evidence", None)
     if resolver is None or "_behavior_evidence" in enriched:
         return enriched
-    evidence = await resolver.resolve(prompt, enriched)
+    progressive = getattr(resolver, "resolve_with_progress", None)
+    evidence = (
+        await progressive(
+            prompt,
+            enriched,
+            progress_observer=progress_observer,
+        )
+        if progress_observer is not None and callable(progressive)
+        else await resolver.resolve(prompt, enriched)
+    )
     if evidence is not None:
         enriched["_web_evidence"] = dict(evidence)
     return enriched
