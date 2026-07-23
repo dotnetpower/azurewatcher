@@ -369,6 +369,85 @@ class TestCoordinatorNarratorHook:
         system_turns = [t.content for t in session.turns if t.direction == "system"]
         assert any("narrator translated to:" in c for c in system_turns)
 
+    def test_contextual_narrator_receives_only_prior_turns_for_follow_up(self) -> None:
+        from fdai.core.conversation import (
+            ConversationCoordinator,
+            ToolResult,
+            Turn,
+            default_tool_schemas,
+        )
+
+        class _ContextualNarrator:
+            def translate(self, **kwargs):  # type: ignore[no-untyped-def]
+                raise AssertionError("legacy translate must not run")
+
+            def translate_with_context(  # type: ignore[no-untyped-def]
+                self,
+                *,
+                utterance,
+                tools,
+                prior_turns,
+                principal_role,
+            ):
+                assert utterance == "show that catalog again"
+                assert [turn.content for turn in prior_turns] == [
+                    "explore_catalog storage",
+                    "found storage rules",
+                ]
+                assert principal_role == "reader"
+                return "explore_catalog storage"
+
+        coordinator = ConversationCoordinator(
+            tools=self._successful_tools(),
+            narrator=_ContextualNarrator(),
+            narrator_tool_schemas=default_tool_schemas(),
+        )
+        session = self._session()
+        session.append(
+            Turn(turn_id="prior-in", direction="inbound", content="explore_catalog storage")
+        )
+        session.append(
+            Turn(turn_id="prior-out", direction="outbound", content="found storage rules")
+        )
+
+        result = coordinator.handle_turn(session=session, message="show that catalog again")
+
+        assert isinstance(result, ToolResult)
+        assert result.data["rules"][0]["id"] == "rule-example"
+
+    def test_contextual_narrator_cannot_invent_argument_absent_from_history(self) -> None:
+        from fdai.core.conversation import (
+            AbstainResult,
+            ConversationCoordinator,
+            Turn,
+            default_tool_schemas,
+        )
+
+        class _InventingNarrator:
+            def translate(self, **kwargs):  # type: ignore[no-untyped-def]
+                raise AssertionError("legacy translate must not run")
+
+            def translate_with_context(self, **kwargs):  # type: ignore[no-untyped-def]
+                return "explore_catalog confidential"
+
+        coordinator = ConversationCoordinator(
+            tools=self._successful_tools(),
+            narrator=_InventingNarrator(),
+            narrator_tool_schemas=default_tool_schemas(),
+        )
+        session = self._session()
+        session.append(
+            Turn(
+                turn_id="prior-in",
+                direction="inbound",
+                content="explore_catalog storage",
+            )
+        )
+
+        result = coordinator.handle_turn(session=session, message="show that again")
+
+        assert isinstance(result, AbstainResult)
+
     def test_grounded_answer_narrator_renders_successful_tool_result(self) -> None:
         from fdai.core.conversation import (
             ConversationCoordinator,

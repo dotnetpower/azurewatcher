@@ -98,6 +98,20 @@ class Narrator(Protocol):
 
 
 @runtime_checkable
+class ContextualNarrator(Protocol):
+    """Translate a follow-up using bounded prior turns as untrusted context."""
+
+    def translate_with_context(
+        self,
+        *,
+        utterance: str,
+        tools: Sequence[ToolSchema],
+        prior_turns: Sequence[Turn],
+        principal_role: str,
+    ) -> str | None: ...
+
+
+@runtime_checkable
 class ClarificationNarrator(Protocol):
     """Ask one bounded question without selecting or invoking a tool."""
 
@@ -507,6 +521,7 @@ def format_prompt_tool_list(tools: Sequence[ToolSchema], principal_role: str) ->
 
 __all__ = [
     "ClarificationNarrator",
+    "ContextualNarrator",
     "DeterministicKeywordNarrator",
     "GroundedAnswerNarrator",
     "Narrator",

@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 1166f54174f3a7138c626fe12a727fc0f80b2d7f
+translation_source_sha: 2272ed1f43d6614281e08bb462ce77b5553b193c
 translation_revised: 2026-07-23
 ---
 
@@ -119,6 +119,11 @@ flowchart TD
   installed tool schema만 받고 bounded question 하나를 반환할 수 있습니다. 이 경로는 tool을 호출하지
   않고 argument를 추측하지 않으며 provider 실패 또는 one-question 형식 위반 시 deterministic abstain
   response로 fallback합니다.
+  Optional `ContextualNarrator`는 bounded prior turn에서 single-tool follow-up을 번역할 수 있습니다.
+  Prior text는 untrusted data로 escape되며 parsing된 모든 scalar argument는 Unicode 및 separator
+  normalization 후 현재 발화 또는 prior turn에 실제로 존재해야 합니다. 누락되거나 invented argument는
+  tool lookup과 실행 전에 translation 전체를 폐기합니다. 이 protocol을 구현하지 않는 adapter는 기존
+  context-free `Narrator.translate` 동작을 유지합니다.
   Direct T0 matching에 실패한 compound request에서는 optional `ReadPlanNarrator`가 canonical command
   두세 개를 제안할 수 있습니다. Coordinator는 첫 call 전에 모든 command를 자체 grammar로 다시
   parsing하고 complete plan의 installed-tool membership, RBAC, command distinctness 및
@@ -140,13 +145,14 @@ flowchart TD
   - `coordinator.py` - `ConversationCoordinator` (Layer 2 orchestrator).
   - `read_plan.py` - bounded-plan 순수 검증, serial read 실행, result aggregation 및 identity-scoped
     high-signal conflict detection.
+  - `contextual_translation.py` - 현재 및 prior turn text에 대한 순수 scalar argument provenance.
   - `grounded_answer_validation.py` - narrated output과 immutable tool authority 사이의 보수적 numeric,
     timestamp, freshness 및 exact-ref 검사.
   - `tools.py` - `ConsoleTool` Protocol + per-tool 구현체가 Layer 1
     모듈에만 delegate.
-  - `narrator.py` - sync intent `Narrator`, proposal-only `ReadPlanNarrator`, zero-execution
-    `ClarificationNarrator` 및 presentation-only `GroundedAnswerNarrator` Protocol,
-    deterministic verb schema와 RBAC-scoped descriptor.
+  - `narrator.py` - sync intent `Narrator`, optional `ContextualNarrator`, proposal-only
+    `ReadPlanNarrator`, zero-execution `ClarificationNarrator` 및 presentation-only
+    `GroundedAnswerNarrator` Protocol, deterministic verb schema와 RBAC-scoped descriptor.
   - `session.py` - core/CLI용 disposable `ConversationSession` projection. Production web transcript는
     principal-scoped `ConversationHistoryStore`가 소유합니다.
 - [`cli/`](../../../cli)

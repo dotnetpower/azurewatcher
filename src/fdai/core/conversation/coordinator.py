@@ -31,12 +31,14 @@ import re
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, cast
 
 from fdai.core.conversation.answer_plan import build_answer_plan
+from fdai.core.conversation.contextual_translation import contextual_arguments_grounded
 from fdai.core.conversation.grounded_answer_validation import validate_grounded_answer
 from fdai.core.conversation.narrator import (
     ClarificationNarrator,
+    ContextualNarrator,
     GroundedAnswerNarrator,
     Narrator,
     ReadPlanNarrator,
@@ -248,7 +250,9 @@ class ConversationCoordinator:
             if planned is not None:
                 return planned
             translated = self._narrator_translate(
-                message, principal_role=session.principal.role.value
+                message,
+                principal_role=session.principal.role.value,
+                prior_turns=prior_turns,
             )
             if translated is not None:
                 # Narrator returned a T0-parseable verb string; re-match
@@ -567,7 +571,13 @@ class ConversationCoordinator:
 
         return None
 
-    def _narrator_translate(self, message: str, *, principal_role: str) -> str | None:
+    def _narrator_translate(
+        self,
+        message: str,
+        *,
+        principal_role: str,
+        prior_turns: Sequence[Turn],
+    ) -> str | None:
         """Ask the narrator (if wired) to turn ``message`` into a T0 verb string.
 
         Fail-closed: any narrator error is swallowed and the coordinator
@@ -579,12 +589,22 @@ class ConversationCoordinator:
 
         if self._narrator is None:
             return None
+        contextual = isinstance(self._narrator, ContextualNarrator) and bool(prior_turns)
         try:
-            translated = self._narrator.translate(
-                utterance=message,
-                tools=self._narrator_tool_schemas,
-                principal_role=principal_role,
-            )
+            if contextual:
+                contextual_narrator = cast(ContextualNarrator, self._narrator)
+                translated = contextual_narrator.translate_with_context(
+                    utterance=message,
+                    tools=self._narrator_tool_schemas,
+                    prior_turns=prior_turns,
+                    principal_role=principal_role,
+                )
+            else:
+                translated = self._narrator.translate(
+                    utterance=message,
+                    tools=self._narrator_tool_schemas,
+                    principal_role=principal_role,
+                )
         except Exception:  # noqa: BLE001 - narrator MUST NOT crash the REPL
             # Log-and-degrade: the narrator (LLM translator) can raise
             # for reasons operators care about (transport error, quota,
@@ -600,6 +620,14 @@ class ConversationCoordinator:
         if translated is None:
             return None
         stripped = translated.strip()
+        if contextual and stripped:
+            match = self._match_intent(stripped)
+            if match is None or not contextual_arguments_grounded(
+                match.arguments,
+                utterance=message,
+                prior_turns=prior_turns,
+            ):
+                return None
         return stripped or None
 
 
