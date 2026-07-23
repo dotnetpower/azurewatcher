@@ -45,6 +45,38 @@ def test_saga_audit_chain_appends_hash_linked_entries() -> None:
     saga.audit_chain.verify()
 
 
+def test_saga_seals_document_admission_as_audit_entry() -> None:
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    saga = Saga()
+    saga.bind_bus(bus)
+
+    asyncio.run(
+        saga.on_typed_message(
+            "object.verdict",
+            {
+                "producer_principal": "Forseti",
+                "kind": "document_ingestion",
+                "stage": "received",
+                "decision": "admit",
+                "reason": "ingress_validated",
+                "correlation_id": "upload-1",
+                "idempotency_key": "document.received:version-1",
+                "document_id": "doc-1",
+                "upload_id": "upload-1",
+            },
+        )
+    )
+
+    entry = bus.messages_on("object.audit-entry")[0].payload
+    assert entry["producer_principal"] == "Saga"
+    assert entry["audited_topic"] == "object.verdict"
+    assert entry["kind"] == "document_ingestion"
+    assert entry["stage"] == "received"
+    assert entry["decision"] == "admit"
+    assert "record" not in entry
+
+
 def test_saga_audit_chain_detects_tamper() -> None:
     chain = InMemoryAuditChain()
     chain.append(principal="Thor", topic="object.action-run", correlation_id="c", payload={})

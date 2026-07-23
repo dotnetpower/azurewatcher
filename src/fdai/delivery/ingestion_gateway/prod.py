@@ -248,7 +248,7 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         event_bus=pantheon_bus,
         worker=worker,
         metadata=metadata,
-        topic="object.verdict",
+        topic="object.audit-entry",
     )
     verifier = EntraJwtVerifier.from_env(env)
     resolver = RoleResolver(group_mapping=_group_mapping(env))

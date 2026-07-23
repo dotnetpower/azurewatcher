@@ -76,8 +76,33 @@ class Saga(Agent):
             correlation_id=correlation_id,
             payload=payload,
         )
+        if topic == "object.verdict" and payload.get("kind") == "document_ingestion":
+            await self._republish_document_decision(payload, correlation_id)
         if topic == "object.action-run":
             await self._republish_outcome(payload, correlation_id)
+
+    async def _republish_document_decision(
+        self, payload: dict[str, Any], correlation_id: str
+    ) -> None:
+        """Seal a document decision before the ingestion worker may act."""
+        if self.bus is None or not correlation_id:
+            return
+        await self.bus.publish(
+            "Saga",
+            "object.audit-entry",
+            {
+                "producer_principal": "Saga",
+                "kind": "document_ingestion",
+                "audited_topic": "object.verdict",
+                "correlation_id": correlation_id,
+                "idempotency_key": str(payload.get("idempotency_key") or ""),
+                "stage": str(payload.get("stage") or ""),
+                "decision": str(payload.get("decision") or "hold"),
+                "reason": str(payload.get("reason") or ""),
+                "document_id": str(payload.get("document_id") or ""),
+                "upload_id": str(payload.get("upload_id") or ""),
+            },
+        )
 
     async def _republish_outcome(self, payload: dict[str, Any], correlation_id: str) -> None:
         """Republish a terminal action outcome as an ``object.audit-entry``.

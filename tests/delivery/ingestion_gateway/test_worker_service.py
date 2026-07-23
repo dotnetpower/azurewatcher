@@ -62,13 +62,14 @@ async def test_worker_processes_forseti_admit_and_ignores_other_verdicts() -> No
     bus = InMemoryEventBus()
     worker = _Worker()
     upload_id = UUID("00000000-0000-0000-0000-000000000401")
-    await bus.publish("object.verdict", "doc", {"kind": "action", "decision": "admit"})
+    await bus.publish("object.verdict", "doc", {"kind": "document_ingestion", "decision": "admit"})
     await bus.publish(
-        "object.verdict",
+        "object.audit-entry",
         "doc",
         {
-            "producer_principal": "Forseti",
+            "producer_principal": "Saga",
             "kind": "document_ingestion",
+            "audited_topic": "object.verdict",
             "stage": "received",
             "decision": "admit",
             "upload_id": str(upload_id),
@@ -78,7 +79,7 @@ async def test_worker_processes_forseti_admit_and_ignores_other_verdicts() -> No
         event_bus=bus,
         worker=worker,  # type: ignore[arg-type]
         metadata=InMemoryDocumentMetadataStore(),
-        topic="object.verdict",
+        topic="object.audit-entry",
         retry_seconds=0.01,
     )
 
@@ -104,7 +105,7 @@ async def test_reconcile_processes_only_post_admission_uploads() -> None:
         event_bus=InMemoryEventBus(),
         worker=worker,  # type: ignore[arg-type]
         metadata=metadata,  # type: ignore[arg-type]
-        topic="object.verdict",
+        topic="object.audit-entry",
         reconcile_interval_seconds=0.01,
     )
 
@@ -130,7 +131,7 @@ async def test_reconcile_retries_after_worker_runtime_error() -> None:
         event_bus=InMemoryEventBus(),
         worker=worker,  # type: ignore[arg-type]
         metadata=_PersistentMetadata(upload_id),  # type: ignore[arg-type]
-        topic="object.verdict",
+        topic="object.audit-entry",
         reconcile_interval_seconds=0.01,
     )
 

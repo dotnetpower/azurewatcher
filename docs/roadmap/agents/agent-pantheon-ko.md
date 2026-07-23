@@ -1,7 +1,7 @@
 ---
 title: 에이전트 판테온
 translation_of: agent-pantheon.md
-translation_source_sha: 9807896f452703caea0167921ca981fc1a054a92
+translation_source_sha: 4d22c36ecc2963bd92cee08e0ddc55a6a1d7c92c
 translation_revised: 2026-07-23
 ---
 
@@ -101,7 +101,7 @@ graph TD
 조직도는 보고 라인이고 관계도는 데이터 흐름입니다. Sensing과 specialist가
 Forseti에 신호를 전달합니다. Action verdict는 Thor가 Vidar (recovery), Var (사람 승인),
 또는 실행으로 dispatch합니다. Document-ingestion verdict는 ingestion plane으로 돌아가며
-Thor는 이를 무시합니다. Saga는 terminal 상태를 감사하고, Norns는 Mimir에 제안하며,
+Thor는 이를 무시합니다. Saga는 gated decision과 terminal 상태를 감사하고, Norns는 Mimir에 제안하며,
 Odin은 판단 전에 충돌을 조정합니다.
 
 ```mermaid
