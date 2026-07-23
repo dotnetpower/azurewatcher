@@ -74,7 +74,7 @@
 .ov-stage span { display: block; color: var(--cs-text-soft); font-size: 10.5px; }
 .ov-stage strong { display: block; margin: 7px 0 2px; font-size: 20px; }
 .ov-stage small { display: block; font-size: 10px; }
-.ov-boundary-note { margin-top: 16px; padding: 11px 13px; border-left: 3px solid var(--cs-steel); background: var(--cs-shade); color: var(--cs-text-soft); font-size: 11.5px; }
+.ov-boundary-note { margin-top: 16px; padding: 11px 13px; border: 1px solid var(--cs-hairline); background: var(--cs-shade); color: var(--cs-text-soft); font-size: 11.5px; }
 .ov-guard-list { display: grid; gap: 8px; }
 .ov-guard { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, 1.2fr) 76px; align-items: center; gap: 16px; padding: 13px 14px; border: 1px solid var(--cs-hairline); border-radius: var(--ov-radius); background: var(--cs-card); }
 .ov-guard-name strong { display: block; font-size: 12.5px; }
