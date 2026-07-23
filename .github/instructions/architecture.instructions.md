@@ -49,7 +49,7 @@ multiplier without measuring baseline and treatment on the same scenario set.
    HIL, never to an ungated auto-action.
 
 ## Document Ingestion Is Agent-Owned (MUST)
-Uploaded documents (drop zone, ChatOps, email-in, connector) enter the same agent-driven control loop as any event - Huginn ingress, Heimdall/Forseti admissibility, Var HIL, Muninn index, Saga audit, Norns/Mimir catalog growth, Bragi citation - not a standalone gateway side effect; the gateway is a mechanical relay without executor rights, and a stage that mutates ingestion state without an owning agent and a Saga audit entry is a defect. See [document-ingestion.md](../../docs/roadmap/interfaces/document-ingestion.md#agent-ownership-of-the-ingestion-pipeline).
+Uploaded documents (drop zone, ChatOps, email-in, connector) enter the same agent-driven control loop as any event - Huginn ingress, Heimdall/Forseti admissibility, Var HIL, Muninn index, Saga audit, Norns/Mimir catalog growth, Bragi citation - not a standalone gateway side effect; the gateway is a mechanical relay without executor rights, and a stage that mutates ingestion state without an owning agent and a Saga audit entry is a defect. See [document-ingestion-agent-ownership.md](../../docs/roadmap/interfaces/document-ingestion-agent-ownership.md).
 
 ## Trust Routing (3-Tier)
 
