@@ -137,6 +137,10 @@ requiring a single incident selection. Model prose cannot change the selected in
 scope, supported cause, collection membership, or absence claim. A source with
 `availability=unavailable` never reports `reachable=true`; unconfigured or unprobed sources use
 `reachable=null`.
+Generic recency words such as `latest`, `recent`, or `최신` do not create incident authority by
+themselves. Operational lookup also requires explicit incident, issue, outage, failure, problem, or
+cause semantics. A public software version or release question therefore remains eligible for the
+bounded public-web path instead of producing a deterministic "no matching incident" answer.
 
 The Forecast Learning route reads only the server-owned PostgreSQL projection. Closure completeness
 uses due episodes as its denominator, and publication health separates future scheduled work from

@@ -23,8 +23,8 @@ from fdai.delivery.read_api.routes.rca_projection import project_rca
 _LOG = logging.getLogger(__name__)
 
 _OPERATIONAL_INTENT: Final = re.compile(
-    r"\b(recent|latest|last|incidents?|issue|outage|failure|problem|root cause|cause|why did)\b"
-    "|\ucd5c\uadfc|\ucd5c\uc2e0|\uc9c1\uc804|\uc778\uc2dc\ub358\ud2b8|\uc774\uc288|\uc7a5\uc560"
+    r"\b(incidents?|issue|outage|failure|problem|root cause|cause|why did)\b"
+    "|\uc778\uc2dc\ub358\ud2b8|\uc774\uc288|\uc7a5\uc560"
     "|\uc2e4\ud328|\ubb38\uc81c|\uc6d0\uc778|\uadfc\ubcf8 \uc6d0\uc778",
     re.IGNORECASE,
 )

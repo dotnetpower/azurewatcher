@@ -107,6 +107,9 @@ They also retain intent scope. A steer rerun keeps the active turn's structured 
 follow-up deterministically renders the bounded matching set without asking the operator to select
 one incident. A question that requires one incident, such as cause analysis, keeps the
 ambiguous-selection behavior.
+Generic public freshness terms such as `latest`, `recent`, or `최신` do not create incident scope
+without explicit incident, issue, outage, failure, problem, or cause semantics. A steer rerun keeps
+that original public-web versus operational boundary.
 
 ## Queue behavior
 

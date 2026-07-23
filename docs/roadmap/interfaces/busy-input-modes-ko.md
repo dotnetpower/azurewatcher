@@ -2,7 +2,7 @@
 title: 처리 중인 Conversation 입력 모드
 translation_of: busy-input-modes.md
 translation_source: docs/roadmap/interfaces/busy-input-modes.md
-translation_source_sha: 2c74145372546f10c326ea605aa0d8b5700fed3f
+translation_source_sha: 3135151312027f5aa510af7e0322b6dc78038bfc
 translation_revised: 2026-07-23
 ---
 
@@ -109,6 +109,9 @@ Intent scope도 유지합니다. Steer rerun은 active turn의 structured `web`,
 route를 유지하고, queued next turn은 자신의 content를 분류합니다. Incident collection-summary 후속
 입력은 operator에게 incident 하나를 선택하도록 요청하지 않고 bounded matching set을 결정론적으로
 렌더링합니다. Cause analysis처럼 incident 하나가 필요한 질문은 ambiguous-selection 동작을 유지합니다.
+`latest`, `recent`, `최신` 같은 generic public freshness term은 incident, issue, outage, failure,
+problem 또는 cause 의미가 명시되지 않으면 incident scope를 만들지 않습니다. Steer rerun도 원래의
+public-web와 operational 경계를 유지합니다.
 
 ## Queue 동작
 

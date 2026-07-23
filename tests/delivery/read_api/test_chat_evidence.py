@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import pytest
+
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.delivery.read_api.routes.chat_evidence import (
     OperationalEvidenceResolver,
@@ -111,6 +113,32 @@ def test_detects_cross_screen_operational_question_but_not_current_screen_cause(
     assert needs_operational_evidence(korean_recent) is True
     assert needs_operational_evidence("why is this screen showing attention?") is False
     assert needs_operational_evidence(korean_screen) is False
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    (
+        "vscode 최신버전은?",
+        "VS Code latest version?",
+        "Python 최신버전은?",
+        "latest Kubernetes release?",
+    ),
+)
+def test_public_software_freshness_does_not_trigger_incident_lookup(prompt: str) -> None:
+    assert needs_operational_evidence(prompt) is False
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    (
+        "latest memory incident",
+        "recent deployment failure",
+        "최신 메모리 인시던트 원인은?",
+        "최근 배포 실패를 보여줘",
+    ),
+)
+def test_operational_recency_with_incident_context_still_resolves(prompt: str) -> None:
+    assert needs_operational_evidence(prompt) is True
 
 
 def test_ontology_issue_terms_alone_do_not_trigger_incident_lookup() -> None:

@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: 063837c8f503896d6aabdfeadce72e8369343fdf
+translation_source_sha: 4f18213c63b8d59bfa8c9d392510381a32165d12
 translation_revised: 2026-07-23
 ---
 
@@ -137,6 +137,10 @@ set을 즉시 렌더링합니다. Model prose는 선택된 incident, search scop
 membership 또는 absence claim을 바꿀 수 없습니다.
 `availability=unavailable`인 source는 `reachable=true`를 보고하지 않으며 구성되지 않았거나 probe하지
 않은 source는 `reachable=null`을 사용합니다.
+`latest`, `recent`, `최신` 같은 generic recency 단어만으로는 incident authority를 만들지 않습니다.
+Operational lookup에는 incident, issue, outage, failure, problem 또는 cause 의미가 명시적으로 함께
+있어야 합니다. 따라서 public software version 또는 release 질문은 deterministic "no matching incident"
+답변 대신 bounded public-web path 대상으로 유지됩니다.
 
 Forecast Learning route는 server-owned PostgreSQL projection만 읽습니다. Closure completeness는
 due episode를 denominator로 사용하고 publication health는 미래 scheduled work를 due debt, failed
