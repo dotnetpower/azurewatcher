@@ -34,6 +34,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from fdai.core.conversation.answer_plan import build_answer_plan
+from fdai.core.conversation.grounded_answer_validation import validate_grounded_answer
 from fdai.core.conversation.narrator import (
     ClarificationNarrator,
     GroundedAnswerNarrator,
@@ -403,11 +404,9 @@ class ConversationCoordinator:
         if answer is None:
             return result
         rendered = answer.strip()
-        if (
-            not rendered
-            or len(rendered) > _MAX_RENDERED_ANSWER_CHARS
-            or any(reference not in rendered for reference in result.evidence_refs)
-        ):
+        if not rendered or len(rendered) > _MAX_RENDERED_ANSWER_CHARS:
+            return result
+        if not validate_grounded_answer(rendered, result).valid:
             return result
         session.append(
             Turn(

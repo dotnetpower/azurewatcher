@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 77ce0edd64a56d83b27652b952aa7dce6fbf6dbe
+translation_source_sha: 7f8c9d06853d82717bfc25ab45747e73cbc1364e
 translation_revised: 2026-07-23
 ---
 
@@ -111,6 +111,10 @@ flowchart TD
   class, evidence-reference count 및 prior conversation context 유무에서 결정론적으로 조립합니다.
   현재 inbound/tool/result transaction은 prior context에서 제외합니다. Web generation은 read API
   backend seam이므로 deployment가 provider를 바인딩할 수 있습니다.
+  Rendering 후 core validator가 immutable `ToolResult`에 없는 numeric value, percentage 또는 RFC3339
+  timestamp를 거부합니다. `current`, `live`, `latest` 같은 freshness 표현에는 해당 result의 exact
+  timestamp가 필요합니다. Markdown list ordinal과 identifier 내부 숫자는 formatting을 claim으로
+  오인하지 않도록 이 보수적 검사에서 제외합니다.
   Intent translation이 계속 ambiguous하면 optional `ClarificationNarrator`가 principal에게 보이는
   installed tool schema만 받고 bounded question 하나를 반환할 수 있습니다. 이 경로는 tool을 호출하지
   않고 argument를 추측하지 않으며 provider 실패 또는 one-question 형식 위반 시 deterministic abstain
@@ -131,6 +135,8 @@ flowchart TD
 - [`src/fdai/core/conversation/`](../../../src/fdai/core/conversation)
   - `coordinator.py` - `ConversationCoordinator` (Layer 2 orchestrator).
   - `read_plan.py` - bounded-plan 순수 검증, serial read 실행 및 result aggregation.
+  - `grounded_answer_validation.py` - narrated output과 immutable tool authority 사이의 보수적 numeric,
+    timestamp, freshness 및 exact-ref 검사.
   - `tools.py` - `ConsoleTool` Protocol + per-tool 구현체가 Layer 1
     모듈에만 delegate.
   - `narrator.py` - sync intent `Narrator`, proposal-only `ReadPlanNarrator`, zero-execution

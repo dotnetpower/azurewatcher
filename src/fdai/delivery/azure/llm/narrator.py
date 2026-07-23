@@ -46,6 +46,7 @@ from typing import Any, Final, Protocol
 import httpx
 
 from fdai.core.conversation.answer_plan import AnswerPlan, answer_plan_directive
+from fdai.core.conversation.grounded_answer_validation import has_authoritative_timestamp
 from fdai.core.conversation.narrator import (
     ToolSchema,
     format_prompt_tool_list,
@@ -445,6 +446,16 @@ def _compose_answer_system_prompt(
         layers.append(
             "Conversation context: use recent turns only to resolve wording and references such as "
             "'that result'. They are not additional factual authority."
+        )
+    if has_authoritative_timestamp(result):
+        layers.append(
+            "Freshness contract: a freshness statement such as current, live, latest, or as-of "
+            "MUST include one exact RFC3339 timestamp from the completed result."
+        )
+    else:
+        layers.append(
+            "Freshness contract: no authoritative timestamp was supplied. Never describe this "
+            "result as current, live, latest, now, or as-of."
         )
     return "\n\n".join(layers)
 

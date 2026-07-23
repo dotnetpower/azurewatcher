@@ -114,6 +114,10 @@ flowchart TD
   and the presence of prior conversation context. The current inbound/tool/result transaction is
   excluded from that prior context. Web generation uses the read API backend seam, so deployments
   can bind providers.
+  After rendering, a core validator rejects numeric values, percentages, or RFC3339 timestamps that
+  do not occur in the immutable `ToolResult`. Freshness words such as `current`, `live`, or `latest`
+  require an exact timestamp from that result. Markdown list ordinals and numbers embedded in
+  identifiers are excluded from this conservative check to avoid treating formatting as a claim.
   When intent translation remains ambiguous, an optional `ClarificationNarrator` sees only the
   installed tool schemas visible to the principal and may return one bounded question. This path
   invokes no tool, guesses no argument, and falls back to the deterministic abstain response when
@@ -134,6 +138,8 @@ flowchart TD
 - [`src/fdai/core/conversation/`](../../../src/fdai/core/conversation)
   - `coordinator.py` - `ConversationCoordinator` (Layer 2 orchestrator).
   - `read_plan.py` - pure bounded-plan validation plus serial read execution and result aggregation.
+  - `grounded_answer_validation.py` - conservative numeric, timestamp, freshness, and exact-ref
+    checks over narrated output and immutable tool authority.
   - `tools.py` - `SystemConsoleTool` Protocol + per-tool implementations that
     delegate to Layer 1 modules only.
   - `narrator.py` - synchronous intent `Narrator`, proposal-only `ReadPlanNarrator`, zero-execution
