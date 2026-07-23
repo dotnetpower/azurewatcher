@@ -25,12 +25,11 @@ output "dev_access_vnet_id" {
 }
 
 output "fdai_private_dns_routing_domains" {
-  description = "Split-DNS routing suffixes derived from the linked private zones, with the privatelink prefix removed so the Resolver only receives FDAI private-service lookups. Public sign-in domains such as login.microsoftonline.com keep the workstation default resolver."
-  value = sort([
-    for zone in var.fdai_private_dns_zones : replace(
+  description = "Split-DNS routing suffixes for the linked private zones. Each zone yields both its CNAME-target suffix (the privatelink prefix removed) and its public query suffix, so a public alias such as Key Vault's vault.azure.net and its vaultcore.azure.net CNAME target both route to the Resolver and the CNAME chase completes on the private interface. Public sign-in domains such as login.microsoftonline.com keep the workstation default resolver."
+  value = sort(distinct(flatten([
+    for zone in var.fdai_private_dns_zones : [
       replace(zone.name, "privatelink.", ""),
-      "vaultcore.azure.net",
-      "vault.azure.net",
-    )
-  ])
+      replace(replace(zone.name, "privatelink.", ""), "vaultcore.azure.net", "vault.azure.net"),
+    ]
+  ])))
 }

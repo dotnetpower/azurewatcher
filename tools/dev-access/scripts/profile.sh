@@ -18,6 +18,7 @@ subscription_id="$(terraform output -raw subscription_id)"
 resource_group_name="$(terraform output -raw resource_group_name)"
 vpn_gateway_name="$(terraform output -raw vpn_gateway_name)"
 dns_resolver_ip="$(terraform output -raw dns_resolver_inbound_ip)"
+routing_domains_json="$(terraform output -json fdai_private_dns_routing_domains)"
 popd >/dev/null
 
 active_subscription_id="$(az account show --query id --output tsv)"
@@ -70,6 +71,33 @@ if ! grep -Fq "${dns_resolver_ip}" "${profile_path}"; then
   printf 'Regenerate the profile after the VNet DNS server update has converged.\n' >&2
   exit 1
 fi
+
+# Constrain the Resolver to FDAI private-service suffixes. Without <dnssuffixes>,
+# an Entra Azure VPN Client turns <dnsservers> into a catch-all NRPT rule ('.')
+# that also captures public sign-in domains such as login.microsoftonline.com and
+# breaks browser authentication. See the Azure VPN Client optional configuration
+# guide (DNS suffixes / NRPT).
+python3 - "${profile_path}" "${routing_domains_json}" <<'PY'
+import json
+import re
+import sys
+
+profile_path = sys.argv[1]
+routing_domains = json.loads(sys.argv[2])
+if not routing_domains:
+    raise SystemExit("error: no private DNS routing domains to constrain the profile")
+
+text = open(profile_path, encoding="utf-8").read()
+if "<dnssuffixes>" in text:
+    raise SystemExit(0)
+
+entries = "".join(f"      <dnssuffix>.{domain}</dnssuffix>\n" for domain in routing_domains)
+block = f"    <dnssuffixes>\n{entries}    </dnssuffixes>\n"
+new_text, count = re.subn(r"(</dnsservers>[ \t]*\n)", r"\1" + block, text, count=1)
+if count != 1:
+    raise SystemExit("error: profile has no <dnsservers> block to anchor DNS suffixes")
+open(profile_path, "w", encoding="utf-8").write(new_text)
+PY
 
 mkdir -p "${PROFILE_DIR}"
 install -m 0600 "${profile_path}" "${PROFILE_DIR}/azurevpnconfig.xml"

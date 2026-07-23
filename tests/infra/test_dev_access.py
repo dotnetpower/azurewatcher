@@ -65,6 +65,8 @@ def test_dev_access_ships_repeatable_client_checks() -> None:
 
     assert "az network vnet-gateway vpn-client generate" in profile
     assert "terraform output -raw dns_resolver_inbound_ip" in profile
+    assert "terraform output -json fdai_private_dns_routing_domains" in profile
+    assert "<dnssuffixes>" in profile
     assert "from zipfile import ZipFile" in profile
     assert "networkingMode=mirrored" in doctor
     assert "dnsTunneling=true" in doctor

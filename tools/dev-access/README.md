@@ -90,6 +90,12 @@ tools/dev-access/scripts/profile.sh
 Import `tools/dev-access/.profiles/azurevpnconfig.xml` into Azure VPN Client, then connect with the
 Entra account authorized by the tenant's Conditional Access and MFA policy.
 
+`profile.sh` injects the linked service suffixes as `<dnssuffixes>` into the generated profile. An
+Entra Azure VPN Client applies these as Name Resolution Policy Table (NRPT) rules, so only FDAI
+private-service lookups reach the Resolver. Without them the profile's `<dnsservers>` becomes a
+catch-all NRPT rule that also captures public sign-in domains and breaks browser authentication.
+Regenerate and reimport the profile whenever the linked private zones change.
+
 WSL normally receives the VPN DNS policy through DNS tunneling. If the distribution manages
 `/etc/resolv.conf` itself or pins `systemd-resolved` to another DNS service, apply the Resolver to
 the mirrored VPN interface after each connection:
