@@ -3,6 +3,7 @@ import type { AgentActivityMessage, AgentStatus } from "../hooks/use-agent-strea
 import {
   activeAgentCount,
   currentRuntimeCount,
+  AGENT_CONTRACT,
   AGENT_RUNTIME_BINDING,
   AGENT_ROLE,
   agentChatContext,
@@ -286,7 +287,22 @@ describe("agents.model org chart + agent events", () => {
     for (const { name } of PANTHEON) {
       expect(AGENT_ROLE[name], name).toBeDefined();
       expect(AGENT_ROLE[name]?.title.length).toBeGreaterThan(0);
+      expect(AGENT_CONTRACT[name], name).toBeDefined();
+      expect(AGENT_CONTRACT[name]?.owns.length).toBeGreaterThan(0);
     }
+  });
+
+  it("preserves the fixed ownership and safety boundaries", () => {
+    expect(AGENT_CONTRACT.Forseti?.owns).toEqual([
+      "Verdict", "RCA", "SecurityEvent", "ArbitrationRequest",
+    ]);
+    expect(AGENT_CONTRACT.Heimdall?.owns).toContain("ForecastOutcome");
+    expect(AGENT_CONTRACT.Bragi?.owns).toContain("UserPreference");
+    expect(AGENT_CONTRACT.Forseti?.hotPathLlm).toBe(true);
+    expect(AGENT_CONTRACT.Bragi?.hotPathLlm).toBe(true);
+    expect(AGENT_CONTRACT.Norns?.offPathLlm).toBe(true);
+    expect(AGENT_CONTRACT.Saga?.hardDependency).toBe(true);
+    expect(AGENT_CONTRACT.Vidar?.hardDependency).toBe(true);
   });
 
   it("org chart places every agent exactly once, rooted at Odin", () => {

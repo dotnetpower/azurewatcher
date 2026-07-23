@@ -132,7 +132,7 @@
     },
     "panel": {
       "live": "실시간",
-      "agents": "에이전트",
+      "agents": "Fleet",
       "hilQueue": "승인",
       "provision": "프로비저닝",
       "audit": "감사 로그",
@@ -141,7 +141,7 @@
       "agentActivity": "에이전트 활동",
       "architecture": "아키텍처",
       "ontology": "온톨로지",
-      "pantheon": "판테온",
+      "pantheon": "조직",
       "handover": "인수인계",
       "blastRadius": "영향 범위",
       "promotionGates": "승급 게이트",
@@ -190,7 +190,7 @@
       "agentActivity": "에이전트별 타임라인: 어떤 에이전트가 무엇을 언제 어떻게 했는지",
       "architecture": "배포된 리소스, 경계 및 종속성",
       "ontology": "리소스 + 링크 그래프 (classDiagram)",
-      "pantheon": "15개의 명명된 자율 에이전트 (판테온)",
+      "pantheon": "고정된 15개 에이전트의 보고 체계와 실시간 상태",
       "handover": "15개 에이전트를 누가 담당하나: 책임 담당자 + FDAI 유지관리자",
       "blastRadius": "변경 전에 도달 가능한 하위 그래프 시뮬레이션",
       "promotionGates": "ActionType별 관찰 모드에서 실행 모드로의 승격 준비도",
@@ -454,8 +454,8 @@
   "agents": {
     "workspace": {
       "label": "에이전트 작업 영역",
-      "roster": "목록",
-      "organization": "조직",
+      "fleet": "Fleet",
+      "org": "조직",
       "activity": "활동",
       "handover": "인수인계"
     },
@@ -471,10 +471,17 @@
     "header": {
       "eyebrow": "읽기 전용 실시간 상태",
       "title": "에이전트 플릿",
-      "descriptionLead": "고정된 15개 에이전트 판테온의 실시간 작업입니다. 현재 작업을 확인하고, 각 에이전트의 근거 타임라인을 열거나, 근거가 있는 컨텍스트를 질문할 수 있습니다. 상태는 영구",
+      "descriptionLead": "고정된 15개 에이전트 Fleet의 현재 작업과 주의 항목입니다. 상태는 영구",
       "descriptionMiddle": " 스냅샷과 다음 엔드포인트의 실시간 델타를 결합합니다:",
       "descriptionTail": ".",
       "engaged": "{count}개 참여 중"
+    },
+    "org": {
+      "eyebrow": "읽기 전용 조직",
+      "title": "조직",
+      "description": "고정된 15개 에이전트의 보고 체계와 현재 런타임 상태, 보존된 인시던트 참여 정보를 보여줍니다.",
+      "chartLabel": "에이전트 조직도",
+      "contextPurpose": "고정된 15개 에이전트의 보고 체계와 현재 런타임 상태입니다. 이 읽기 전용 화면은 작업을 실행하지 않고 선택한 에이전트와 인시던트 근거를 엽니다."
     },
     "layout": {
       "label": "레이아웃 모드",
@@ -594,6 +601,9 @@
       "advise": "관찰 / 조언"
     },
     "roster": {
+      "contextTitle": "대기는 정상입니다.",
+      "contextBody": "에이전트는 구독 토픽에서 깨어납니다. 고정 소유권과 안전 경계는 상세 정보에서 확인할 수 있습니다.",
+      "contextSource": "실시간 출처: {source}",
       "interpretationLabel": "목록 상태 해석",
       "interpretationTitle": "상태는 설명이며 지시가 아닙니다.",
       "interpretationBody": "참여 중 수치는 모든 구독 런타임 루프가 아니라 현재 파이프라인 단계를 처리하는 에이전트 수입니다. 대기 에이전트는 자신의 토픽에서 깨어납니다. 이 콘솔은 작업을 관찰하며 승인하거나 실행하지 않습니다. 실시간 델타 출처: {source}. 인시던트 이력은 영구 감사 프로젝션에서 가져옵니다.",
@@ -642,6 +652,8 @@
       }
     },
     "card": {
+      "details": "상세 정보",
+      "owns": "소유 타입",
       "currentWork": "현재 작업",
       "activeIncident": "활성 인시던트",
       "stateSince": "상태 시작",
@@ -685,7 +697,7 @@
       "empty": "인시던트 없음 - 자율 운영 유지 중."
     },
     "context": {
-      "purpose": "15개 에이전트 판테온의 실시간 상태입니다. 각 인시던트는 하나의 협업입니다. 이 읽기 전용 화면은 선택한 작업을 설명하고 여기서 실행하지 않는 통제된 제안을 엽니다.",
+      "purpose": "15개 에이전트 Fleet의 실시간 상태와 고정 소유권입니다. 이 읽기 전용 화면은 선택한 작업을 설명하고 여기서 실행하지 않는 통제된 제안을 엽니다.",
       "selectedHeadline": "{title} ({status}) - 에이전트 {agents}개, turn {turns}개",
       "headline": "인시던트 {incidents}개 - 에이전트 {agents}개 참여 중"
     },

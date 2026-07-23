@@ -15,7 +15,6 @@ const EXPECTED_LAZY_ROUTES = new Set([
   "src/routes/rule-trace.tsx",
   "src/routes/architecture.tsx",
   "src/routes/ontology.tsx",
-  "src/routes/pantheon.tsx",
   "src/routes/handover.tsx",
   "src/routes/rule-catalog.tsx",
   "src/routes/workflow-builder.tsx",

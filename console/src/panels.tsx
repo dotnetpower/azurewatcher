@@ -47,7 +47,6 @@ const RuleTraceRoute = lazy(async () => ({ default: (await import("./routes/rule
 const RcaRoute = lazy(async () => ({ default: (await import("./routes/rca")).RcaRoute }));
 const ArchitectureRoute = lazy(async () => ({ default: (await import("./routes/architecture")).ArchitectureRoute }));
 const OntologyRoute = lazy(async () => ({ default: (await import("./routes/ontology")).OntologyRoute }));
-const PantheonRoute = lazy(async () => ({ default: (await import("./routes/pantheon")).PantheonRoute }));
 const HandoverRoute = lazy(async () => ({ default: (await import("./routes/handover")).HandoverRoute }));
 const RuleCatalogRoute = lazy(async () => ({ default: (await import("./routes/rule-catalog")).RuleCatalogRoute }));
 const WorkflowBuilderRoute = lazy(async () => ({ default: (await import("./routes/workflow-builder")).WorkflowBuilderRoute }));
@@ -308,7 +307,7 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     label: t("nav.panel.pantheon"),
     subtitle: t("nav.panelSub.pantheon"),
     group: "agents",
-    component: PantheonRoute,
+    component: AgentsRoute,
   },
   {
     id: "agent-activity",

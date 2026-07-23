@@ -31,6 +31,13 @@ Live follows the same shared title contract as `Operations / Live`. Its observat
 in the shared header actions area and wrap below the title on narrow viewports, so Freeze, source,
 window, and connection status remain visible.
 
+The Agents workspace uses three compact views: `Fleet`, `Org`, and `Activity`. Fleet combines live
+runtime state with the fixed registry ownership and safety flags inside per-agent Details
+disclosures. Org renders the keyboard-accessible reporting chart and selected incident evidence.
+The stable `/pantheon` path remains a compatibility route for Org, so existing links continue to
+resolve without keeping a second Pantheon directory in navigation. Ownership Handover remains a
+separate Explorer panel because it has its own governed proposal workflow.
+
 Every data-bearing card across the console drills down. The complete card surface uses a native
 keyboard-accessible link to the narrowest analytical or filtered-evidence destination that owns the
 datum. A card with independent controls exposes a visible primary detail link instead. Dashboard

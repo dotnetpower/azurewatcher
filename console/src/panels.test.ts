@@ -46,6 +46,12 @@ describe("panel navigation placement", () => {
     ]);
   });
 
+  test("reuses the stable pantheon route as the Org view", () => {
+    expect(panelForId("agents").label).toBe("Fleet");
+    expect(panelForId("pantheon").label).toBe("Org");
+    expect(panelForId("pantheon").component).toBe(panelForId("agents").component);
+  });
+
   test("pins the Settings group to the bottom rail", () => {
     expect(bottomRailPanels()).toEqual([]);
     expect(resolvePanels().some((panel) => panel.id === "settings-general")).toBe(true);

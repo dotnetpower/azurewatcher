@@ -2,7 +2,6 @@ import { useEffect, useState } from "preact/hooks";
 import { isOptionalReadApiUnavailable } from "../api";
 import type { ReadApiClient } from "../api";
 import type { AuthContext } from "../auth";
-import { AgentWorkspaceNav } from "../components/agent-workspace-nav";
 import {
   AsyncBoundary,
   KpiCard,
@@ -113,7 +112,6 @@ export function HandoverRoute({ client, auth }: Props) {
 
   return (
     <div class="stack">
-      <AgentWorkspaceNav />
       <PageHeader
         title={t("route.handover")}
         subtitle={t("handover.subtitle")}

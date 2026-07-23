@@ -575,6 +575,35 @@ export const AGENT_ROLE: Readonly<Record<string, AgentRole>> = {
   },
 };
 
+export interface AgentContract {
+  readonly owns: readonly string[];
+  readonly hotPathLlm?: boolean;
+  readonly offPathLlm?: boolean;
+  readonly hardDependency?: boolean;
+}
+
+/** Fixed ownership and safety boundaries projected by the Fleet details view. */
+export const AGENT_CONTRACT: Readonly<Record<string, AgentContract>> = {
+  Odin: { owns: ["ArbitrationDecision"] },
+  Thor: { owns: ["ActionRun", "ActionAttempt"] },
+  Forseti: {
+    owns: ["Verdict", "RCA", "SecurityEvent", "ArbitrationRequest"],
+    hotPathLlm: true,
+  },
+  Huginn: { owns: ["Event"] },
+  Heimdall: { owns: ["Anomaly", "Drift", "Forecast", "ForecastOutcome"] },
+  Vidar: { owns: ["Rollback"], hardDependency: true },
+  Var: { owns: ["Approval"] },
+  Bragi: { owns: ["Conversation", "Turn", "UserPreference"], hotPathLlm: true },
+  Saga: { owns: ["AuditEntry", "Issue"], hardDependency: true },
+  Mimir: { owns: ["Rule", "Policy"] },
+  Muninn: { owns: ["StateSnapshot", "ContextIndex"] },
+  Norns: { owns: ["RuleCandidate", "PatternObservation"], offPathLlm: true },
+  Njord: { owns: ["CostAnomaly", "Budget"] },
+  Freyr: { owns: ["CapacityForecast", "SizingRecommendation"] },
+  Loki: { owns: ["ChaosExperiment", "ResilienceScore"] },
+};
+
 /** One manager and its direct reports in the org-chart layout. */
 export interface OrgLine {
   readonly manager: string;

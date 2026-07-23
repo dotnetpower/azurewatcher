@@ -29,7 +29,6 @@ import {
   currentRuntimeCount,
   AGENT_ROLE,
   agentChatContext,
-  engagedGroups,
   incidentsForAgent,
   isEngaged,
   makeInitialState,
@@ -54,7 +53,6 @@ import {
 import { AgentRoster } from "./agents.roster";
 import {
   AgentHoverCard,
-  ConstellationLinks,
   OrgReportingLines,
 } from "./agents.constellation";
 import { AgentFocus, IncidentWorkflow } from "./agents.detail";
@@ -67,8 +65,10 @@ interface Props {
 const INCIDENT_PREVIEW = 10;
 
 function layoutFromRoute(): AgentLayout {
-  const view = currentRoute().search.get("view");
-  return view === "org" || view === "constellation" ? view : "roster";
+  const route = currentRoute();
+  if (route.panelId === "pantheon") return "org";
+  const view = route.search.get("view");
+  return view === "org" || view === "constellation" ? "org" : "roster";
 }
 
 function rosterFiltersFromRoute(): {
@@ -133,10 +133,8 @@ export function AgentsRoute({ client }: Props) {
   // the "All" toggle expands to the full retained history.
   const [showAllIncidents, setShowAllIncidents] = useState(false);
 
-  // Layout mode: the free "constellation" grid, or the hierarchical "org"
-  // chart that shows who reports to whom. Both share the same live nodes.
-  // Defaults to the org chart so the pantheon's roles + reporting lines are
-  // the first thing an operator sees.
+  // Fleet and hierarchical organization are separate workspace views.
+  // Legacy `view=constellation` links map to organization in `layoutFromRoute`.
   const [layout, setLayout] = useState<AgentLayout>(layoutFromRoute);
   const [rosterLayer, setRosterLayer] = useState<RosterLayer>(initialRosterFilters.layer);
   const [rosterState, setRosterState] = useState<RosterState>(initialRosterFilters.state);
@@ -179,9 +177,8 @@ export function AgentsRoute({ client }: Props) {
     correlation: string | null,
     nextLayout: AgentLayout = layout,
   ): void => {
-    navigate(routeHref("agents", {
+    navigate(routeHref(nextLayout === "org" ? "pantheon" : "agents", {
       params: {
-        view: nextLayout === "roster" ? null : nextLayout,
         agent,
         correlation,
         layer: rosterLayer === "all" ? null : rosterLayer,
@@ -215,11 +212,6 @@ export function AgentsRoute({ client }: Props) {
       return;
     }
     navigate(href);
-  };
-
-  const selectLayout = (nextLayout: AgentLayout): void => {
-    setLayout(nextLayout);
-    openFocus(selectedAgent, selectedId, nextLayout);
   };
 
   const selected: Incident | null = selectedId ? (state.incidents[selectedId] ?? null) : null;
@@ -267,21 +259,10 @@ export function AgentsRoute({ client }: Props) {
   ).length);
   const unobserved = Object.values(state.agents).filter((node) => !node.observed).length;
 
-  // Agents currently co-engaged, grouped by the incident they work on.
-  // Drives the connection lines: one group == one ticket == one link mesh.
-  const groups = useMemo(
-    () => runtimeCurrent ? engagedGroups(state) : [],
-    [runtimeCurrent, state.agents, state.incidents],
-  );
-
-  // Which agent the pointer is over - emphasises its links and shows the
-  // hover card. Kept in state (not just CSS) so the SVG links react too.
+  // Which agent the pointer is over - reveals its current-work hover card.
   const [hoveredAgent, setHoveredAgent] = useState<string | null>(null);
 
-  // Measured node centres so the SVG overlay can draw links between the
-  // real rendered positions of the constellation grid. Re-measured after
-  // every layout change and on resize (ResizeObserver), so the lines track
-  // reflow without hard-coding a layout.
+  // Measured node centres let the organization overlay track responsive nodes.
   const constellationRef = useRef<HTMLDivElement | null>(null);
   const nodeRefs = useRef(new Map<string, HTMLElement>());
   const [geometry, setGeometry] = useState<Geometry>(EMPTY_GEOMETRY);
@@ -314,8 +295,8 @@ export function AgentsRoute({ client }: Props) {
   usePublishViewContext(
     () => ({
       routeId: "agents",
-      routeLabel: t("route.pantheon"),
-      purpose: t("agents.context.purpose"),
+      routeLabel: layout === "org" ? t("agents.workspace.org") : t("agents.workspace.fleet"),
+      purpose: layout === "org" ? t("agents.org.contextPurpose") : t("agents.context.purpose"),
       glossary: composeGlossary([
         TERMS.correlationId,
         TERMS.hil,
@@ -373,12 +354,10 @@ export function AgentsRoute({ client }: Props) {
         }),
       },
     }),
-    [state, selected, active, selectedAgentNode],
+    [state, selected, active, selectedAgentNode, layout],
   );
 
-  // Render one agent node - shared by the constellation grid and the org
-  // chart so both carry the live ring, hover card, and click-to-focus. A
-  // button so the whole node is a keyboard-reachable focus target.
+  // Render one keyboard-reachable organization node with live runtime state.
   const renderNode = (name: string): VNode | null => {
     const node = state.agents[name];
     if (!node) return null;
@@ -387,9 +366,7 @@ export function AgentsRoute({ client }: Props) {
     const engaged = runtimeCurrent && isEngaged(node);
     const incident = node.correlationId ? (state.incidents[node.correlationId] ?? null) : null;
     const role = AGENT_ROLE[name];
-    const subLabel = layout === "org" && role
-      ? agentRoleTitle(name)
-      : agentStateLabel(node);
+    const subLabel = role ? agentRoleTitle(name) : agentStateLabel(node);
     const iconUrl = agentIconUrl(name);
     return (
       <button
@@ -426,41 +403,23 @@ export function AgentsRoute({ client }: Props) {
       <AgentWorkspaceNav />
       <header class="agents-head">
         <div>
-          <span class="agents-eyebrow">{t("agents.header.eyebrow")}</span>
-          <h2>{t("agents.header.title")}</h2>
+          <span class="agents-eyebrow">
+            {layout === "org" ? t("agents.org.eyebrow") : t("agents.header.eyebrow")}
+          </span>
+          <h2>{layout === "org" ? t("agents.org.title") : t("agents.header.title")}</h2>
           <p class="agents-sub">
-            {t("agents.header.descriptionLead")} <code>GET /incidents</code>
-            {t("agents.header.descriptionMiddle")} <code>GET /agents/stream</code>
-            {t("agents.header.descriptionTail")}
+            {layout === "org" ? (
+              t("agents.org.description")
+            ) : (
+              <>
+                {t("agents.header.descriptionLead")} <code>GET /incidents</code>
+                {t("agents.header.descriptionMiddle")} <code>GET /agents/stream</code>
+                {t("agents.header.descriptionTail")}
+              </>
+            )}
           </p>
         </div>
         <div class="agents-meta">
-          <div class="agents-layout-toggle" role="group" aria-label={t("agents.layout.label")}>
-            <button
-              type="button"
-              class={layout === "roster" ? "is-active" : ""}
-              aria-pressed={layout === "roster"}
-              onClick={() => selectLayout("roster")}
-            >
-              {t("agents.layout.roster")}
-            </button>
-            <button
-              type="button"
-              class={layout === "constellation" ? "is-active" : ""}
-              aria-pressed={layout === "constellation"}
-              onClick={() => selectLayout("constellation")}
-            >
-              {t("agents.layout.constellation")}
-            </button>
-            <button
-              type="button"
-              class={layout === "org" ? "is-active" : ""}
-              aria-pressed={layout === "org"}
-              onClick={() => selectLayout("org")}
-            >
-              {t("agents.layout.organization")}
-            </button>
-          </div>
           <span class={`agents-conn conn-${status}`}>{t(`agents.connection.${status}`)}</span>
           <span class="status-pill status-pill-neutral">
             {observationSourceLabel(streamSource)}
@@ -492,7 +451,6 @@ export function AgentsRoute({ client }: Props) {
           onStateChange={(next) => openRosterFilters(rosterLayer, next, rosterQuery)}
           onQueryChange={(next) => openRosterFilters(rosterLayer, rosterState, next, true)}
           onOpen={(name) => {
-            setLayout("org");
             openFocus(name, selectedId, "org");
           }}
         />
@@ -500,20 +458,11 @@ export function AgentsRoute({ client }: Props) {
       <div class="agents-layout">
         <section
           class={`agents-stage layout-${layout}`}
-          aria-label={t("agents.layout.pantheonLabel")}
+          aria-label={t("agents.org.chartLabel")}
           ref={constellationRef}
         >
           {layout === "org" && <OrgReportingLines geometry={geometry} />}
-          <ConstellationLinks
-            groups={groups}
-            geometry={geometry}
-            selectedId={selectedId}
-            hoveredAgent={hoveredAgent}
-          />
-          {layout === "constellation" ? (
-            <div class="agents-constellation">{PANTHEON.map((a) => renderNode(a.name))}</div>
-          ) : (
-            <div class="agents-org">
+          <div class="agents-org">
               <div class="org-tier org-root">{renderNode(ORG_CHART.root)}</div>
               <div class="org-tier org-branches">
                 {ORG_CHART.lines.map((line) => (
@@ -527,8 +476,7 @@ export function AgentsRoute({ client }: Props) {
                   <div class="org-reports">{ORG_CHART.staff.map((n) => renderNode(n))}</div>
                 </div>
               </div>
-            </div>
-          )}
+          </div>
         </section>
 
         <aside class="agents-side">

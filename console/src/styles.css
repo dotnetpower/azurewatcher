@@ -657,7 +657,7 @@ a:hover {
   text-decoration: none;
 }
 .brand-lockup:hover { color: var(--fg); }
-.brand-logo { width: 26px; height: 26px; display: block; flex: 0 0 auto; }
+.brand-logo { width: 26px; height: 26px; display: block; flex: 0 0 auto; filter: grayscale(1); }
 .brand-wordmark { font-size: 13px; font-weight: 760; letter-spacing: 0.055em; }
 .brand-separator { width: 1px; height: 16px; margin-left: 2px; background: var(--border); }
 .brand-product { color: var(--fg-muted); font-size: 12px; font-weight: 560; }
@@ -796,7 +796,7 @@ body.deck-open { overflow: hidden; }
   text-decoration: none;
 }
 .activity-bar-button:hover { color: var(--fg); background: var(--bg); }
-.activity-bar-button.active { color: var(--accent-strong); background: var(--bg); }
+.activity-bar-button.active { color: var(--fg); background: transparent; }
 .activity-bar-button.active::before {
   content: "";
   position: absolute;
@@ -805,7 +805,7 @@ body.deck-open { overflow: hidden; }
   bottom: 8px;
   width: 3px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--fg-muted);
 }
 .activity-bar-button:focus-visible,
 .navigation-icon-button:focus-visible,
@@ -998,7 +998,7 @@ body.deck-open { overflow: hidden; }
   padding-left: 4px;
 }
 .navigation-row:hover { background: var(--bg); }
-.navigation-row.active { background: color-mix(in oklab, var(--accent) 12%, var(--bg-elevated)); }
+.navigation-row.active { background: transparent; }
 .navigation-row a {
   min-width: 0;
   overflow: hidden;
@@ -1008,7 +1008,7 @@ body.deck-open { overflow: hidden; }
   font-size: 12px;
   text-decoration: none;
 }
-.navigation-row.active a { color: var(--accent-strong); font-weight: 650; }
+.navigation-row.active a { color: var(--fg); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .navigation-row.hidden { opacity: 0.58; }
 .navigation-row.hidden > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .navigation-hidden-section > p { margin: 0; padding: 8px 12px 12px; color: var(--fg-muted); font-size: 10px; }
@@ -9995,30 +9995,31 @@ main { padding-bottom: 60px !important; }
 .agent-workspace-nav {
   display: flex;
   align-items: center;
-  gap: 4px;
-  width: fit-content;
+  gap: 1.1rem;
+  width: 100%;
   max-width: 100%;
   overflow-x: auto;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-elevated);
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
 }
 .agent-workspace-nav a {
   flex: 0 0 auto;
-  padding: 0.38rem 0.72rem;
-  border-radius: 6px;
+  margin-bottom: -1px;
+  padding: 0.34rem 0 0.5rem;
+  border-bottom: 1px solid transparent;
   color: var(--fg-muted);
   font-size: 0.75rem;
   font-weight: 600;
   text-decoration: none;
 }
-.agent-workspace-nav a:hover { color: var(--fg); background: var(--bg); }
+.agent-workspace-nav a:hover { border-bottom-color: var(--fg-muted); color: var(--fg); }
 .agent-workspace-nav a.is-active {
-  color: var(--accent-strong);
-  background: color-mix(in srgb, var(--accent) 11%, var(--bg-elevated));
+  border-bottom-color: currentColor;
+  color: var(--fg);
+  background: transparent;
 }
-.agent-workspace-nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.agent-workspace-nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .agents-eyebrow {
   display: block;
@@ -10030,58 +10031,43 @@ main { padding-bottom: 60px !important; }
   text-transform: uppercase;
 }
 
-.agent-roster { display: grid; gap: 1rem; }
-.agent-roster-note {
+.agent-roster { display: grid; gap: 0.75rem; }
+.agent-roster-context {
   display: flex;
   align-items: baseline;
-  gap: 0.45rem;
-  padding: 0.75rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--agent-steel) 4%, var(--bg-elevated));
-  font-size: 0.78rem;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  color: var(--fg-muted);
+  font-size: 0.74rem;
 }
-.agent-roster-note span { color: var(--fg-muted); }
-.agent-discovery-note {
+.agent-roster-context strong { color: var(--fg); }
+.agent-roster-context > span:last-child { flex: 0 0 auto; }
+.agent-roster-summary {
   display: grid;
-  grid-template-columns: minmax(150px, auto) minmax(0, 1fr);
-  gap: 10px 18px;
-  align-items: center;
-  padding: 0.75rem 0.85rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elevated);
-}
-.agent-discovery-note > div { display: grid; gap: 2px; }
-.agent-discovery-note > div > strong { font-size: 0.78rem; }
-.agent-discovery-note > div > span { color: var(--accent-strong); font-size: 0.7rem; font-weight: 650; }
-.agent-discovery-note p { margin: 0; color: var(--fg-muted); font-size: 0.74rem; line-height: 1.45; }
-.agent-roster-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.75rem;
 }
 .agent-roster-kpi {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.15rem 0.6rem;
-  padding: 0.8rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-elevated);
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  border-right: 1px solid var(--border);
+  background: transparent;
   color: inherit;
   text-decoration: none;
 }
+.agent-roster-kpi:last-child { border-right: 0; }
 .agent-roster-kpi:hover,
-.agent-roster-kpi:focus-visible { border-color: var(--fg-muted); color: inherit; text-decoration: none; }
+.agent-roster-kpi:focus-visible { background: var(--bg); color: inherit; text-decoration: none; }
 .agent-roster-kpi > span { color: var(--fg-muted); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
 .agent-roster-kpi > strong { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-size: 1.55rem; line-height: 1; }
 .agent-roster-kpi > small { color: var(--fg-muted); font-size: 0.7rem; }
-.agent-roster-kpi.kind-engaged > strong { color: var(--agent-sage); }
-.agent-roster-kpi.kind-consumers > strong { color: var(--agent-steel); }
-.agent-roster-kpi.kind-watching > strong { color: var(--agent-teal); }
-.agent-roster-kpi.kind-incidents > strong { color: var(--agent-terracotta); }
-.agent-roster-kpi.kind-activity > strong { color: var(--agent-steel); }
 
 .agent-roster-toolbar {
   display: flex;
@@ -10095,21 +10081,22 @@ main { padding-bottom: 60px !important; }
 }
 .agent-roster-filter { display: flex; align-items: center; gap: 0.4rem; }
 .agent-roster-filter > span { color: var(--fg-muted); font-size: 0.67rem; font-weight: 700; text-transform: uppercase; }
-.agent-roster-filter > div { display: inline-flex; gap: 2px; }
+.agent-roster-filter > div { display: inline-flex; gap: 0.6rem; }
 .agent-roster-filter button {
-  border: 1px solid transparent;
-  border-radius: 6px;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
   background: transparent;
   color: var(--fg-muted);
   cursor: pointer;
   font: inherit;
   font-size: 0.7rem;
-  padding: 0.26rem 0.48rem;
+  padding: 0.26rem 0;
 }
-.agent-roster-filter button:hover { color: var(--fg); background: var(--bg); }
+.agent-roster-filter button:hover { border-bottom-color: var(--fg-muted); color: var(--fg); }
 .agent-roster-filter button.is-active {
-  border-color: var(--border);
-  background: var(--bg);
+  border-bottom-color: currentColor;
+  background: transparent;
   color: var(--fg);
   font-weight: 650;
 }
@@ -10126,20 +10113,21 @@ main { padding-bottom: 60px !important; }
 }
 .agent-roster-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
-  gap: 0.8rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 0.65rem;
 }
 .agent-roster-card {
   --agent-color: var(--agent-slate);
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.9rem;
+  gap: 0.55rem;
+  padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elevated);
-  box-shadow: 0 1px 2px rgba(15, 23, 30, 0.04);
+  box-shadow: none;
 }
 .agent-roster-card.layer-sensing { --agent-color: var(--agent-teal); }
 .agent-roster-card.layer-judge { --agent-color: var(--agent-plum); }
@@ -10152,14 +10140,14 @@ main { padding-bottom: 60px !important; }
 .agent-roster-card > header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.65rem; align-items: center; }
 .agent-roster-avatar {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--agent-color) 55%, transparent);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--agent-color) 7%, var(--bg-elevated));
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
 }
-.agent-roster-avatar .agent-icon { width: 19px; height: 19px; }
+.agent-roster-avatar .agent-icon { width: 18px; height: 18px; }
 .agent-roster-card h3 { margin: 0; font-size: 0.9rem; }
 .agent-roster-card header p { margin: 0.08rem 0 0; color: var(--fg-muted); font-size: 0.68rem; text-transform: capitalize; }
 .agent-roster-state {
@@ -10177,7 +10165,8 @@ main { padding-bottom: 60px !important; }
 .agent-roster-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .agent-roster-state.state-idle { color: var(--fg-muted); }
 .agent-roster-state.state-watching { color: var(--agent-teal); }
-.agent-roster-task { display: grid; gap: 0.15rem; margin: 0; min-height: 2.5rem; }
+.agent-roster-state.state-watching::before { animation: agent-watch-pulse 1.5s ease-out infinite; }
+.agent-roster-task { display: grid; gap: 0.12rem; margin: 0; min-height: 2.1rem; }
 .agent-roster-task > span { color: var(--fg-muted); font-size: 0.62rem; font-weight: 700; text-transform: uppercase; }
 .agent-roster-task > strong { font-size: 0.76rem; font-weight: 550; line-height: 1.4; }
 .agent-roster-card dl {
@@ -10185,12 +10174,36 @@ main { padding-bottom: 60px !important; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem 0.8rem;
   margin: 0;
-  padding-top: 0.7rem;
+  padding-top: 0.55rem;
   border-top: 1px solid var(--border);
 }
+.agent-roster-metrics { min-height: 2.85rem; }
 .agent-roster-card dl > div { min-width: 0; }
 .agent-roster-card dt { color: var(--fg-muted); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; }
 .agent-roster-card dd { overflow-wrap: anywhere; margin: 0.12rem 0 0; font-size: 0.72rem; }
+.agent-roster-details { border-top: 1px solid var(--border); }
+.agent-roster-details summary {
+  width: fit-content;
+  padding-top: 0.45rem;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+.agent-roster-role-summary { margin: 0.55rem 0 0; color: var(--fg-muted); font-size: 0.7rem; line-height: 1.4; }
+.agent-roster-details dl { border-top: 0; }
+.agent-roster-details .agent-roster-owns { grid-column: 1 / -1; }
+.agent-roster-owns dd { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.agent-roster-owns code { font-size: 0.62rem; }
+.agent-roster-flags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.55rem; }
+.agent-roster-flags span {
+  padding: 0.1rem 0.38rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg-muted);
+  font-size: 0.6rem;
+  font-weight: 650;
+}
 .agent-roster-card > footer { display: flex; gap: 0.4rem; margin-top: auto; }
 .agent-roster-card > footer button,
 .agent-roster-card > footer a,
@@ -10231,13 +10244,14 @@ main { padding-bottom: 60px !important; }
 
 @media (max-width: 850px) {
   .agent-roster-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .agent-roster-kpi:nth-child(2) { border-right: 0; }
+  .agent-roster-kpi:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+  .agent-roster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .agent-roster-search { flex-basis: 100%; margin-left: 0; }
 }
 @media (max-width: 520px) {
   .agents-meta { justify-content: flex-start; width: 100%; }
-  .agent-roster-note { align-items: flex-start; flex-direction: column; }
-  .agent-discovery-note { grid-template-columns: minmax(0, 1fr); }
-  .agent-roster-summary { grid-template-columns: minmax(0, 1fr); }
+  .agent-roster-context { align-items: flex-start; flex-direction: column; }
   .agent-roster-grid { grid-template-columns: minmax(0, 1fr); }
   .agent-roster-filter { align-items: flex-start; flex-direction: column; min-width: 0; width: 100%; }
   .agent-roster-filter > div { flex-wrap: wrap; }
@@ -10246,6 +10260,15 @@ main { padding-bottom: 60px !important; }
   .agent-roster-state { grid-column: 2; justify-self: start; }
   .agent-roster-card > footer { flex-wrap: wrap; }
   .agent-roster-card > footer .is-primary { margin-left: 0; }
+}
+
+@keyframes agent-watch-pulse {
+  0% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  70% { box-shadow: 0 0 0 4px transparent; opacity: 0.65; }
+  100% { box-shadow: 0 0 0 0 transparent; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-roster-state.state-watching::before { animation: none; }
 }
 
 .agents-head {
@@ -10314,7 +10337,7 @@ main { padding-bottom: 60px !important; }
   outline-offset: -2px;
 }
 
-/* Connection status pill - sage OPEN, terracotta CONNECTING, dusty-red CLOSED. */
+/* Connection status stays neutral in the header; the text carries the state. */
 .agents-conn {
   display: inline-flex;
   align-items: center;
@@ -10324,6 +10347,9 @@ main { padding-bottom: 60px !important; }
   padding: 0.14rem 0.55rem;
   border-radius: 999px;
   border: 1px solid currentColor;
+  color: var(--fg-muted);
+  background: transparent;
+  border-color: var(--border);
   font-size: 0.7rem;
   font-weight: 700;
 }
@@ -10335,19 +10361,19 @@ main { padding-bottom: 60px !important; }
   background: currentColor;
 }
 .agents-conn.conn-open {
-  color: var(--agent-sage);
-  background: color-mix(in srgb, var(--agent-sage) 10%, transparent);
-  border-color: color-mix(in srgb, var(--agent-sage) 30%, transparent);
+  color: var(--fg-muted);
+  background: transparent;
+  border-color: var(--border);
 }
 .agents-conn.conn-connecting {
-  color: var(--agent-terracotta);
-  background: color-mix(in srgb, var(--agent-terracotta) 10%, transparent);
-  border-color: color-mix(in srgb, var(--agent-terracotta) 30%, transparent);
+  color: var(--fg-muted);
+  background: transparent;
+  border-color: var(--border);
 }
 .agents-conn.conn-closed {
-  color: var(--agent-dusty-red);
-  background: color-mix(in srgb, var(--agent-dusty-red) 10%, transparent);
-  border-color: color-mix(in srgb, var(--agent-dusty-red) 30%, transparent);
+  color: var(--fg-muted);
+  background: transparent;
+  border-color: var(--border);
 }
 .agents-active {
   color: var(--fg-muted);

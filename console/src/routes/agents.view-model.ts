@@ -30,7 +30,7 @@ export interface Geometry {
 
 export const EMPTY_GEOMETRY: Geometry = { centers: {}, w: 0, h: 0 };
 
-export type AgentLayout = "roster" | "constellation" | "org";
+export type AgentLayout = "roster" | "org";
 export type RosterLayer = "all" | "governance" | "pipeline" | "domain";
 export type RosterState = "all" | "engaged" | "watching" | "idle" | "unobserved";
 
