@@ -1,7 +1,7 @@
 ---
 title: 시작과 라이프사이클(Startup and Lifecycle)
 translation_of: startup-and-lifecycle.md
-translation_source_sha: 82f5193802f010c5ee659443bddf01d95f234b75
+translation_source_sha: 12d5582040ad91b3b05a5ef2e5fa0d200c9ec62e
 translation_revised: 2026-07-23
 ---
 
@@ -149,12 +149,16 @@ flag를 추가하지 말고 `StartupProbeSpec`과 `StartupProbe`를 등록하는
 ### Live 검증 Evidence
 
 2026-07-23에 VNet-integrated self-hosted runner가 기존 development dependency에 bounded check를
-실행했습니다. PostgreSQL은 resolve 후 TCP 및 protocol-aware TLS handshake를 수락했습니다. Event
-Hubs는 resolve 후 Kafka port TCP/TLS를 수락했습니다. 구성된 model endpoint는 private address로
-resolve되었고 TCP/TLS를 수락했습니다. 최소 managed-identity model operation은 `401`을 반환했으므로
-probe는 healthy capability evidence를 기록하지 않고 model path를 degraded로 분류했습니다. 통제된
-refused destination은 정제된 `ConnectionRefusedError` class와 함께 `blocked`로 축소되었습니다. 검증
-후 임시 role을 제거하고 database와 runner를 이전 stopped/deallocated 상태로 되돌렸습니다.
+실행했습니다. Terraform은 data resource를 교체하지 않고 두 Event Hubs shard와 기존 public-mode
+PostgreSQL server에 private endpoint 및 linked private DNS를 추가했으며 Event Hubs public access를
+비활성화했습니다. 마지막 exact target plan은 변경 사항이 없다고 보고했습니다. Runner VNet에서
+PostgreSQL, Event Hubs 및 구성된 model endpoint는 모두 private address로만 resolve되었고 TCP를
+수락했습니다. Event Hubs와 model endpoint는 일반 TLS를 완료했으며 PostgreSQL은 protocol-aware TLS
+handshake를 완료했습니다. 최소 managed-identity model operation은 `401`을 반환했으므로 probe는
+healthy capability evidence를 기록하지 않고 model path를 degraded로 분류했습니다. 통제된 refused
+destination은 정제된 `ConnectionRefusedError` class와 함께 `blocked`로 축소되었습니다. 검증 후
+임시 access를 제거하고 runner artifact를 삭제했으며 database와 runner를 이전
+stopped/deallocated 상태로 되돌렸습니다.
 
 ## 초기 규칙 카탈로그 상태
 

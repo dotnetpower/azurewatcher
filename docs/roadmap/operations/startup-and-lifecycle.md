@@ -147,13 +147,17 @@ flag.
 ### Live validation evidence
 
 On 2026-07-23, a VNet-integrated self-hosted runner performed bounded checks against the existing
-development dependencies. PostgreSQL resolved and accepted TCP plus a protocol-aware TLS
-handshake. Event Hubs resolved and accepted Kafka-port TCP/TLS. The configured model endpoint
-resolved to a private address and accepted TCP/TLS. A minimal managed-identity model operation
+development dependencies. Terraform added private endpoints and linked private DNS for the two
+Event Hubs shards and the existing public-mode PostgreSQL server without replacing data resources;
+Event Hubs public access was disabled. A final exact target plan reported no changes. From the
+runner VNet, PostgreSQL, Event Hubs, and the configured model endpoint all resolved only to private
+addresses and accepted TCP. Event Hubs and the model endpoint completed ordinary TLS, and
+PostgreSQL completed its protocol-aware TLS handshake. A minimal managed-identity model operation
 returned `401`, so the probe correctly classified the model path as degraded instead of recording
 healthy capability evidence. A controlled refused destination reduced to `blocked` with a
-sanitized `ConnectionRefusedError` class. The temporary validation role was removed and the
-database and runner were returned to their prior stopped/deallocated states after the check.
+sanitized `ConnectionRefusedError` class. Temporary validation access was removed, runner
+artifacts were deleted, and the database and runner were returned to their prior
+stopped/deallocated states after the check.
 
 ## Initial Rule Catalog State
 
