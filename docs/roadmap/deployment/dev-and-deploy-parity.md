@@ -77,9 +77,11 @@ not start the static design mocks or the isolated test ingestion gateway.
 ### Workspace context hygiene
 
 The committed VS Code settings exclude dependency trees, caches, generated reports, local runtime
-state, secrets, Terraform state, and scratch outputs from Explorer, search, or file watching as
-appropriate. These exclusions reduce editor load and keep generated or local artifacts out of
-default workspace-search context. They are discovery preferences only: you can still open an
+state, secrets, Terraform state, scratch outputs, and gitignored self-improvement worktrees
+(`.improve/`) from Explorer, search, or file watching as appropriate. These exclusions reduce
+editor load and keep generated or local artifacts out of default workspace-search context; the
+`.improve/` exclusion also prevents duplicate Problems-panel entries when multiple worktree copies
+of the same source file exist on disk. They are discovery preferences only: you can still open an
 excluded path for an explicit task, and no exclusion selects an evidence profile, authentication
 mode, action lifecycle, or runtime adapter. Source, tests, and owning design docs remain searchable.
 

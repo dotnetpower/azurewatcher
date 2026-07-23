@@ -5,6 +5,7 @@
     "files.exclude": {
         "**/__pycache__": true,
         "**/.astro": true,
+        "**/.improve": true,
         "**/.mypy_cache": true,
         "**/.pytest_cache": true,
         "**/.ruff_cache": true,
@@ -21,6 +22,7 @@
         "**/*.plan": true,
         "**/*.pyc": true,
         "**/*.tfstate*": true,
+        ".improve/**": true,
         "coverage.xml": true,
         "docs/internals/**": true,
         "examples/**": true,
@@ -33,6 +35,7 @@
         "**/__pycache__/**": true,
         "**/.astro/**": true,
         "**/.fdai/**": true,
+        "**/.improve/**": true,
         "**/.mypy_cache/**": true,
         "**/.pytest_cache/**": true,
         "**/.ruff_cache/**": true,

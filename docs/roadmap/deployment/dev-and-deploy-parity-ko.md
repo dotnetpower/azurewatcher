@@ -1,8 +1,8 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: d1af6f377e96b7a5563a0ed124923d279da622dd
-translation_revised: 2026-07-22
+translation_source_sha: d9073e206d1537813d0ac5cf3710bb2e17ee47db
+translation_revised: 2026-07-23
 ---
 
 # Runtime Parity - Authoritative Local Development 및 Test Fixture
@@ -80,9 +80,11 @@ mock과 격리된 test ingestion gateway는 시작하지 않습니다.
 ### Workspace context 정리
 
 커밋된 VS Code 설정은 dependency tree, cache, 생성된 report, local runtime state, secret,
-Terraform state 및 임시 output을 용도에 따라 Explorer, search 또는 file watching에서
-제외합니다. 이 제외는 editor 부하를 줄이고 생성되거나 로컬에만 있는 artifact가 기본 workspace
-search context에 포함되지 않게 합니다. 탐색 기본값일 뿐이므로 명시적 작업에서는 제외된 경로를
+Terraform state, 임시 output, 그리고 gitignore 처리된 self-improvement worktree(`.improve/`)를
+용도에 따라 Explorer, search 또는 file watching에서 제외합니다. 이 제외는 editor 부하를 줄이고
+생성되거나 로컬에만 있는 artifact가 기본 workspace search context에 포함되지 않게 하며,
+`.improve/` 제외는 동일한 source 파일의 worktree 복사본이 여러 개 있을 때 Problems 패널에
+중복 항목이 뜨는 것도 막아줍니다. 탐색 기본값일 뿐이므로 명시적 작업에서는 제외된 경로를
 직접 열 수 있습니다. 어떤 제외도 evidence profile, authentication mode, action lifecycle 또는
 runtime adapter를 선택하지 않습니다. Source, test 및 담당 design doc은 계속 검색할 수 있습니다.
 
