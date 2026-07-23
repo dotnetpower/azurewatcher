@@ -6,12 +6,19 @@ import asyncio
 import logging
 import os
 import signal
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
 import httpx
 
-from fdai.agents import OWNED_OBJECT_TOPICS, PantheonRuntime, ShadowDivergenceLedger
+from fdai.agents import (
+    OWNED_OBJECT_TOPICS,
+    PantheonRuntime,
+    Saga,
+    ShadowDivergenceLedger,
+    StateStoreAuditChainAdapter,
+)
 from fdai.composition import (
     LlmBindings,
     default_container_from_env,
@@ -68,6 +75,7 @@ from fdai.runtime.providers import (
 from fdai.shared.config.models import LlmMode
 from fdai.shared.config.runtime_flags import pantheon_start_enabled
 from fdai.shared.providers.event_bus import EventBus
+from fdai.shared.providers.state_store import StateStore
 from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 _LOGGER = logging.getLogger("fdai.startup")
@@ -104,6 +112,37 @@ def _build_runtime_workload_identity(
     )
 
 
+def _case_history_identity_client_id(environment: Mapping[str, str]) -> str:
+    client_id = environment.get("FDAI_CASE_HISTORY_MI_CLIENT_ID", "").strip()
+    if not client_id:
+        raise RuntimeError(
+            "FDAI_CASE_HISTORY_MI_CLIENT_ID MUST identify the dedicated workload identity"
+        )
+    executor_client_id = environment.get("FDAI_MI_CLIENT_ID", "").strip()
+    if executor_client_id and client_id == executor_client_id:
+        raise RuntimeError("case history and executor workload identities MUST be distinct")
+    return client_id
+
+
+def _build_runtime_saga(state_store: StateStore) -> Saga:
+    return Saga(audit_chain=StateStoreAuditChainAdapter(store=state_store))
+
+
+def _raise_required_task_failure(done: set[asyncio.Task[Any]]) -> None:
+    for task in done:
+        if task.cancelled():
+            continue
+        failure = task.exception()
+        if failure is None:
+            continue
+        _LOGGER.error(
+            "required_runtime_task_failed",
+            extra={"task": task.get_name()},
+            exc_info=failure,
+        )
+        raise RuntimeError(f"required runtime task failed: {task.get_name()}") from failure
+
+
 async def _run() -> int:
     container = default_container_from_env()
     summary = _summarize_config(container)
@@ -128,6 +167,8 @@ async def _run() -> int:
         )
         gateway_requested = bool(os.environ.get("FDAI_DEV_OPERATIONS_GATEWAY_URL", "").strip())
         case_history_requested = bool(os.environ.get("FDAI_CASE_HISTORY_CONTAINER_URL", "").strip())
+        if case_history_requested:
+            _case_history_identity_client_id(os.environ)
         if (
             container.config.llm.mode == LlmMode.AZURE
             or telemetry_requested
@@ -387,6 +428,7 @@ async def _run() -> int:
                         "fdai-pantheon",
                     ).strip(),
                     enforce=pantheon_enforce,
+                    saga=_build_runtime_saga(incident_audit_store),
                     disabled_agents=disabled_agents,
                     divergence=divergence_ledger,
                     incident_candidate_hook=_open_incident_candidate,
@@ -597,10 +639,7 @@ async def _run() -> int:
             if case_history_retention_task is not None:
                 cleanup_tasks.append(case_history_retention_task)
             await asyncio.gather(*cleanup_tasks, return_exceptions=True)
-            for task in done:
-                exc = task.exception()
-                if exc is not None:
-                    _LOGGER.error("consumer_task_failed", exc_info=exc)
+            _raise_required_task_failure(done)
         else:
             await stop.wait()
 

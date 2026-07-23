@@ -1,6 +1,6 @@
 ---
 translation_of: prediction-learning-and-case-history.md
-translation_source_sha: 23edf0e0d925d7964efe3eb205d7439e4d07f335
+translation_source_sha: 61c5b070f7677d1f1e08bb1dd626496b735439a1
 translation_revised: 2026-07-23
 ---
 # 예측 학습 및 케이스 히스토리
@@ -155,7 +155,8 @@ retention tick을 publish합니다. Huginn이 이를 정규화하고 Muninn만 t
 signal을 소비해 due deletion을 적용합니다. `FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS`는 cadence를
 제어하며 기본값은 1일입니다. 중복되거나 replay된 tick은 idempotent합니다. Raw event가 전달하는
 timestamp는 진단용일 뿐입니다. Muninn은 trusted UTC clock으로 due date를 평가하므로 ingress
-publisher가 deletion을 앞당길 수 없습니다.
+publisher가 deletion을 앞당길 수 없습니다. Retention publisher task가 실패하면 이후 tick을
+조용히 비활성화하지 않고 runtime이 unsuccessful exit로 종료됩니다.
 
 ## 구현 상태
 

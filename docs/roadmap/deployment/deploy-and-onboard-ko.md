@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: 7e94a1479f09a357c06ef669a47cc3aa2ffa7a0e
+translation_source_sha: f519673ca1ab10c482542972809cf3aba66096d3
 translation_revised: 2026-07-23
 ---
 
@@ -500,7 +500,7 @@ state를 제공합니다.
 | `KAFKA_SECURITY_PROTOCOL` | env | deployment | Azure 에서 `SASL_SSL`; 다른 곳에서는 프로바이더별 값 |
 | `KAFKA_SASL_MECHANISM` | env | deployment | Azure 에서 `OAUTHBEARER` |
 | `FDAI_STATE_STORE_DSN` | KV ref | upstream | audit + KPI 용 Postgres 연결 URI. `infra/main.tf` 의 `azurerm_key_vault_secret.state_store_dsn` 이 `module.state_store.application_dsn` 으로부터 배선하고, Container App 은 `secret{}` + `env{}` 로 노출 ([project-structure-ko.md](../architecture/project-structure-ko.md) 의 `infra/modules/compute/container-apps/` 참조). Local/dev는 없을 때 in-memory를 사용할 수 있지만 `RUNTIME_ENV=staging|prod`는 시작을 차단합니다. |
-| `FDAI_CASE_HISTORY_CONTAINER_URL` / `FDAI_CASE_HISTORY_MI_CLIENT_ID` / `FDAI_CASE_HISTORY_RETENTION_DAYS` / `FDAI_CASE_HISTORY_DELETION_DAYS` / `FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS` | env | upstream / deployment | Immutable case revision용 private Blob container URL, 전용 attached UAMI client id, active-retention/deletion-due offset 및 제한된 Muninn retention cadence입니다. Terraform은 storage와 identity binding을 파생하고 deletion이 retention보다 이르지 않게 검증하며, production startup은 전용 identity id가 없으면 실패합니다. Executor identity와 public/key-auth fallback은 사용하지 않습니다. Retention tick 기본값은 `86400`입니다. |
+| `FDAI_CASE_HISTORY_CONTAINER_URL` / `FDAI_CASE_HISTORY_MI_CLIENT_ID` / `FDAI_CASE_HISTORY_RETENTION_DAYS` / `FDAI_CASE_HISTORY_DELETION_DAYS` / `FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS` | env | upstream / deployment | Immutable case revision용 private Blob container URL, 전용 attached UAMI client id, active-retention/deletion-due offset 및 제한된 Muninn retention cadence입니다. Terraform은 storage와 identity binding을 파생하고 deletion이 retention보다 이르지 않게 검증하며, startup은 전용 identity id가 없거나 executor identity와 같으면 실패합니다. Public/key-auth fallback은 사용하지 않습니다. Retention tick 기본값은 `86400`입니다. |
 | `FDAI_OPERATOR_MEMORY_DSN` | KV ref | upstream | HIL 승인 operator memory 용 Postgres DSN. day-zero 는 `FDAI_STATE_STORE_DSN` 과 동일 소스 (단일 Flexible Server); deployment는 core를 건드리지 않고 나중에 분리할 수 있습니다. |
 | `FDAI_T1_PATTERN_LIBRARY_DSN` | KV ref | upstream | pgvector 기반 T1 패턴 라이브러리 용 Postgres DSN. day-zero 동일 소스, 동일 배선. |
 | `FDAI_INVENTORY_DSN` | KV ref | upstream | Scheduled inventory collector가 immutable candidate를 stage하고 active graph를 atomic promotion하는 데만 사용하는 PostgreSQL DSN. |

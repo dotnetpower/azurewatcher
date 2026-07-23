@@ -21,6 +21,7 @@ from fdai.agents._framework.pantheon import (
     PANTHEON_NAMES,
     PANTHEON_SPECS,
 )
+from fdai.agents._framework.provider_adapters import StateStoreAuditChainAdapter
 from fdai.agents._framework.registry import PantheonRegistry, load_pantheon
 from fdai.agents._framework.runtime import PantheonRuntime
 from fdai.agents._framework.topics import (
@@ -32,6 +33,7 @@ from fdai.agents._framework.workflows import WORKFLOWS, WorkflowSpec
 from fdai.agents.bragi import Bragi
 from fdai.agents.heimdall import Heimdall
 from fdai.agents.norns import Norns
+from fdai.agents.saga import Saga
 
 __all__ = [
     "Agent",
@@ -45,7 +47,9 @@ __all__ = [
     "PantheonBus",
     "PantheonRegistry",
     "PantheonRuntime",
+    "Saga",
     "ShadowDivergenceLedger",
+    "StateStoreAuditChainAdapter",
     "load_pantheon",
     "instantiate_pantheon",
     "PANTHEON_SPECS",

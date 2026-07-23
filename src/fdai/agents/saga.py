@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-from typing import Any
+from collections.abc import Awaitable
+from typing import Any, Protocol
 
 from fdai.agents._framework.action_semantics import RESULT_VALUES, outcome_result
 from fdai.agents._framework.adapters import (
@@ -30,18 +31,34 @@ from fdai.agents._framework.pantheon import _SAGA
 _FINGERPRINT_BUCKET = "issue_fingerprint_index"
 
 
+class SagaAuditChain(Protocol):
+    durable: bool
+    entries: list[AuditEntry]
+
+    def append(
+        self,
+        *,
+        principal: str,
+        topic: str,
+        correlation_id: str,
+        payload: dict[str, Any],
+    ) -> AuditEntry | Awaitable[AuditEntry]: ...
+
+    def entries_for_correlation(self, correlation_id: str) -> list[AuditEntry]: ...
+
+
 class Saga(Agent):
     """Wave-2 Saga: audit chain + GitHub Issue dedup."""
 
     def __init__(
         self,
         *,
-        audit_chain: InMemoryAuditChain | None = None,
+        audit_chain: SagaAuditChain | None = None,
         state_store: InMemoryStateStore | None = None,
         github: InMemoryGithubIssueAdapter | None = None,
     ) -> None:
         super().__init__(spec=_SAGA)
-        self.audit_chain = audit_chain or InMemoryAuditChain()
+        self.audit_chain: SagaAuditChain = audit_chain or InMemoryAuditChain()
         self.state_store = state_store or InMemoryStateStore()
         self.github = github or InMemoryGithubIssueAdapter()
 

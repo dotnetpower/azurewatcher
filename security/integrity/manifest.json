@@ -14,7 +14,7 @@
     "rule-catalog/schema/extension-kit.schema.json": "e1d4250973b4f21115b313a5c7bddaba2df2db5af831cb1cae3628170b7ae08a",
     "rule-catalog/schema/skill-bundle.schema.json": "45dbd3b41a03fcf62a7cde47ff3f95e2fa720a8899ac2895445d41c596dbe550",
     "src/fdai/agents/README.md": "4466dd9e6314f1be320c1bacad62743a1d744522c2af7a7bdcf00109c69a60f1",
-    "src/fdai/agents/__init__.py": "ac6c8ef3331303395ae162d93622d1da055d3c178b3fe80a742f01749a3d0c7e",
+    "src/fdai/agents/__init__.py": "87734cc31fad32951f785508e06a188a8910c0bae0ec27791122e1c0cdbc5197",
     "src/fdai/agents/_framework/__init__.py": "0b42a7672bae9f19312f54a570edd139da6e1462f5e42f48ff49cc485aafd346",
     "src/fdai/agents/_framework/action_semantics.py": "137db18054e56073c7fbe905e0beada26e0bd51215d5a5837d3f28791707ccc6",
     "src/fdai/agents/_framework/adapters.py": "56625df432e00042dcf100f3713703a85f82633d117b5ffcc3d2ce434097367d",
@@ -53,7 +53,7 @@
     "src/fdai/agents/njord.py": "29cc79216c0ad3d1b7e48d34d0fb7b930712d469d63d55f637ab02ed94b928a2",
     "src/fdai/agents/norns.py": "014e342750981730722af7f9aaa002b3100fe23cb7f7eacbc11e417aa0e38a6f",
     "src/fdai/agents/odin.py": "8bcab7fba826e70761e9c95d6a6521d56199d96622d69ad06d3b6a28761a960c",
-    "src/fdai/agents/saga.py": "72de15baba6ee795ca896f0e2a0704464b13370fac71a1004a10426a081dce63",
+    "src/fdai/agents/saga.py": "a222b704ac7e2526808f223bfdeccad5897beba96f2b04899189dbbfdfae26c4",
     "src/fdai/agents/thor.py": "0be088e8d12e42c907a43c970e69e753641f8ea7b4199e9ab8f6a37806ad92f7",
     "src/fdai/agents/var.py": "10f792ff44d98f209781dc20cfce2bf16d88cac60c49eca9cc13678ca007255c",
     "src/fdai/agents/vidar.py": "c1dd6f7e2239d085b39cf14ecdd6ee23cde9bfc02929237cff1e8c5e32bb6c19",
@@ -774,7 +774,7 @@
     "src/fdai/shared/providers/workflow_definition.py": "01c40a52343b9b0f301a921d7931cc03ae5cc1d916b12f8fcaf06816d0b1c23a",
     "src/fdai/shared/providers/workload_identity.py": "96f26525f5d243ff4c818766d0ee9223a23f1c31c76b141708a01e405a8fd204"
   },
-  "generated_at": "2026-07-23T04:19:46Z",
+  "generated_at": "2026-07-23T04:23:27Z",
   "surface": [
     "src/fdai/core/",
     "src/fdai/composition.py",

@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 
 from fdai.delivery.azure.dev_workload_identity import AsyncAzureCliWorkloadIdentity
 from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
-from fdai.runtime.bootstrap import _build_runtime_workload_identity
+from fdai.runtime.bootstrap import (
+    _build_runtime_saga,
+    _build_runtime_workload_identity,
+    _case_history_identity_client_id,
+    _raise_required_task_failure,
+)
 from fdai.shared.config.runtime_flags import pantheon_start_enabled
+from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 
 def test_pantheon_starts_by_default() -> None:
@@ -92,3 +100,48 @@ async def test_case_history_runtime_selects_dedicated_identity(
         await identity.get_token("https://storage.azure.com/")
 
     assert captured[0].url.params["client_id"] == "case-history-client"
+
+
+def test_case_history_startup_requires_identity_before_runtime_branching() -> None:
+    with pytest.raises(RuntimeError, match="FDAI_CASE_HISTORY_MI_CLIENT_ID"):
+        _case_history_identity_client_id({"FDAI_CASE_HISTORY_CONTAINER_URL": "https://example"})
+
+
+def test_case_history_startup_rejects_executor_identity_reuse() -> None:
+    with pytest.raises(RuntimeError, match="MUST be distinct"):
+        _case_history_identity_client_id(
+            {
+                "FDAI_CASE_HISTORY_MI_CLIENT_ID": "shared-client",
+                "FDAI_MI_CLIENT_ID": "shared-client",
+            }
+        )
+
+
+async def test_runtime_saga_uses_durable_state_store_audit() -> None:
+    state_store = InMemoryStateStore()
+    saga = _build_runtime_saga(state_store)
+    assert saga.durable_audit is True
+
+    await saga.on_typed_message(
+        "object.forecast-outcome",
+        {
+            "producer_principal": "Heimdall",
+            "correlation_id": "corr-forecast",
+            "outcome_id": "outcome-1",
+        },
+    )
+
+    assert len(tuple(state_store.audit_entries)) == 1
+
+
+async def test_required_runtime_task_failure_is_not_swallowed() -> None:
+    async def fail() -> None:
+        raise RuntimeError("retention publisher unavailable")
+
+    task = asyncio.create_task(fail(), name="case-history-retention-ticks")
+    await asyncio.gather(task, return_exceptions=True)
+
+    with pytest.raises(RuntimeError, match="case-history-retention-ticks") as captured:
+        _raise_required_task_failure({task})
+    assert isinstance(captured.value.__cause__, RuntimeError)
+    assert str(captured.value.__cause__) == "retention publisher unavailable"

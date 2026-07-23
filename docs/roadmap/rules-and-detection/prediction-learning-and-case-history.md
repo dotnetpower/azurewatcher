@@ -152,7 +152,8 @@ event bus. Huginn normalizes it, and Muninn alone consumes the typed `object.eve
 and applies due deletion. `FDAI_CASE_HISTORY_RETENTION_TICK_SECONDS` controls the cadence and
 defaults to one day; duplicate or replayed ticks are idempotent. A timestamp carried by the raw
 event is diagnostic only. Muninn evaluates due dates against its trusted UTC clock so an ingress
-publisher cannot accelerate deletion.
+publisher cannot accelerate deletion. A failed retention publisher task terminates the runtime
+with an unsuccessful exit instead of silently disabling future ticks.
 
 ## Implementation status
 
