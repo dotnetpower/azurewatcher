@@ -16,11 +16,11 @@ def _system_text(prompt: str, view_context: dict[str, object]) -> str:
 def test_base_prompt_requires_proofread_standard_prose() -> None:
     system = _system_text("Explain this screen", {"routeId": "dashboard"})
 
-    assert "standard spelling" in system
-    assert "malformed words" in system
+    assert "Proofread only narrator prose" in system
+    assert "Fix spelling" in system
     assert "stray characters" in system
-    assert "accidental language mixing" in system
-    assert "Preserve evidence values, ids, code, and tool output verbatim" in system
+    assert "language mixing" in system
+    assert "Never alter quoted evidence values" in system
 
 
 def test_korean_locale_directive_proofreads_without_rewriting_evidence() -> None:
@@ -30,6 +30,7 @@ def test_korean_locale_directive_proofreads_without_rewriting_evidence() -> None
     )
 
     assert "L3 rendering" in system
-    assert "silently proofread the final prose" in system
+    assert "silently proofread only narrator-authored prose" in system
     assert "accidental language mixing" in system
-    assert "Keep every id, number, tool output, code fragment" in system
+    assert "Keep every evidence value, id, number, tool output, code fragment" in system
+    assert "verbatim in English" not in system
