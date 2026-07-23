@@ -27,6 +27,28 @@ def test_screen_only_answer_is_consistent_not_server_verified() -> None:
     assert result.evidence_manifest is not None
 
 
+def test_screen_ratio_fact_supports_displayed_percentage() -> None:
+    result = verify_answer(
+        "The current auto-resolution rate is 41%.",
+        {
+            "routeId": "operating-outcomes",
+            "facts": [
+                {
+                    "key": "current_rate",
+                    "label": "Current auto-resolution",
+                    "value": 0.41,
+                }
+            ],
+        },
+        locale="en",
+    )
+
+    assert result.status == "consistent"
+    assert result.reason_code == "screen_claims_supported"
+    assert result.claims[0].raw_value == "41%"
+    assert result.claims[0].status == "supported"
+
+
 def test_screen_unsupported_number_revises_to_unverified_abstention() -> None:
     result = verify_answer(
         "The screen shows 99 events.",

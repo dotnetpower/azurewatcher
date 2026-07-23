@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: 7316302b325c915ccf455bb6fa0a74a3c508e787
+translation_source_sha: ce2721510e80f4f0679acfffba0887e963b30bcf
 translation_revised: 2026-07-23
 ---
 
@@ -20,11 +20,14 @@ full-workspace Deck은 route가 변경되기 전에 닫힙니다.
 공통 페이지 제목은 영역과 패널 레이블이 다를 때 `전체 현황 / Dashboard`를 포함해 둘을 함께
 렌더링합니다. 패널 제목이 영역 레이블을 반복하는 영역 루트와 독립 utility는 단일 제목을 유지합니다.
 
-Dashboard의 모든 데이터 항목은 drill-down을 제공합니다. 운영 상태, evidence metadata, 측정되거나
-unavailable인 성과, 분포 legend, attention fact, vertical 통계 및 접힌 operational count는 해당
-datum을 소유하는 가장 좁은 analytical 또는 filtered-evidence 목적지로 연결됩니다. 섹션 제목과 설명
-문구만 비대화형으로 유지합니다. unavailable 값도 소유 view를 열어 누락된 source 또는 sample을
-확인할 수 있게 합니다.
+콘솔의 모든 data-bearing card는 drill-down을 제공합니다. 전체 card surface는 해당 datum을 소유하는
+가장 좁은 analytical 또는 filtered-evidence 목적지로 이동하는 keyboard-accessible native link를
+사용합니다. 독립 control을 포함한 card는 대신 표시되는 primary detail link를 제공합니다. Dashboard의
+운영 상태, evidence metadata, 측정되거나 unavailable인 성과, 분포 legend, attention fact, vertical
+통계 및 접힌 operational count에도 같은 규칙을 적용합니다. 섹션 제목과 설명 문구만 비대화형으로
+유지합니다. unavailable 값도 소유 view를 열어 누락된 source 또는 sample을 확인할 수 있게 합니다.
+상세 목적지가 없는 structural group, form, editor 및 bounded tool은 card style이나 이름 대신 panel
+또는 section semantics를 사용합니다.
 Unavailable metric 카드는 낮은 강조도의 전체 surface 배경, elevation shadow 없음 및 작고 muted한
 값 text를 사용해 측정 결과처럼 보이지 않게 합니다. 이 카드는 focus 가능한 drill-down link를
 유지하고 complete-border focus 또는 hover cue를 제공하며, 시각 표현에 disabled semantics를
@@ -34,7 +37,9 @@ Operating Outcomes는 선택한 metric, current value, baseline, measurement win
 confidence 및 source provenance를 bounded Command Deck view snapshot으로 발행합니다. Vertical
 record는 measured breakdown을 실제로 렌더링하는 Auto-resolution view에만 포함합니다. Narrator는
 렌더링된 evidence fact만 수신하며 unavailable value를 추론하거나 route의 authoritative source를
-대체하지 않습니다.
+대체하지 않습니다. Snapshot headline은 visible card와 같은 metric formatter를 사용하며,
+Auto-resolution value는 ratio 의미를 유지하므로 표시된 percentage claim을 operator에게 보이는 것과
+같은 반올림 정밀도로 대조할 수 있습니다.
 
 각 Operating Outcomes route는 metric별 analysis surface를 유지합니다. Auto-resolution은 관측된
 event 및 auto-resolved record 수, 영역별 비율 및 guard context를 보여줍니다. Human touchpoints,

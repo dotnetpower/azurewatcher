@@ -104,6 +104,10 @@ describe("trust-routing measurements", () => {
       unavailableLabel: "Unavailable",
       routeLabel: "Operating outcomes",
     });
+    expect(autoResolution.headline).toContain("current 41%");
+    expect(autoResolution.facts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "current_rate", value: 0.41 }),
+    ]));
     expect(autoResolution.records?.verticals).toContainEqual(expect.objectContaining({
       key: "change-safety",
       events: 34,

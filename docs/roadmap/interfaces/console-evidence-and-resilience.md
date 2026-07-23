@@ -18,11 +18,14 @@ The shared page title renders the domain and panel labels when they differ, incl
 `Overview / Dashboard`. A domain root whose panel title repeats the domain label and a standalone
 utility keep a single title.
 
-Every data-bearing item on Dashboard drills down. Posture, evidence metadata, measured or
-unavailable outcomes, distribution legends, attention facts, vertical statistics, and collapsed
-operational counts link to the narrowest analytical or filtered-evidence destination that owns the
-datum. Section headings and explanatory copy remain non-interactive. An unavailable value still
-opens its owner view so the operator can see which source or sample is missing.
+Every data-bearing card across the console drills down. The complete card surface uses a native
+keyboard-accessible link to the narrowest analytical or filtered-evidence destination that owns the
+datum. A card with independent controls exposes a visible primary detail link instead. Dashboard
+posture, evidence metadata, measured or unavailable outcomes, distribution legends, attention facts,
+vertical statistics, and collapsed operational counts follow the same rule. Section headings and
+explanatory copy remain non-interactive. An unavailable value still opens its owner view so the
+operator can see which source or sample is missing. Structural groups, forms, editors, and bounded
+tools without a detail destination use panel or section semantics rather than card styling or names.
 Unavailable metric cards use a subdued whole-surface background, no elevation shadow, and compact
 muted value text so they don't read as measured results. They remain focusable drill-down links and
 retain a complete-border focus or hover cue; the visual treatment never sets disabled semantics.
@@ -31,7 +34,9 @@ Operating Outcomes publishes the selected metric, current value, baseline, measu
 sample size, confidence, and source provenance as a bounded Command Deck view snapshot. It includes
 vertical records only for Auto-resolution, the one metric view that renders that measured
 breakdown. The narrator receives only rendered evidence facts; it does not infer unavailable values
-or replace the route's authoritative source.
+or replace the route's authoritative source. Snapshot headlines use the same metric formatter as the
+visible cards, and auto-resolution values retain ratio semantics so displayed percentage claims can
+be checked at the same rounded precision the operator sees.
 
 Each Operating Outcomes route keeps a metric-specific analysis surface. Auto-resolution shows its
 observed event and auto-resolved record counts, vertical rates, and guard context. Human touchpoints,

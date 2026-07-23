@@ -1,11 +1,12 @@
 import type { ViewSnapshot } from "../deck/context";
 import { composeGlossary } from "../deck/glossary";
 import type { AutonomyPayload, MetricVsBaseline } from "../types";
+import { formatOutcomeMetric, type OutcomeKey } from "./operating-outcomes";
 
 interface OperatingOutcomeSnapshotInput {
   readonly autonomy: AutonomyPayload;
   readonly metric: MetricVsBaseline;
-  readonly metricKey: string;
+  readonly metricKey: OutcomeKey;
   readonly metricLabel: string;
   readonly unavailableLabel: string;
   readonly routeLabel: string;
@@ -19,9 +20,21 @@ export function buildOperatingOutcomeViewSnapshot({
   unavailableLabel,
   routeLabel,
 }: OperatingOutcomeSnapshotInput): ViewSnapshot {
-  const current = metric.value ?? unavailableLabel;
-  const baseline = metric.baseline ?? unavailableLabel;
+  const current = metric.value === null
+    ? unavailableLabel
+    : formatOutcomeMetric(metric.value, metricKey);
+  const baseline = metric.baseline === null
+    ? unavailableLabel
+    : formatOutcomeMetric(metric.baseline, metricKey);
   const showsVerticalBreakdown = metricKey === "auto-resolution";
+  const currentFactValue = showsVerticalBreakdown && metric.value !== null
+    ? Math.round(metric.value * 100) / 100
+    : metric.value;
+  const baselineFactValue = showsVerticalBreakdown && metric.baseline !== null
+    ? Math.round(metric.baseline * 100) / 100
+    : metric.baseline;
+  const currentFactKey = showsVerticalBreakdown ? "current_rate" : "current_value";
+  const baselineFactKey = showsVerticalBreakdown ? "baseline_rate" : "baseline_value";
   return {
     routeId: "operating-outcomes",
     routeLabel,
@@ -51,17 +64,17 @@ export function buildOperatingOutcomeViewSnapshot({
     facts: [
       { key: "selected_metric", label: metricLabel, value: metricKey, group: "metric" },
       {
-        key: "current_value",
+        key: currentFactKey,
         label: "Current",
         aliases: [metricLabel, metricKey],
-        value: metric.value,
+        value: currentFactValue,
         group: "metric",
       },
       {
-        key: "baseline_value",
+        key: baselineFactKey,
         label: "Baseline",
         aliases: [`${metricLabel} baseline`],
-        value: metric.baseline,
+        value: baselineFactValue,
         group: "metric",
       },
       { key: "direction", label: "Better when", value: metric.direction, group: "metric" },
