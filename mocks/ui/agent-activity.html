@@ -19,6 +19,11 @@
     .aa-dot.is-domain     { background: var(--cs-teal); }
     .aa-group-name { font-weight: 600; font-size: 15px; }
     .aa-group-meta { color: var(--cs-text-soft); font-size: 12.5px; margin-left: auto; }
+    .aa-selection { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius-sm); background: var(--cs-card); font-size: 12.5px; }
+    .aa-selection[hidden] { display: none; }
+    .aa-selection strong { font-weight: 650; }
+    .aa-selection a { flex: 0 0 auto; }
+    .aa-empty { padding: 28px 16px; border: 1px dashed var(--cs-hairline); border-radius: var(--cs-radius-sm); color: var(--cs-text-soft); text-align: center; }
 
     .aa-row { display: grid; grid-template-columns: 96px 74px 1fr auto; gap: 12px; padding: 10px 16px; border-top: 1px dashed var(--cs-hairline); font-size: 13px; align-items: baseline; }
     .aa-row:first-of-type { border-top: none; }
@@ -35,6 +40,14 @@
     .aa-summary code { font-size: 12px; }
     .aa-corr { font-family: "Cascadia Code","Consolas",monospace; font-size: 11.5px; color: var(--cs-text-soft); }
     .aa-corr a { color: var(--cs-steel); }
+
+    @media (max-width: 720px) {
+      .aa-group-head { align-items: flex-start; flex-wrap: wrap; gap: 6px 10px; }
+      .aa-group-meta { width: 100%; margin-left: 22px; overflow-wrap: anywhere; }
+      .aa-row { grid-template-columns: 72px minmax(0, 1fr); gap: 6px 10px; }
+      .aa-summary, .aa-corr { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
+      .aa-selection { align-items: flex-start; flex-wrap: wrap; }
+    }
   </style>
 </head>
 <body>
@@ -83,8 +96,15 @@
       </label>
     </div>
 
+    <div id="activitySelection" class="aa-selection" role="status" aria-live="polite" tabindex="-1" hidden>
+      <span id="activitySelectionText"></span>
+      <a href="agent-activity.html">Show all agents</a>
+    </div>
+
+    <div id="activityEmpty" class="aa-empty" hidden></div>
+
     <!-- Forseti (Judge) -->
-    <div class="aa-group">
+    <div class="aa-group" data-agent="forseti">
       <div class="aa-group-head">
         <span class="aa-dot is-pipeline"></span>
         <span class="aa-group-name">Forseti</span>
@@ -113,7 +133,7 @@
     </div>
 
     <!-- Thor (Responder) -->
-    <div class="aa-group">
+    <div class="aa-group" data-agent="thor">
       <div class="aa-group-head">
         <span class="aa-dot is-pipeline"></span>
         <span class="aa-group-name">Thor</span>
@@ -142,7 +162,7 @@
     </div>
 
     <!-- Var (Approver) -->
-    <div class="aa-group">
+    <div class="aa-group" data-agent="var">
       <div class="aa-group-head">
         <span class="aa-dot is-pipeline"></span>
         <span class="aa-group-name">Var</span>
@@ -165,7 +185,7 @@
     </div>
 
     <!-- Vidar (Recovery) -->
-    <div class="aa-group">
+    <div class="aa-group" data-agent="vidar">
       <div class="aa-group-head">
         <span class="aa-dot is-pipeline"></span>
         <span class="aa-group-name">Vidar</span>
@@ -182,7 +202,7 @@
     </div>
 
     <!-- Saga (Auditor) -->
-    <div class="aa-group">
+    <div class="aa-group" data-agent="saga">
       <div class="aa-group-head">
         <span class="aa-dot is-governance"></span>
         <span class="aa-group-name">Saga</span>
@@ -205,7 +225,7 @@
     </div>
 
     <!-- Njord (Cost, domain) -->
-    <div class="aa-group">
+    <div class="aa-group" data-agent="njord">
       <div class="aa-group-head">
         <span class="aa-dot is-domain"></span>
         <span class="aa-group-name">Njord</span>
@@ -226,5 +246,49 @@
       trace</a> - one correlation id can produce many rows across many agents.
     </p>
   </main>
+  <script>
+    (function () {
+      "use strict";
+
+      var agentNames = {
+        odin: "Odin", thor: "Thor", forseti: "Forseti", huginn: "Huginn",
+        heimdall: "Heimdall", vidar: "Vidar", var: "Var", bragi: "Bragi",
+        saga: "Saga", mimir: "Mimir", muninn: "Muninn", norns: "Norns",
+        njord: "Njord", freyr: "Freyr", loki: "Loki"
+      };
+      var requested = new URLSearchParams(window.location.search).get("agent");
+      if (!requested) return;
+
+      var slug = requested.trim().toLowerCase();
+      var selection = document.getElementById("activitySelection");
+      var selectionText = document.getElementById("activitySelectionText");
+      var empty = document.getElementById("activityEmpty");
+      var groups = Array.prototype.slice.call(document.querySelectorAll(".aa-group[data-agent]"));
+      var name = agentNames[slug];
+
+      selection.hidden = false;
+      if (!name) {
+        selectionText.innerHTML = "Unknown agent filter. Showing <strong>all recent activity</strong>.";
+        selection.focus({ preventScroll: true });
+        return;
+      }
+
+      document.title = name + " activity - FDAI Console";
+      selectionText.innerHTML = "Activity for <strong>" + name + "</strong>.";
+      var matching = groups.find(function (group) { return group.dataset.agent === slug; });
+      groups.forEach(function (group) { group.hidden = group !== matching; });
+      if (matching) {
+        matching.setAttribute("tabindex", "-1");
+        matching.focus({ preventScroll: true });
+        matching.scrollIntoView({ block: "start" });
+        return;
+      }
+
+      empty.hidden = false;
+      empty.textContent = "No activity for " + name + " in this sample window.";
+      empty.setAttribute("tabindex", "-1");
+      empty.focus({ preventScroll: true });
+    }());
+  </script>
 </body>
 </html>
