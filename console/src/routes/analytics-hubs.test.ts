@@ -94,7 +94,17 @@ describe("trust-routing measurements", () => {
       expect.objectContaining({ key: "window_days", value: 30 }),
       expect.objectContaining({ key: "sample_size", value: 34 }),
     ]));
-    expect(snapshot.records?.verticals).toContainEqual(expect.objectContaining({
+    expect(snapshot.records).toBeUndefined();
+
+    const autoResolution = buildOperatingOutcomeViewSnapshot({
+      autonomy: AUTONOMY,
+      metric: AUTONOMY.success.auto_resolution_rate,
+      metricKey: "auto-resolution",
+      metricLabel: "Auto-resolution",
+      unavailableLabel: "Unavailable",
+      routeLabel: "Operating outcomes",
+    });
+    expect(autoResolution.records?.verticals).toContainEqual(expect.objectContaining({
       key: "change-safety",
       events: 34,
       auto_resolved: 14,

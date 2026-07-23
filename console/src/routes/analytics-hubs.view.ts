@@ -21,12 +21,15 @@ export function buildOperatingOutcomeViewSnapshot({
 }: OperatingOutcomeSnapshotInput): ViewSnapshot {
   const current = metric.value ?? unavailableLabel;
   const baseline = metric.baseline ?? unavailableLabel;
+  const showsVerticalBreakdown = metricKey === "auto-resolution";
   return {
     routeId: "operating-outcomes",
     routeLabel,
-    purpose:
-      "Inspect measured operating outcomes, their baselines and trends, and the evidence " +
-      "contributed by each operational vertical.",
+    purpose: showsVerticalBreakdown
+      ? "Inspect the measured auto-resolution outcome, its baseline and trend, and the " +
+        "observed event contribution from each operational vertical."
+      : "Inspect the selected operating outcome, its baseline, and the explicit availability " +
+        "of trend and breakdown projections.",
     headline:
       `${metricLabel}: current ${current}, baseline ${baseline}; ` +
       `${autonomy.sample_size} events over ${autonomy.window_days} days.`,
@@ -70,9 +73,9 @@ export function buildOperatingOutcomeViewSnapshot({
       { key: "source_as_of", label: "Evidence as of", value: autonomy.source.as_of, group: "evidence" },
       { key: "synthetic", value: autonomy.synthetic, group: "evidence" },
     ],
-    records: {
-      verticals: autonomy.verticals.map((vertical) => ({ ...vertical })),
-    },
+    ...(showsVerticalBreakdown
+      ? { records: { verticals: autonomy.verticals.map((vertical) => ({ ...vertical })) } }
+      : {}),
     explanations: {
       provenance: {
         authority: autonomy.source.kind,

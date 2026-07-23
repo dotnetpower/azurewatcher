@@ -28,9 +28,10 @@ muted value text so they don't read as measured results. They remain focusable d
 retain a complete-border focus or hover cue; the visual treatment never sets disabled semantics.
 
 Operating Outcomes publishes the selected metric, current value, baseline, measurement window,
-sample size, confidence, source provenance, and vertical records as a bounded Command Deck view
-snapshot. The narrator receives only these rendered evidence facts; it does not infer unavailable
-values or replace the route's authoritative source.
+sample size, confidence, and source provenance as a bounded Command Deck view snapshot. It includes
+vertical records only for Auto-resolution, the one metric view that renders that measured
+breakdown. The narrator receives only rendered evidence facts; it does not infer unavailable values
+or replace the route's authoritative source.
 
 Each Operating Outcomes route keeps a metric-specific analysis surface. Auto-resolution shows its
 observed event and auto-resolved record counts, vertical rates, and guard context. Human touchpoints,

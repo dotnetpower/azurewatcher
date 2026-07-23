@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: f7fc67dc74488968dcb6662aee718c20768d6fb1
+translation_source_sha: 7316302b325c915ccf455bb6fa0a74a3c508e787
 translation_revised: 2026-07-23
 ---
 
@@ -31,9 +31,10 @@ Unavailable metric 카드는 낮은 강조도의 전체 surface 배경, elevatio
 사용하지 않습니다.
 
 Operating Outcomes는 선택한 metric, current value, baseline, measurement window, sample size,
-confidence, source provenance 및 vertical record를 bounded Command Deck view snapshot으로
-발행합니다. Narrator는 렌더링된 evidence fact만 수신하며 unavailable value를 추론하거나 route의
-authoritative source를 대체하지 않습니다.
+confidence 및 source provenance를 bounded Command Deck view snapshot으로 발행합니다. Vertical
+record는 measured breakdown을 실제로 렌더링하는 Auto-resolution view에만 포함합니다. Narrator는
+렌더링된 evidence fact만 수신하며 unavailable value를 추론하거나 route의 authoritative source를
+대체하지 않습니다.
 
 각 Operating Outcomes route는 metric별 analysis surface를 유지합니다. Auto-resolution은 관측된
 event 및 auto-resolved record 수, 영역별 비율 및 guard context를 보여줍니다. Human touchpoints,
