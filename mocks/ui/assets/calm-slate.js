@@ -12,53 +12,50 @@
       ["trust-routing.html", "Trust routing", "is-teal"],
       ["llm-cost.html", "LLM cost", "is-navy"]
     ]],
-    ["Console", [
+    ["Operations", [
       ["live.html", "Live", ""],
       ["incidents.html", "Incidents", "is-terracotta"],
       ["hil.html", "HIL queue", "is-terracotta"],
-      ["promotion.html", "Promotion", "is-teal"],
-      ["rules.html", "Rules", ""],
-      ["actions.html", "Actions (ontology)", "is-plum"],
-      ["audit.html", "Audit", "is-terracotta"],
-      ["rca.html", "RCA", "is-teal"]
+      ["provision.html", "Provisioning", ""],
+      ["onboarding.html", "Onboarding", "is-dusty-red"],
+      ["deck.html", "Command deck", "is-plum"]
     ]],
-    ["Fleet & safety", [
+    ["Agents", [
       ["agents.html", "Fleet roster", "is-sage"],
       ["agents-constellation.html", "Constellation", ""],
       ["pantheon.html", "Pantheon", "is-plum"],
-      ["agent-activity.html", "Agent activity", ""],
-      ["blast-radius.html", "Blast radius", "is-terracotta"],
-      ["provision.html", "Provisioning", ""],
-      ["onboarding.html", "Onboarding", "is-dusty-red"]
+      ["agent-activity.html", "Agent activity", ""]
     ]],
-    ["Knowledge", [
+    ["Governance", [
+      ["promotion.html", "Promotion", "is-teal"],
+      ["blast-radius.html", "Blast radius", "is-terracotta"],
+      ["rules.html", "Rules", ""],
+      ["actions.html", "Actions (ontology)", "is-plum"],
       ["ontology.html", "Ontology", "is-plum"],
-      ["rule-trace.html", "Rule trace", "is-teal"],
       ["workflow-builder.html", "Workflow builder", ""]
     ]],
-    ["Chat", [
-      ["deck.html", "Command deck", "is-plum"],
-      ["deck-sources.html", "Deck sources", ""]
-    ]],
-    ["Report & kit", [
+    ["Evidence", [
+      ["audit.html", "Audit", "is-terracotta"],
+      ["rca.html", "RCA", "is-teal"],
+      ["rule-trace.html", "Rule trace", "is-teal"],
       ["report.html", "Weekly report", "is-terracotta"],
       ["rca-report.html", "RCA report", "is-teal"],
-      ["settings.html", "Settings", "is-steel"],
-      ["components.html", "Components", ""]
+      ["deck-sources.html", "Deck sources", ""]
     ]],
-    ["Explorations", [
+    ["Labs", [
+      ["components.html", "Components", ""],
       ["agent-icons.html", "Agent icons", "is-plum"],
       ["hcard-variants.html", "HIL card variants", "is-teal"]
+    ]],
+    ["Settings", [
+      ["settings.html", "General", "is-steel"],
+      ["settings-models.html", "Models", ""],
+      ["settings-memory.html", "Operator memory", ""],
+      ["settings-iam.html", "Identity and access", ""],
+      ["settings-integrations.html", "Integrations", ""],
+      ["settings-diagnostics.html", "Diagnostics", ""]
     ]]
   ];
-  var standalonePageGroups = {
-    "settings-diagnostics.html": "Settings",
-    "settings-iam.html": "Settings",
-    "settings-integrations.html": "Settings",
-    "settings-memory.html": "Settings",
-    "settings-models.html": "Settings"
-  };
-
   function currentNavigationContext() {
     var currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
     for (var groupIndex = 0; groupIndex < navigationGroups.length; groupIndex += 1) {
@@ -68,9 +65,6 @@
           return { group: group[0], item: group[1][itemIndex] };
         }
       }
-    }
-    if (standalonePageGroups[currentPage]) {
-      return { group: standalonePageGroups[currentPage], item: [currentPage] };
     }
     return null;
   }
