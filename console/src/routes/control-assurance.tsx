@@ -35,6 +35,45 @@ export function meterPercent(value: number): number {
   return Math.max(0, Math.min(100, value * 100));
 }
 
+export function assuranceSectionHref(
+  section: "promotion-guards" | "required-attention",
+  context: Readonly<Record<string, string>> = {},
+): string {
+  return `${routeHref("control-assurance", { params: context })}#${section}`;
+}
+
+export function assurancePostureHref(
+  attention: {
+    readonly policyEscapes: number | null;
+    readonly failedGuardKey: string | null;
+    readonly pendingApprovals: number;
+    readonly blockedCapabilities: number | null;
+    readonly shadowShare: number;
+    readonly window: string | undefined;
+  },
+  context: Readonly<Record<string, string>> = {},
+): string {
+  if (attention.policyEscapes !== null && attention.policyEscapes > 0) {
+    return routeHref("promotion-gates", { params: { status: "blocked" } });
+  }
+  if (attention.failedGuardKey !== null) {
+    return assuranceSectionHref("promotion-guards", {
+      ...context,
+      guard: attention.failedGuardKey,
+    });
+  }
+  if (attention.pendingApprovals > 0) return routeHref("hil-queue");
+  if (attention.blockedCapabilities !== null && attention.blockedCapabilities > 0) {
+    return routeHref("promotion-gates", { params: { status: "blocked" } });
+  }
+  if (attention.shadowShare < 0.95) {
+    return routeHref("audit", {
+      params: { ...context, window: attention.window, mode: "shadow" },
+    });
+  }
+  return assuranceSectionHref("required-attention", context);
+}
+
 interface Props {
   readonly data: AnalyticsData;
   readonly evidence: ComponentChildren;
@@ -48,6 +87,17 @@ export function ControlAssuranceBody({ data, evidence, guardKey, context }: Prop
   const health = overviewHealth(data.kpi, escapes, autonomy);
   const failedGuards = measuredFailedGuardCount(autonomy);
   const window = autonomy ? `${autonomy.window_days}d` : context["window"];
+  const failedGuardKey = autonomy !== null && !autonomy.synthetic
+    ? autonomy.guards.find((guard) => !guard.ok)?.key ?? null
+    : null;
+  const postureHref = assurancePostureHref({
+    policyEscapes: escapes,
+    failedGuardKey,
+    pendingApprovals: data.kpi.hil_pending,
+    blockedCapabilities: data.gates?.blocked_count ?? null,
+    shadowShare: data.kpi.shadow_share,
+    window,
+  }, context);
   return (
     <div class="control-assurance stack">
       <AssuranceBanner
@@ -59,7 +109,7 @@ export function ControlAssuranceBody({ data, evidence, guardKey, context }: Prop
       {evidence}
       <KpiGrid>
         <KpiCard
-          href={routeHref("control-assurance", { params: context })}
+          href={postureHref}
           label={t("analytics.assurance.posture")}
           value={t(`analytics.health.${health}`)}
           tone={health === "healthy" ? "positive" : health === "attention" ? "warning" : "default"}
@@ -140,7 +190,7 @@ function GuardSection({
     ? autonomy?.guards ?? []
     : autonomy?.guards.filter((guard) => guard.key === guardKey) ?? [];
   return (
-    <section class="assurance-section">
+    <section class="assurance-section" id="promotion-guards">
       <header class="assurance-section-head">
         <div>
           <h3>{t("analytics.assurance.guardsTitle")}</h3>
@@ -246,13 +296,13 @@ function RequiredAttention({
   readonly policyEscapes: number | null;
 }) {
   const rows = [
-    [t("analytics.assurance.failedGuards"), failedGuards, routeHref("control-assurance")],
+    [t("analytics.assurance.failedGuards"), failedGuards, assuranceSectionHref("promotion-guards")],
     [t("analytics.assurance.pendingApprovals"), data.kpi.hil_pending, routeHref("hil-queue")],
     [t("analytics.assurance.blockedCapabilities"), data.gates?.blocked_count ?? null, routeHref("promotion-gates", { params: { status: "blocked" } })],
     [t("analytics.assurance.policyEscapes"), policyEscapes, routeHref("promotion-gates", { params: { status: "blocked" } })],
   ] as const;
   return (
-    <section class="assurance-panel">
+    <section class="assurance-panel" id="required-attention">
       <header class="assurance-panel-head">
         <div><h3>{t("analytics.assurance.attentionTitle")}</h3><p>{t("analytics.assurance.attentionSubtitle")}</p></div>
       </header>

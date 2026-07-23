@@ -3840,6 +3840,13 @@ pre {
 }
 .assurance-banner.is-unknown { background: var(--overview-shade); }
 .assurance-section { margin-top: 10px; }
+.assurance-section,
+.assurance-panel { scroll-margin-top: calc(var(--header-height) + 16px); }
+.assurance-section:target,
+.assurance-panel:target {
+  outline: 2px solid color-mix(in oklab, var(--overview-steel) 55%, transparent);
+  outline-offset: 4px;
+}
 .assurance-section-head,
 .assurance-panel-head {
   display: flex;

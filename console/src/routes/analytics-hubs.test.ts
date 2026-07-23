@@ -7,7 +7,13 @@ import {
   searchParamsRecord,
   verticalResolutionRate,
 } from "./analytics-hubs";
-import { guardDisplayState, measuredFailedGuardCount, meterPercent } from "./control-assurance";
+import {
+  assurancePostureHref,
+  assuranceSectionHref,
+  guardDisplayState,
+  measuredFailedGuardCount,
+  meterPercent,
+} from "./control-assurance";
 import { buildOperatingOutcomeViewSnapshot } from "./analytics-hubs.view";
 import {
   OUTCOME_KEYS,
@@ -157,6 +163,36 @@ describe("trust-routing measurements", () => {
     })).toBe(1);
     expect(meterPercent(-0.1)).toBe(0);
     expect(meterPercent(1.2)).toBe(100);
+  });
+
+  it("navigates assurance summaries to visible evidence sections", () => {
+    expect(assuranceSectionHref("required-attention", { window: "30d" })).toBe(
+      "/control-assurance?window=30d#required-attention",
+    );
+    expect(assuranceSectionHref("promotion-guards")).toBe(
+      "/control-assurance#promotion-guards",
+    );
+  });
+
+  it("routes operating posture to the highest-priority attention owner", () => {
+    const clear = {
+      policyEscapes: 0,
+      failedGuardKey: null,
+      pendingApprovals: 0,
+      blockedCapabilities: 0,
+      shadowShare: 1,
+      window: "30d",
+    };
+    expect(assurancePostureHref({ ...clear, pendingApprovals: 8 })).toBe("/approvals");
+    expect(assurancePostureHref({ ...clear, failedGuardKey: "rollback" })).toBe(
+      "/control-assurance?guard=rollback#promotion-guards",
+    );
+    expect(assurancePostureHref({ ...clear, policyEscapes: 1, pendingApprovals: 8 })).toBe(
+      "/promotion-gates?status=blocked",
+    );
+    expect(assurancePostureHref({ ...clear, shadowShare: 0.82 })).toBe(
+      "/audit?window=30d&mode=shadow",
+    );
   });
 
   it("preserves active query state across analytical tabs", () => {
