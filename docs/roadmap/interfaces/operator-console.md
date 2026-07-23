@@ -106,7 +106,11 @@ flowchart TD
   provider task is idle, without progress or evidence. Stream close cancels and awaits that task.
 - **Layer 2 (Coordinator)** owns intent classification, RBAC gating, tool
   dispatch, verifier re-check, and session bookkeeping. Core translation uses the `Narrator`
-  Protocol; web generation uses the read API backend seam, so deployments can bind providers.
+  Protocol. A narrator that also implements `GroundedAnswerNarrator` receives a completed
+  successful `ToolResult` in a second presentation-only pass. The coordinator retains the
+  original tool-result turn, accepts no new tool call, and falls back to the deterministic preview
+  when rendering fails, exceeds the response bound, or omits an `evidence_ref`. Web generation uses
+  the read API backend seam, so deployments can bind providers.
 - **Layer 1 (Core)** is exactly the deterministic core that already ships.
   The console adds no new judgment path, no new persistence store, and no
   new execution vector. A console tool call resolves to a call the
@@ -118,7 +122,8 @@ flowchart TD
   - `coordinator.py` - `ConversationCoordinator` (Layer 2 orchestrator).
   - `tools.py` - `SystemConsoleTool` Protocol + per-tool implementations that
     delegate to Layer 1 modules only.
-  - `narrator.py` - synchronous `Narrator` Protocol, deterministic verb schemas, and RBAC-scoped descriptors.
+  - `narrator.py` - synchronous intent `Narrator` and presentation-only
+    `GroundedAnswerNarrator` Protocols, deterministic verb schemas, and RBAC-scoped descriptors.
   - `session.py` - disposable core/CLI `ConversationSession` projection. Principal-scoped
     `ConversationHistoryStore` owns production web transcripts.
 - [`cli/`](../../../cli)
@@ -465,7 +470,7 @@ availability source.
 
 | Slice | Current status |
 |-------|----------------|
-| Core/CLI translator | `Narrator`, `AzureOpenAINarratorModel`, coordinator, read tools, Python headless harness, and shared-API TypeScript CLI ship. |
+| Core/CLI translator | `Narrator`, grounded answer rendering in `AzureOpenAINarratorModel`, coordinator, read tools, Python headless harness, and shared-API TypeScript CLI ship. Intent translation and answer rendering use separate prompts; both retain the deterministic tool and RBAC boundary. |
 | Write/approval tools | Simulation, HIL, runbook, and proposal routes ship. Break-glass stops at the pager/audit request receipt in §7.3 and grants no elevation. |
 | Teams/Slack conversation | `ProductionChannelRuntime`, authenticated ingress, principal resolution, publishers, and optional durable replies ship; environment-owned enablement and credentials remain required. |
 | Web chat and memory | JSON/SSE chat, principal-scoped history/preferences/memory, AnswerPlan, and progressive verification ship. |
@@ -482,7 +487,8 @@ and the authoritative registry, never inferred from phase names in this document
   sees the tool schema", "audit entry precedes every tool dispatch",
   "escalation records tier and trigger".
 - **Narrator adapter** - contract tests using `httpx.MockTransport` for the strict Azure OpenAI
-  translator and resolved deployment binding.
+  intent translator, injection-isolated grounded answer prompt, exact evidence-reference
+  preservation, and resolved deployment binding.
 - **Tools** - each tool has a shadow-mode test showing it never mutates
   when its `side_effect_class == read | simulate`; a `write` /
   `approve` test showing the verifier re-check gate.
@@ -506,6 +512,10 @@ and the authoritative registry, never inferred from phase names in this document
   turn does not match a T0 pattern, respond with a canned "reasoning
   layer is temporarily unavailable; here is the direct query surface"
   and expose the tools list.
+- **Grounded answer rendering unavailable or invalid** - return the completed deterministic tool
+  preview. The coordinator also uses this fallback when the model returns an empty or oversized
+  answer or drops any required evidence reference. Rendering failure never changes tool data,
+  status, authorization, or execution state.
 - **Verifier abstain on write-class tool** - substitute
   `enqueue_hil(...)` (see §7.4), return the HIL id, audit reason
   `verifier_abstained`.

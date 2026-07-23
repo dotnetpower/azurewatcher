@@ -129,6 +129,7 @@ from fdai.core.conversation.identity_verification import (
 )
 from fdai.core.conversation.narrator import (
     DeterministicKeywordNarrator,
+    GroundedAnswerNarrator,
     Narrator,
     ToolSchema,
     default_tool_schemas,
@@ -255,6 +256,7 @@ __all__ = [
     "DurableOutboundDeliveryConfig",
     "DurableOutboundDeliveryCoordinator",
     "DeterministicKeywordNarrator",
+    "GroundedAnswerNarrator",
     "ExplainVerdictTool",
     "ExploreCatalogTool",
     "InventoryProvider",

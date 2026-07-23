@@ -1,7 +1,7 @@
 ---
 title: 코드 맵
 translation_of: code-map.md
-translation_source_sha: 7d81740852b59a430cc2d73f4c8b2afa02de719f
+translation_source_sha: 2475039bc040efe73acba06591f3b1af998fad74
 translation_revised: 2026-07-23
 ---
 # 코드 맵
@@ -97,7 +97,7 @@ shared 패키지를 커버한다.
 
 | 서브시스템 | 책임 | 소스 | 테스트 |
 |-----------|------|------|--------|
-| conversation | NL turn -> bounded read tool; hybrid T0 + strict semantic public-search intent 및 query normalization; current-screen evidence walkthrough; evidence-preserving 한국어 prose review | [src/fdai/core/conversation/](../../../src/fdai/core/conversation/), [chat_web_search_intent.py](../../../src/fdai/delivery/read_api/routes/chat_web_search_intent.py), [chat_prompt.py](../../../src/fdai/delivery/read_api/routes/chat_prompt.py) 및 [chat_answer_quality.py](../../../src/fdai/delivery/read_api/routes/chat_answer_quality.py) | [tests/core/conversation/](../../../tests/core/conversation/), [test_chat_web_search.py](../../../tests/delivery/read_api/test_chat_web_search.py), [test_chat_prompt.py](../../../tests/delivery/read_api/test_chat_prompt.py) 및 [test_chat_answer_quality.py](../../../tests/delivery/read_api/test_chat_answer_quality.py) |
+| conversation | NL turn -> bounded read tool; strict intent translation 이후 deterministic evidence-reference fallback을 갖춘 optional grounded result narration; hybrid T0 + strict semantic public-search intent 및 query normalization; current-screen evidence walkthrough; evidence-preserving 한국어 prose review | [src/fdai/core/conversation/](../../../src/fdai/core/conversation/), [chat_web_search_intent.py](../../../src/fdai/delivery/read_api/routes/chat_web_search_intent.py), [chat_prompt.py](../../../src/fdai/delivery/read_api/routes/chat_prompt.py) 및 [chat_answer_quality.py](../../../src/fdai/delivery/read_api/routes/chat_answer_quality.py) | [tests/core/conversation/](../../../tests/core/conversation/), [test_chat_web_search.py](../../../tests/delivery/read_api/test_chat_web_search.py), [test_chat_prompt.py](../../../tests/delivery/read_api/test_chat_prompt.py) 및 [test_chat_answer_quality.py](../../../tests/delivery/read_api/test_chat_answer_quality.py) |
 | conversation_attachments | Explicit attachment purpose, protected Slack/Teams fetch, web document ref 및 optional OCR ([설계](../interfaces/conversation-attachments-ko.md)) | [src/fdai/core/conversation/attachment_directive.py](../../../src/fdai/core/conversation/attachment_directive.py), [src/fdai/delivery/channels/](../../../src/fdai/delivery/channels/), [document_ocr.py](../../../src/fdai/delivery/azure/document_ocr.py) | [tests/delivery/channels/](../../../tests/delivery/channels/), [test_document_ocr.py](../../../tests/delivery/azure/test_document_ocr.py), focused chat test |
 | operator | 오퍼레이터 콘솔 코디네이터 | [src/fdai/core/operator/](../../../src/fdai/core/operator/) | (delivery/read_api 통합) |
 | console_request | write-direction 콘솔 경로의 오퍼레이터 재요청 정책 (Scenario B deny-override) | [src/fdai/core/console_request/](../../../src/fdai/core/console_request/) | [tests/core/console_request/](../../../tests/core/console_request/) |

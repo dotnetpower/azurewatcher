@@ -43,7 +43,11 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from fdai.core.conversation.session import Turn
+    from fdai.core.conversation.tools import ToolResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +92,27 @@ class Narrator(Protocol):
         *,
         utterance: str,
         tools: Sequence[ToolSchema],
+        principal_role: str,
+    ) -> str | None: ...
+
+
+@runtime_checkable
+class GroundedAnswerNarrator(Protocol):
+    """Render one successful tool result without changing its authority.
+
+    The implementation receives only the operator utterance, the selected
+    tool schema, the completed result, and the bounded session projection. It
+    may improve presentation, but it cannot select another tool, alter the
+    result payload, or grant execution eligibility.
+    """
+
+    def render_answer(
+        self,
+        *,
+        utterance: str,
+        tool: ToolSchema,
+        result: ToolResult,
+        prior_turns: Sequence[Turn],
         principal_role: str,
     ) -> str | None: ...
 
@@ -452,6 +477,7 @@ def format_prompt_tool_list(tools: Sequence[ToolSchema], principal_role: str) ->
 
 __all__ = [
     "DeterministicKeywordNarrator",
+    "GroundedAnswerNarrator",
     "Narrator",
     "ToolSchema",
     "default_tool_schemas",

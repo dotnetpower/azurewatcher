@@ -28,10 +28,10 @@ import logging
 import re
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
-from fdai.core.conversation.narrator import Narrator, ToolSchema
+from fdai.core.conversation.narrator import GroundedAnswerNarrator, Narrator, ToolSchema
 from fdai.core.conversation.session import (
     ConversationSession,
     Principal,
@@ -45,6 +45,7 @@ from fdai.core.conversation.tools import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_MAX_RENDERED_ANSWER_CHARS = 12_000
 
 
 @dataclass(frozen=True)
@@ -309,7 +310,66 @@ class ConversationCoordinator:
                 tier="T0",
             )
         )
-        return result
+        return self._render_grounded_answer(
+            session=session,
+            utterance=message,
+            tool_name=tool.name,
+            result=result,
+        )
+
+    def _render_grounded_answer(
+        self,
+        *,
+        session: ConversationSession,
+        utterance: str,
+        tool_name: str,
+        result: ToolResult,
+    ) -> ToolResult:
+        """Improve a successful preview while preserving deterministic output."""
+
+        if result.status != "ok" or not isinstance(self._narrator, GroundedAnswerNarrator):
+            return result
+        schema = next(
+            (item for item in self._narrator_tool_schemas if item.tool_name == tool_name),
+            None,
+        )
+        if schema is None:
+            return result
+        try:
+            answer = self._narrator.render_answer(
+                utterance=utterance,
+                tool=schema,
+                result=result,
+                prior_turns=session.snapshot(),
+                principal_role=session.principal.role.value,
+            )
+        except Exception:  # noqa: BLE001 - presentation failure keeps deterministic result
+            _LOGGER.warning(
+                "narrator_render_answer_failed",
+                extra={"tool_name": tool_name, "principal_role": session.principal.role.value},
+                exc_info=True,
+            )
+            return result
+        if answer is None:
+            return result
+        rendered = answer.strip()
+        if (
+            not rendered
+            or len(rendered) > _MAX_RENDERED_ANSWER_CHARS
+            or any(reference not in rendered for reference in result.evidence_refs)
+        ):
+            return result
+        session.append(
+            Turn(
+                turn_id=str(uuid.uuid4()),
+                direction="outbound",
+                content=rendered,
+                tool_name=tool_name,
+                result_preview=result.preview,
+                tier="T1",
+            )
+        )
+        return replace(result, preview=rendered)
 
     def _match_intent(self, message: str) -> _IntentMatch | None:
         """Regex-first, case-insensitive.

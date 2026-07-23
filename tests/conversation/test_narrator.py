@@ -188,6 +188,25 @@ class TestCoordinatorNarratorHook:
             turns=[],
         )
 
+    def _successful_tools(self):  # type: ignore[no-untyped-def]
+        from fdai.core.conversation import Role, ToolResult
+
+        class _SuccessfulTool:
+            name = "explore_catalog"
+            description = "Return a grounded synthetic catalog result."
+            rbac_floor = Role.READER
+            side_effect_class = "read"
+
+            def call(self, *, arguments, principal):  # type: ignore[no-untyped-def]
+                return ToolResult(
+                    status="ok",
+                    data={"rules": [{"id": "rule-example"}]},
+                    preview="found rule-example",
+                    evidence_refs=("rule-example",),
+                )
+
+        return [_SuccessfulTool()]
+
     def test_no_narrator_leaves_regex_behaviour_intact(self) -> None:
         from fdai.core.conversation import (
             AbstainResult,
@@ -284,3 +303,137 @@ class TestCoordinatorNarratorHook:
         # Should have a system turn recording the narrator translation.
         system_turns = [t.content for t in session.turns if t.direction == "system"]
         assert any("narrator translated to:" in c for c in system_turns)
+
+    def test_grounded_answer_narrator_renders_successful_tool_result(self) -> None:
+        from fdai.core.conversation import (
+            ConversationCoordinator,
+            ToolResult,
+            default_tool_schemas,
+        )
+
+        class _GroundedNarrator:
+            def translate(self, *, utterance, tools, principal_role):  # type: ignore[no-untyped-def]
+                return None
+
+            def render_answer(  # type: ignore[no-untyped-def]
+                self,
+                *,
+                utterance,
+                tool,
+                result,
+                prior_turns,
+                principal_role,
+            ):
+                assert utterance == "explore_catalog storage"
+                assert tool.tool_name == "explore_catalog"
+                assert result.status == "ok"
+                assert prior_turns[-1].direction == "tool_result"
+                assert principal_role == "reader"
+                return "I found the matching storage catalog entries. [rule-example]"
+
+        coord = ConversationCoordinator(
+            tools=self._successful_tools(),
+            narrator=_GroundedNarrator(),
+            narrator_tool_schemas=default_tool_schemas(),
+        )
+        session = self._session()
+
+        result = coord.handle_turn(
+            session=session,
+            message="explore_catalog storage",
+        )
+
+        assert isinstance(result, ToolResult)
+        assert result.preview == "I found the matching storage catalog entries. [rule-example]"
+        assert session.turns[-2].direction == "tool_result"
+        assert session.turns[-1].direction == "outbound"
+        assert session.turns[-1].tier == "T1"
+
+    def test_grounded_answer_narrator_failure_preserves_deterministic_preview(self) -> None:
+        from fdai.core.conversation import (
+            ConversationCoordinator,
+            ToolResult,
+            default_tool_schemas,
+        )
+
+        class _FailingNarrator:
+            def translate(self, *, utterance, tools, principal_role):  # type: ignore[no-untyped-def]
+                return None
+
+            def render_answer(self, **kwargs):  # type: ignore[no-untyped-def]
+                raise RuntimeError("provider unavailable")
+
+        coord = ConversationCoordinator(
+            tools=self._successful_tools(),
+            narrator=_FailingNarrator(),
+            narrator_tool_schemas=default_tool_schemas(),
+        )
+
+        result = coord.handle_turn(
+            session=self._session(),
+            message="explore_catalog storage",
+        )
+
+        assert isinstance(result, ToolResult)
+        assert result.preview == "found rule-example"
+
+    def test_grounded_answer_narrator_does_not_rewrite_tool_errors(self) -> None:
+        from fdai.core.conversation import (
+            ConversationCoordinator,
+            ToolResult,
+            default_tool_schemas,
+        )
+
+        class _RecordingNarrator:
+            calls = 0
+
+            def translate(self, *, utterance, tools, principal_role):  # type: ignore[no-untyped-def]
+                return None
+
+            def render_answer(self, **kwargs):  # type: ignore[no-untyped-def]
+                self.calls += 1
+                return "must not render"
+
+        narrator = _RecordingNarrator()
+        coord = ConversationCoordinator(
+            tools=self._tools(),
+            narrator=narrator,
+            narrator_tool_schemas=default_tool_schemas(),
+        )
+
+        result = coord.handle_turn(
+            session=self._session(),
+            message="explore_catalog",
+        )
+
+        assert isinstance(result, ToolResult)
+        assert result.status == "error"
+        assert narrator.calls == 0
+
+    def test_grounded_answer_narrator_requires_every_evidence_reference(self) -> None:
+        from fdai.core.conversation import (
+            ConversationCoordinator,
+            ToolResult,
+            default_tool_schemas,
+        )
+
+        class _CitationDroppingNarrator:
+            def translate(self, *, utterance, tools, principal_role):  # type: ignore[no-untyped-def]
+                return None
+
+            def render_answer(self, **kwargs):  # type: ignore[no-untyped-def]
+                return "I found a matching rule."
+
+        coord = ConversationCoordinator(
+            tools=self._successful_tools(),
+            narrator=_CitationDroppingNarrator(),
+            narrator_tool_schemas=default_tool_schemas(),
+        )
+
+        result = coord.handle_turn(
+            session=self._session(),
+            message="explore_catalog storage",
+        )
+
+        assert isinstance(result, ToolResult)
+        assert result.preview == "found rule-example"
