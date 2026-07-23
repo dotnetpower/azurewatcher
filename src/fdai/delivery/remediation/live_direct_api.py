@@ -142,13 +142,15 @@ class KubectlDirectApiExecutor(DirectApiExecutor):
 
         # Shadow records intent, mutates nothing (upstream default posture).
         if request.mode is Mode.SHADOW:
-            receipt = DirectApiReceipt(
+            # Shadow performs no mutation, so it MUST NOT populate the
+            # idempotency ledger. Otherwise a later ENFORCE call with the same
+            # idempotency key would short-circuit as ALREADY_APPLIED and skip
+            # the real mutation - a fail-open bypass of the enforce path.
+            return DirectApiReceipt(
                 outcome=DirectApiOutcome.SUCCEEDED,
                 receipt_ref=f"shadow:{request.action_type_name}:{deployment}",
                 detail="shadow: intent recorded, no mutation",
             )
-            self._ledger[request.idempotency_key] = receipt
-            return receipt
 
         receipt = await handler(request, deployment)
         if receipt.outcome in (DirectApiOutcome.SUCCEEDED, DirectApiOutcome.ALREADY_APPLIED):

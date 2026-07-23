@@ -85,6 +85,25 @@ async def test_shadow_records_intent_without_mutation(
     assert calls == []
 
 
+async def test_shadow_does_not_block_later_enforce(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner, calls = _fake_run(out="scaled")
+    monkeypatch.setattr(lda, "_run", runner)
+    executor = _exec()
+    shadow = await executor.execute(_req(mode=Mode.SHADOW, labels=("shadow",), key="k-same"))
+    assert shadow.outcome is DirectApiOutcome.SUCCEEDED
+    assert calls == []
+    # A later ENFORCE with the same idempotency key MUST still mutate; the
+    # shadow run must not have populated the ledger to short-circuit it.
+    enforce = await executor.execute(
+        _req(mode=Mode.ENFORCE, labels=("shadow", "enforce"), key="k-same")
+    )
+    assert enforce.outcome is DirectApiOutcome.SUCCEEDED
+    assert not enforce.already_existed
+    assert calls != []
+
+
 # --------------------------------------------------------------------------
 # scale-out
 # --------------------------------------------------------------------------
