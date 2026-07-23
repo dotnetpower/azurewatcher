@@ -1,4 +1,5 @@
 import { Tooltip } from "../components/tooltip";
+import { PageHeader } from "../components/ui";
 import type {
   LiveConnectionStatus,
   LiveStageEvent,
@@ -7,6 +8,7 @@ import {
   observationSourceLabel,
   type ObservationSource,
 } from "../hooks/observation-source";
+import { t as appT } from "../i18n";
 import { routeHref } from "../router";
 import { t } from "./i18n/live";
 import {
@@ -67,15 +69,10 @@ export function LivePanels({
 }) {
   return (
     <div class="live" data-filter={state.filter} data-ticker-collapsed={tickerCollapsed ? "1" : "0"}>
-      <section class="live-header">
-        <div>
-          <span class="live-eyebrow">{t("live.eyebrow")}</span>
-          <h2>
-            {t("live.title")}
-            <span class={`live-heartbeat ${view.streamOpen ? "is-live" : ""}`} aria-hidden="true" />
-          </h2>
-        </div>
-        <div class="live-header-right">
+      <PageHeader
+        title={appT("nav.panel.live")}
+        subtitle={t("live.lead")}
+        actions={<div class="live-header-right">
           <Tooltip content={tickerPaused ? t("live.resumeTitle") : t("live.freezeTitle")}>
             <button
               type="button"
@@ -110,12 +107,8 @@ export function LivePanels({
             <span>{t(`live.status.${status === "open" ? "open" : status}`)}</span>
             {lastError ? <span class="muted"> · {lastError}</span> : null}
           </div>
-        </div>
-      </section>
-
-      <p class="live-lead">
-        {t("live.lead")}
-      </p>
+        </div>}
+      />
 
       <section class="live-health" aria-label={t("live.health.label")}>
         <div>

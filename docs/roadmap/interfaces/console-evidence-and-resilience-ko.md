@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: 50217b28f640cdad383d7fd46c94da53a7c6440f
+translation_source_sha: 063837c8f503896d6aabdfeadce72e8369343fdf
 translation_revised: 2026-07-23
 ---
 
@@ -19,6 +19,10 @@ full-workspace Deck은 route가 변경되기 전에 닫힙니다.
 
 공통 페이지 제목은 영역과 패널 레이블이 다를 때 `전체 현황 / Dashboard`를 포함해 둘을 함께
 렌더링합니다. 패널 제목이 영역 레이블을 반복하는 영역 루트와 독립 utility는 단일 제목을 유지합니다.
+
+Live도 `운영 / 실시간`과 같은 공통 title 계약을 따릅니다. 관찰 control은 공통 header actions
+영역에 유지되고 좁은 viewport에서는 제목 아래로 줄바꿈되어 화면 고정, source, window 및 connection
+status가 계속 표시됩니다.
 
 콘솔의 모든 data-bearing card는 drill-down을 제공합니다. 전체 card surface는 해당 datum을 소유하는
 가장 좁은 analytical 또는 filtered-evidence 목적지로 이동하는 keyboard-accessible native link를

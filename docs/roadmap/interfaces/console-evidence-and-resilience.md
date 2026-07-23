@@ -18,6 +18,10 @@ The shared page title renders the domain and panel labels when they differ, incl
 `Overview / Dashboard`. A domain root whose panel title repeats the domain label and a standalone
 utility keep a single title.
 
+Live follows the same shared title contract as `Operations / Live`. Its observation controls stay
+in the shared header actions area and wrap below the title on narrow viewports, so Freeze, source,
+window, and connection status remain visible.
+
 Every data-bearing card across the console drills down. The complete card surface uses a native
 keyboard-accessible link to the narrowest analytical or filtered-evidence destination that owns the
 datum. A card with independent controls exposes a visible primary detail link instead. Dashboard

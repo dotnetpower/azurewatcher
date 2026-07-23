@@ -1781,8 +1781,9 @@ pre {
 .live-swarm-empty span { max-width: 48ch; font-size: 12px; line-height: 1.5; }
 
 @media (max-width: 760px) {
-  .live-header { align-items: flex-start; flex-direction: column; }
-  .live-header-right { width: 100%; flex-wrap: wrap; }
+  .live .page-header { align-items: flex-start; flex-direction: column; }
+  .live .page-header-actions { width: 100%; min-width: 0; flex-shrink: 1; }
+  .live-header-right { width: 100%; flex-wrap: wrap; justify-content: flex-start; }
   .live-filterbar { border-radius: 8px; }
   .live-filterbar-note { width: 100%; margin-left: 0; }
 }
