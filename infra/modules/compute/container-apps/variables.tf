@@ -510,6 +510,18 @@ variable "analyzer_budget_seconds" {
   default     = ""
 }
 
+variable "forecast_tick_cron_expression" {
+  description = "Cron for the mechanical forecast evaluation tick Job. Empty disables it."
+  type        = string
+  default     = ""
+}
+
+variable "forecast_targets_json" {
+  description = "JSON array of governed forecast target specifications consumed by Heimdall."
+  type        = string
+  default     = ""
+}
+
 variable "prometheus_endpoint" {
   description = <<-EOT
     Base URL of a Prometheus-compatible query API (AKS Managed Prometheus,

@@ -426,9 +426,10 @@ class Norns(Agent):
         # Dedup one action's outcome across its multiple terminal audits.
         correlation_id = str(payload.get("correlation_id", ""))
         if correlation_id:
-            if correlation_id in self._counted_correlations:
+            outcome_key = f"{correlation_id}:{target}"
+            if outcome_key in self._counted_correlations:
                 return
-            self._counted_correlations.add(correlation_id)
+            self._counted_correlations.add(outcome_key)
         counts = self._outcomes.setdefault(target, {"success": 0, "rollback": 0})
         counts[bucket] += 1
         total = counts["success"] + counts["rollback"]

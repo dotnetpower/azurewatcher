@@ -13,6 +13,7 @@ import logging
 import time
 from collections import Counter, deque
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fdai.agents._framework.action_semantics import ActionSemanticsCatalog, is_irreversible
@@ -25,6 +26,9 @@ from fdai.agents._framework.introspection import (
     mentioned,
 )
 from fdai.agents._framework.pantheon import _HEIMDALL
+from fdai.core.detection.forecast_closure import ForecastClosureCoordinator
+from fdai.core.detection.forecast_episode import ForecastEpisodeStore
+from fdai.core.detection.forecast_evaluation import ForecastEpisodeEvaluator
 from fdai.shared.contracts.models import ForecastOutcome
 
 AlerterHook = Callable[[dict[str, Any]], Awaitable[None]]
@@ -51,6 +55,7 @@ _ALERT_WINDOW_SECONDS = 3600.0
 #: seen. Oldest-first eviction bounds memory; an evicted resource simply
 #: restarts its rate window on its next event.
 _MAX_TRACKED_KEYS = 10_000
+_MAX_FORECAST_PUBLICATION_ATTEMPTS = 5
 
 
 def _evict_oldest(mapping: dict[Any, Any], cap: int, *, keep: Any = None) -> None:
@@ -81,6 +86,10 @@ class Heimdall(Agent):
         read_investigation_hook: ReadInvestigationHook | None = None,
         alert_rate_per_hour: int = 5,
         clock: Callable[[], float] | None = None,
+        forecast_clock: Callable[[], datetime] | None = None,
+        forecast_evaluator: ForecastEpisodeEvaluator | None = None,
+        forecast_closer: ForecastClosureCoordinator | None = None,
+        forecast_store: ForecastEpisodeStore | None = None,
         action_semantics: ActionSemanticsCatalog | None = None,
     ) -> None:
         super().__init__(spec=_HEIMDALL)
@@ -99,6 +108,10 @@ class Heimdall(Agent):
         # Injected clock keeps the window deterministic under test; defaults
         # to a monotonic source so a wall-clock jump cannot reopen the budget.
         self._clock = clock or time.monotonic
+        self._forecast_clock = forecast_clock or (lambda: datetime.now(UTC))
+        self._forecast_evaluator = forecast_evaluator
+        self._forecast_closer = forecast_closer
+        self._forecast_store = forecast_store
         self._action_semantics = action_semantics
         self._alert_windows: dict[str, tuple[float, int]] = {}
 
@@ -132,6 +145,9 @@ class Heimdall(Agent):
 
     async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
         if topic == "object.event":
+            if payload.get("event_type") == "forecast.evaluation_due":
+                await self._run_forecast_tick(payload)
+                return
             if (
                 payload.get("kind") == "document_ingestion"
                 and payload.get("event_type") == "document.inspected"
@@ -143,6 +159,85 @@ class Heimdall(Agent):
             severity = await self._maybe_classify_severity(payload)
             if severity in ("high", "critical") and self._alerter_hook is not None:
                 await self._maybe_send_admin_card(payload, severity)
+
+    async def _run_forecast_tick(self, payload: dict[str, Any]) -> None:
+        identity_fields = (
+            payload.get("event_id"),
+            payload.get("idempotency_key"),
+            payload.get("correlation_id"),
+        )
+        if payload.get("source") != "forecast-evaluation-scheduler" or any(
+            not isinstance(value, str) or not value.startswith("forecast-evaluation:")
+            for value in identity_fields
+        ):
+            self.record_behavior("forecast_tick:invalid")
+            return
+        if (
+            self._forecast_evaluator is None
+            or self._forecast_closer is None
+            or self._forecast_store is None
+        ):
+            self.record_behavior("forecast_tick:unavailable")
+            return
+        now = self._forecast_clock()
+        if now.tzinfo is None:
+            raise ValueError("Heimdall forecast clock MUST be timezone-aware")
+        evaluated = await self._forecast_evaluator.evaluate(now=now)
+        closed = await self._forecast_closer.close_due(now=now)
+        published = await self._publish_forecast_outbox(now=now)
+        self.record_behavior("forecast_tick:completed")
+        for _ in range(evaluated):
+            self.record_behavior("forecast_episode:evaluated")
+        for _ in range(closed):
+            self.record_behavior("forecast_episode:closed")
+        for _ in range(published):
+            self.record_behavior("forecast_publication:published")
+
+    async def _publish_forecast_outbox(self, *, now: datetime) -> int:
+        if self._forecast_store is None or self.bus is None:
+            return 0
+        publications = await self._forecast_store.claim_publications(
+            now=now,
+            limit=100,
+            lease_until=now + timedelta(seconds=60),
+        )
+        published = 0
+        for publication in publications:
+            try:
+                publication_payload = dict(publication.payload)
+                if publication.topic == "object.forecast-outcome":
+                    publication_payload = ForecastOutcome.model_validate(
+                        publication_payload
+                    ).model_dump(mode="json")
+                elif publication.topic != "object.forecast":
+                    raise ValueError("forecast publication topic is unsupported")
+                await self.bus.publish("Heimdall", publication.topic, publication_payload)
+                await self._forecast_store.complete_publication(
+                    publication.publication_id,
+                    published_at=now,
+                )
+                published += 1
+            except Exception as exc:
+                error = type(exc).__name__
+                if (
+                    isinstance(exc, (TypeError, ValueError))
+                    or publication.attempts >= _MAX_FORECAST_PUBLICATION_ATTEMPTS
+                ):
+                    await self._forecast_store.dead_letter_publication(
+                        publication.publication_id,
+                        failed_at=now,
+                        error=error,
+                    )
+                    self.record_behavior("forecast_publication:dead_lettered")
+                else:
+                    await self._forecast_store.release_publication(
+                        publication.publication_id,
+                        available_at=now + timedelta(seconds=30),
+                        error=error,
+                    )
+                    self.record_behavior("forecast_publication:retry")
+                continue
+        return published
 
     async def _emit_document_safety_signal(self, event: dict[str, Any]) -> None:
         """Normalize scanner/protection facts without making the verdict."""

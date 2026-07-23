@@ -390,6 +390,11 @@ def _from_mapping(raw: Mapping[str, object]) -> CaseHistoryRevisionRecord:
     )
 
 
+def deserialize_case_history_record(raw: Mapping[str, object]) -> CaseHistoryRevisionRecord:
+    """Deserialize one legacy StateStore latest-case projection for migration."""
+    return _from_mapping(raw)
+
+
 def _timestamp(value: object) -> datetime:
     if not isinstance(value, str):
         raise ValueError("case history timestamp MUST be an ISO string")
@@ -404,4 +409,4 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     return tuple(value)
 
 
-__all__ = ["StateStoreCaseHistoryMetadataStore"]
+__all__ = ["StateStoreCaseHistoryMetadataStore", "deserialize_case_history_record"]

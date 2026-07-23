@@ -36,6 +36,21 @@
     "shadow": "섀도",
     "success": "성공"
   },
+  "forecastLearning": {
+    "title": "예측 학습",
+    "subtitle": "PostgreSQL에서 확인한 지속성 있는 예측 종료 및 학습 파이프라인 상태입니다.",
+    "resource": "예측 학습 근거",
+    "unavailable": "예측 학습 근거를 사용할 수 없습니다.",
+    "bannerTitle": "읽기 전용 학습 근거",
+    "bannerBody": "이 화면은 종료 및 전달 부채를 표시합니다. 탐지기를 변경하거나 후보를 승격할 수 없습니다.",
+    "completeness": "종료 완전성",
+    "overdue": "기한 초과 에피소드",
+    "outboxDebt": "게시 부채",
+    "deadLetters": "배달 실패",
+    "retentionDebt": "보존 부채",
+    "column": { "label": "결과", "origin": "누락 원인", "count": "건수" },
+    "empty": "종료된 예측 결과가 없습니다."
+  },
   "audit": {
     "subtitle": "모든 최종 제어 플레인 결정의 추가 전용 기록입니다. 항목을 수정하거나 삭제하지 않는 읽기 전용 화면입니다.",
     "invalidFilter": "잘못된 감사 필터: {filters}",

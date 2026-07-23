@@ -9,6 +9,7 @@ from typing import Literal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fdai.shared.contracts.models import (
+    ForecastMissOrigin,
     ForecastOutcome,
     ForecastOutcomeLabel,
     Mode,
@@ -105,6 +106,7 @@ def close_missed_breach(
     actual_breach_at: datetime,
     evidence_refs: tuple[str, ...],
     closed_at: datetime,
+    miss_origin: ForecastMissOrigin = ForecastMissOrigin.MODEL,
 ) -> ForecastOutcome:
     outcome_id = uuid5(
         NAMESPACE_URL,
@@ -131,6 +133,7 @@ def close_missed_breach(
         observed_value=observed_value,
         actual_breach_at=actual_breach_at,
         label=ForecastOutcomeLabel.FALSE_NEGATIVE,
+        miss_origin=miss_origin,
         evidence_refs=evidence_refs,
         telemetry_completeness=TelemetryCompleteness.COMPLETE,
         closed_at=closed_at,

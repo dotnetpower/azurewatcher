@@ -74,6 +74,7 @@ def test_false_negative_requires_no_prediction_and_actual_breach() -> None:
             predicted_value=None,
             interval_lower=None,
             interval_upper=None,
+            miss_origin="model",
         )
     )
     assert outcome.prediction_id is None
@@ -86,8 +87,24 @@ def test_false_negative_requires_no_prediction_and_actual_breach() -> None:
                 label="false_negative",
                 interval_lower=None,
                 interval_upper=None,
+                miss_origin="model",
             )
         )
+
+
+def test_false_negative_requires_miss_origin_and_other_labels_reject_it() -> None:
+    with pytest.raises(ValidationError, match="identify its miss origin"):
+        ForecastOutcome.model_validate(
+            _payload(
+                prediction_id=None,
+                label="false_negative",
+                predicted_value=None,
+                interval_lower=None,
+                interval_upper=None,
+            )
+        )
+    with pytest.raises(ValidationError, match="MUST NOT carry a miss origin"):
+        ForecastOutcome.model_validate(_payload(miss_origin="pipeline"))
 
 
 def test_unscorable_cannot_claim_complete_telemetry() -> None:

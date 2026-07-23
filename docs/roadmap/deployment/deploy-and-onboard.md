@@ -84,12 +84,12 @@ and a separate idempotency role. Easy Auth admits only the core executor client 
 After exact apply converges, the official Flex One Deploy action remote-builds the verified source,
 retries bounded trigger sync, and requires both Function triggers before recording the apply receipt.
 Full runbook: [`infra/bootstrap/README.md`](../../../infra/bootstrap/README.md).
-Scheduled drivers remain Terraform-owned through the `SCHEDULER_TICK_CRON_EXPRESSION` and
-`ANALYZER_TICK_CRON_EXPRESSION` repository variables. Optional analyzer inputs use
-`ANALYZER_TARGETS_JSON`, `ANALYZER_WINDOW_SECONDS`, and `ANALYZER_BUDGET_SECONDS`. An empty
-cron disables its job. Before each plan, the workflow safely adopts a matching existing
-scheduler or analyzer job when it isn't already in remote state. Subsequent image and
-configuration changes then converge through the same plan and apply path.
+Scheduled drivers remain Terraform-owned. `SCHEDULER_TICK_CRON_EXPRESSION` and
+`ANALYZER_TICK_CRON_EXPRESSION` configure the existing jobs; `forecast_tick_cron_expression` and
+`forecast_targets_json` opt into the forecast Job and inject `FDAI_FORECAST_TARGETS_JSON`. The
+forecast Job publishes only a raw tick, which Huginn normalizes for Heimdall to evaluate and close.
+An empty cron disables its job. Existing scheduler or analyzer jobs are safely adopted before a
+plan, and later image or configuration changes converge through the same plan and apply path.
 
 #### Inventory discovery with restricted egress
 

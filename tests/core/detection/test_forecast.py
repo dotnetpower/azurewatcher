@@ -18,6 +18,7 @@ from fdai.core.detection import (
     LinearForecastDetector,
     MetricSample,
 )
+from fdai.core.detection.forecast import ForecastDetectorDecision
 from fdai.core.event_ingest import EventIngest
 from fdai.shared.contracts.models import Category, Mode, Severity
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
@@ -113,6 +114,25 @@ def test_non_finite_history_abstains(bad: float) -> None:
     # It must abstain (fail-closed) instead.
     poisoned = [0.0, 1.0, 2.0, bad, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
     assert _evaluate(_detector(), poisoned) is None
+
+
+def test_explicit_evaluation_distinguishes_abstain_from_negative() -> None:
+    detector = _detector()
+    abstained = detector.evaluate_result(
+        metric="disk_used_pct",
+        resource_ref="resource:example/rg/vol-a",
+        history=_series([1.0, 2.0]),
+        window_bucket="2026-07-08T09:00",
+    )
+    negative = detector.evaluate_result(
+        metric="disk_used_pct",
+        resource_ref="resource:example/rg/vol-a",
+        history=_series([1.0] * 10),
+        window_bucket="2026-07-08T09:00",
+    )
+    assert abstained.decision is ForecastDetectorDecision.ABSTAINED
+    assert abstained.reason == "insufficient_samples"
+    assert negative.decision is ForecastDetectorDecision.PREDICTED_NO_BREACH
 
 
 @pytest.mark.parametrize(

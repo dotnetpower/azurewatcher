@@ -58,6 +58,9 @@ from fdai.core.case_history import (
     CaseHistoryRetentionService,
 )
 from fdai.core.chaos.coverage import ScenarioCoverageAggregator
+from fdai.core.detection.forecast_closure import ForecastClosureCoordinator
+from fdai.core.detection.forecast_episode import ForecastEpisodeStore
+from fdai.core.detection.forecast_evaluation import ForecastEpisodeEvaluator
 from fdai.core.learning import PostTurnReviewCoordinator
 from fdai.shared.contracts.models import OntologyActionType
 from fdai.shared.providers.event_bus import EventBus
@@ -114,6 +117,9 @@ class PantheonRuntime:
         case_history_materializer: CaseHistoryMaterializer | None = None,
         case_history_analyzer: CaseHistoryAnalyzer | None = None,
         case_history_retention: CaseHistoryRetentionService | None = None,
+        forecast_evaluator: ForecastEpisodeEvaluator | None = None,
+        forecast_closer: ForecastClosureCoordinator | None = None,
+        forecast_store: ForecastEpisodeStore | None = None,
         case_retention_days: int = 30,
         case_deletion_days: int = 60,
         action_types: tuple[OntologyActionType, ...] = (),
@@ -208,8 +214,22 @@ class PantheonRuntime:
                 rbac=operator_rbac,
                 action_semantics=action_semantics,
             )
-        if action_semantics is not None:
-            instantiated["Heimdall"] = Heimdall(action_semantics=action_semantics)
+        if (
+            action_semantics is not None
+            or forecast_evaluator is not None
+            or forecast_closer is not None
+            or forecast_store is not None
+        ):
+            if (forecast_evaluator is None) != (forecast_closer is None) or (
+                forecast_evaluator is None
+            ) != (forecast_store is None):
+                raise ValueError("forecast runtime bindings MUST be supplied together")
+            instantiated["Heimdall"] = Heimdall(
+                action_semantics=action_semantics,
+                forecast_evaluator=forecast_evaluator,
+                forecast_closer=forecast_closer,
+                forecast_store=forecast_store,
+            )
         if saga is not None:
             instantiated["Saga"] = saga
         if rollback_executors is not None:

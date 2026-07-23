@@ -38,6 +38,10 @@
         "magnitude_error", "intervention_censored", "unscorable"
       ]
     },
+    "miss_origin": {
+      "type": ["string", "null"],
+      "enum": ["model", "pipeline", null]
+    },
     "intervention_refs": {
       "type": "array",
       "items": {"type": "string", "minLength": 1, "maxLength": 512},
@@ -62,6 +66,7 @@
         "required": ["actual_breach_at"],
         "properties": {
           "prediction_id": {"type": "null"},
+          "miss_origin": {"enum": ["model", "pipeline"]},
           "predicted_value": {"type": "null"},
           "interval_lower": {"type": "null"},
           "interval_upper": {"type": "null"},
@@ -70,7 +75,10 @@
       },
       "else": {
         "required": ["prediction_id"],
-        "properties": {"prediction_id": {"type": "string", "format": "uuid"}}
+        "properties": {
+          "prediction_id": {"type": "string", "format": "uuid"},
+          "miss_origin": {"type": "null"}
+        }
       }
     },
     {

@@ -190,4 +190,9 @@ def downgrade() -> None:
     seeded_link_names = ", ".join(f"'{r[0]}'" for r in _LINK_TYPES)
     seeded_object_names = ", ".join(f"'{r[0]}'" for r in _OBJECT_TYPES)
     op.execute(f"DELETE FROM ontology_link_type WHERE name IN ({seeded_link_names});")
-    op.execute(f"DELETE FROM ontology_object_type WHERE name IN ({seeded_object_names});")
+    op.execute(
+        "DELETE FROM ontology_object_type AS object_type "
+        f"WHERE object_type.name IN ({seeded_object_names}) "
+        "AND NOT EXISTS (SELECT 1 FROM ontology_link_type AS link_type "
+        "WHERE link_type.from_type = object_type.name OR link_type.to_type = object_type.name);"
+    )

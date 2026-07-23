@@ -16,8 +16,18 @@ from fdai.core.case_history.testing import (
     InMemoryCaseHistoryArtifactStore,
     InMemoryCaseHistoryMetadataStore,
 )
+from fdai.core.detection.forecast_closure import ForecastClosureCoordinator
+from fdai.core.detection.forecast_episode import (
+    ForecastPublicationOutboxItem,
+    forecast_publication_id,
+)
+from fdai.core.detection.forecast_episode_testing import InMemoryForecastEpisodeStore
+from fdai.core.detection.forecast_evaluation import ForecastEpisodeEvaluator, ForecastTargetSpec
+from fdai.core.detection.forecast_observation import MetricForecastObservationProvider
+from fdai.core.detection.metric_source import MetricSeriesSource
 from fdai.core.learning import RuleCandidateHint
 from fdai.shared.contracts.models import ForecastOutcome
+from fdai.shared.providers.metric import MetricPoint, StaticMetricProvider
 
 T0 = datetime(2026, 7, 1, tzinfo=UTC)
 
@@ -98,6 +108,7 @@ async def test_forecast_outcome_flows_to_audit_case_history_and_mimir() -> None:
     assert len(saga.replay_for_correlation("corr-2")) >= 1
     candidates = mimir.pending_candidates()
     assert len(candidates) == 1
+    assert candidates[0]["source_signal"] == "forecast_case_history"
     assert candidates[0]["source_signal"] == "forecast_case_history"
     assert candidates[0]["norns_consensus"]["unanimous"] is True
 
@@ -264,6 +275,123 @@ async def test_norns_routes_grounded_case_analysis_hint() -> None:
     assert len(candidates) == 1
     assert candidates[0]["source_signal"] == "forecast_case_history_analysis"
     assert candidates[0]["target_rule_id"] == "capacity-linear"
+
+
+async def test_forecast_tick_flows_through_heimdall_owned_topics() -> None:
+    bus = InMemoryBus(registry=load_pantheon())
+    store = InMemoryForecastEpisodeStore()
+    points = tuple(
+        MetricPoint(
+            metric_name="capacity_percent",
+            at=T0 + timedelta(seconds=index),
+            value=float(index),
+            labels={"resource_id": "resource-1"},
+        )
+        for index in range(10)
+    ) + (
+        MetricPoint(
+            metric_name="capacity_percent",
+            at=T0 + timedelta(seconds=100),
+            value=109.0,
+            labels={"resource_id": "resource-1"},
+        ),
+        MetricPoint(
+            metric_name="capacity_percent",
+            at=T0 + timedelta(seconds=109),
+            value=109.0,
+            labels={"resource_id": "resource-1"},
+        ),
+    )
+    metric_provider = StaticMetricProvider(points)
+    evaluator = ForecastEpisodeEvaluator(
+        source=MetricSeriesSource(metric_provider),
+        store=store,
+        targets=(
+            ForecastTargetSpec(
+                detector_id="capacity-linear",
+                detector_version="1.0.0",
+                scorer_version="1.0.0",
+                access_scope_digest="a" * 64,
+                resource_ref="resource-1",
+                metric="capacity_percent",
+                threshold=20.0,
+                horizon_seconds=100,
+                lookback_seconds=300,
+                telemetry_grace_seconds=20,
+            ),
+        ),
+    )
+    clock = [T0 + timedelta(seconds=10)]
+    heimdall = Heimdall(
+        bus=bus,
+        forecast_clock=lambda: clock[0],
+        forecast_evaluator=evaluator,
+        forecast_closer=ForecastClosureCoordinator(
+            store=store,
+            observations=MetricForecastObservationProvider(metric_provider),
+        ),
+        forecast_store=store,
+    )
+    await heimdall.on_typed_message(
+        "object.event",
+        {
+            "event_id": "forecast-evaluation:1",
+            "idempotency_key": "forecast-evaluation:1",
+            "correlation_id": "forecast-evaluation:1",
+            "source": "forecast-evaluation-scheduler",
+            "event_type": "forecast.evaluation_due",
+        },
+    )
+    assert len(bus.messages_on("object.forecast")) == 1
+    clock[0] = T0 + timedelta(seconds=130)
+    await heimdall.on_typed_message(
+        "object.event",
+        {
+            "event_id": "forecast-evaluation:2",
+            "idempotency_key": "forecast-evaluation:2",
+            "correlation_id": "forecast-evaluation:2",
+            "source": "forecast-evaluation-scheduler",
+            "event_type": "forecast.evaluation_due",
+        },
+    )
+    outcomes = bus.messages_on("object.forecast-outcome")
+    assert len(outcomes) == 1
+    assert outcomes[0].payload["label"] == "true_positive"
+
+
+async def test_poison_publication_does_not_starve_following_item() -> None:
+    bus = InMemoryBus(registry=load_pantheon())
+    store = InMemoryForecastEpisodeStore()
+    episode = _outcome(1)
+    poison_id = forecast_publication_id(
+        episode_id=episode.prediction_id or episode.outcome_id,
+        topic="object.forecast-outcome",
+    )
+    valid_id = forecast_publication_id(
+        episode_id=episode.prediction_id or episode.outcome_id,
+        topic="object.forecast",
+    )
+    store.outbox[poison_id] = ForecastPublicationOutboxItem(
+        publication_id=poison_id,
+        episode_id=episode.prediction_id or episode.outcome_id,
+        topic="object.forecast-outcome",
+        payload={"malformed": True},
+        attempts=0,
+    )
+    store.outbox[valid_id] = ForecastPublicationOutboxItem(
+        publication_id=valid_id,
+        episode_id=episode.prediction_id or episode.outcome_id,
+        topic="object.forecast",
+        payload={
+            "correlation_id": "corr-valid",
+            "idempotency_key": "forecast-valid",
+        },
+        attempts=0,
+    )
+    heimdall = Heimdall(bus=bus, forecast_store=store)
+    assert await heimdall._publish_forecast_outbox(now=T0) == 1
+    assert poison_id in store.dead_lettered
+    assert len(bus.messages_on("object.forecast")) == 1
 
 
 async def test_norns_invalid_analysis_result_falls_back_to_inert_candidate() -> None:

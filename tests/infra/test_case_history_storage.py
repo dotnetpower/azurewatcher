@@ -32,3 +32,17 @@ def test_root_wires_case_history_private_endpoint_and_core_environment() -> None
     assert "FDAI_CASE_HISTORY_DELETION_DAYS" in compute
     assert 'variable "enable_case_history"' in variables
     assert "default     = true" in variables
+
+
+def test_forecast_tick_is_mechanical_and_opt_in() -> None:
+    job = (ROOT / "infra/modules/compute/container-apps/forecast_tick_job.tf").read_text(
+        encoding="utf-8"
+    )
+    module_variables = (ROOT / "infra/modules/compute/container-apps/variables.tf").read_text(
+        encoding="utf-8"
+    )
+    root = (ROOT / "infra/main.tf").read_text(encoding="utf-8")
+    assert 'count = var.forecast_tick_cron_expression == "" ? 0 : 1' in job
+    assert '"fdai.delivery.forecast_tick_cli"' in job
+    assert "forecast_tick_cron_expression = var.forecast_tick_cron_expression" in root
+    assert 'variable "forecast_targets_json"' in module_variables

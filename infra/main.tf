@@ -1367,6 +1367,8 @@ module "compute" {
   analyzer_targets_json         = var.analyzer_targets_json
   analyzer_window_seconds       = var.analyzer_window_seconds
   analyzer_budget_seconds       = var.analyzer_budget_seconds
+  forecast_tick_cron_expression = var.forecast_tick_cron_expression
+  forecast_targets_json         = var.forecast_targets_json
   prometheus_endpoint           = var.prometheus_endpoint
   prometheus_audience           = var.prometheus_audience
   vm_task_enabled               = var.vm_task_enabled

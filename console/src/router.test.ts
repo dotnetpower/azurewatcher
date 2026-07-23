@@ -18,6 +18,7 @@ describe("clean console routes", () => {
     expect(panelPath("scheduled-continuations")).toBe("/scheduled-continuations");
     expect(panelPath("conversation-delivery")).toBe("/conversation-delivery");
     expect(panelPath("browser-evidence")).toBe("/browser-evidence");
+    expect(panelPath("forecast-learning")).toBe("/forecast-learning");
     expect(panelPath("labs")).toBe("/labs");
     expect(panelPath("settings-general")).toBe("/settings/general");
     expect(panelPath("settings-models")).toBe("/settings/models");

@@ -36,6 +36,21 @@
     "shadow": "Shadow",
     "success": "Success"
   },
+  "forecastLearning": {
+    "title": "Forecast learning",
+    "subtitle": "Durable prediction closure and learning-pipeline health from PostgreSQL.",
+    "resource": "forecast learning evidence",
+    "unavailable": "Forecast learning evidence is unavailable.",
+    "bannerTitle": "Read-only learning evidence",
+    "bannerBody": "This view exposes closure and delivery debt. It cannot change a detector or promote a candidate.",
+    "completeness": "Closure completeness",
+    "overdue": "Overdue episodes",
+    "outboxDebt": "Publication debt",
+    "deadLetters": "Dead letters",
+    "retentionDebt": "Retention debt",
+    "column": { "label": "Outcome", "origin": "Miss origin", "count": "Count" },
+    "empty": "No terminal forecast outcomes are available."
+  },
   "audit": {
     "subtitle": "Append-only record of every terminal control-plane decision. Read-only; entries are never edited or deleted.",
     "invalidFilter": "Invalid audit filter: {filters}",

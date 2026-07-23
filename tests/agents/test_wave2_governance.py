@@ -921,6 +921,26 @@ def test_norns_outcome_learner_normalizes_action_run_state() -> None:
     assert proposals[0]["evidence"]["rollback_rate"] == 0.4
 
 
+def test_norns_counts_distinct_action_targets_under_one_correlation() -> None:
+    norns = Norns(min_outcome_samples=1, rollback_alarm_rate=0.0)
+    for action_type in ("remediate.a", "remediate.b"):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.audit-entry",
+                {
+                    "action_type": action_type,
+                    "state": "rolled_back",
+                    "correlation_id": "shared-correlation",
+                },
+            )
+        )
+    assert norns._outcomes == {  # noqa: SLF001 - dedup boundary assertion
+        "remediate.a": {"success": 0, "rollback": 1},
+        "remediate.b": {"success": 0, "rollback": 1},
+    }
+    assert len(norns._counted_correlations) == 2  # noqa: SLF001
+
+
 # ---------------------------------------------------------------------------
 # Discovery loop B: Saga republishes outcomes -> Norns learns
 # ---------------------------------------------------------------------------

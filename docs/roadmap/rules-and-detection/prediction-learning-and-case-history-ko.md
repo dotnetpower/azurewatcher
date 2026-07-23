@@ -1,6 +1,6 @@
 ---
 translation_of: prediction-learning-and-case-history.md
-translation_source_sha: 24d0c0e3012fab0ba2f51396bac6e99a161a4246
+translation_source_sha: 90f103babfa8f21762ef1eccc5e03f32ec36fc92
 translation_revised: 2026-07-23
 ---
 # 예측 학습 및 케이스 히스토리
@@ -28,9 +28,8 @@ flowchart LR
     HD -->|object.forecast| S[Saga audit]
     HD -->|object.forecast-outcome| S
     HD -->|object.forecast-outcome| MU[Muninn case revision]
-    HD -->|object.forecast-outcome| N[Norns failure analysis]
     MU --> CH[Case history storage]
-    CH --> N
+    MU -->|object.context-index| N[Norns failure analysis]
     N -->|object.rule-candidate| M[Mimir replay and shadow gate]
     M -->|object.rule or policy| HD
     HD --> F[Forseti judgment]
@@ -59,6 +58,12 @@ learning intake 또는 관련 없는 forecast를 차단하지 않습니다. Runt
 failure를 dead-letter 처리하기 전에 두 번 재시도합니다. 안정적인 correlation 및 idempotency
 key로 replay를 안전하게 유지합니다.
 
+배포된 loop는 기계적인 tick publisher가 구동합니다. Huginn은 raw tick을 `object.event`로
+정규화하고, Heimdall은 설정된 target과 metric 조합을 평가해 positive, negative 또는 판단 보류
+평가를 변경 불가능한 episode로 기록합니다. 또한 telemetry grace period 이후 due episode를
+종료하고 transactional publication outbox를 비웁니다. Poison publication은 다른 episode를
+막지 않도록 격리하고 dead-letter 처리합니다.
+
 ## Forecast outcome contract
 
 `ForecastOutcome`은 Heimdall만 소유하고 `object.forecast-outcome`으로 publish하는 versioned
@@ -72,6 +77,11 @@ object입니다. 다음을 기록합니다.
 - terminal label: `true_positive`, `false_positive`, `false_negative`, `late_breach`,
   `magnitude_error`, `intervention_censored` 또는 `unscorable`
 - intervention 및 evidence reference, telemetry completeness 및 close time
+
+Episode ledger는 `predicted_breach`, `predicted_no_breach`, `abstained` 평가도 기록합니다. 세
+상태를 모두 저장해 recall denominator를 보존하고 model miss와 pipeline miss를 구분합니다.
+Horizon scoring은 event time을 사용합니다. Horizon 이후 breach는 해당 horizon의 false negative가
+아니며 magnitude는 첫 breach sample이 아니라 horizon 시점 observed value를 interval과 비교합니다.
 
 적격한 선행 prediction이 없는 실제 breach는 prediction id 없는 false-negative outcome을
 만듭니다. At-least-once delivery는 안정 outcome id로 deduplicate합니다. 누락 telemetry,
@@ -100,7 +110,10 @@ PostgreSQL은 제한 없는 evidence body가 아니라 조회 가능한 metadata
 - `case_history_chunk`: 제한되고 redaction된 text, chunk kind, embedding, embedding model
   version, source manifest digest, access-scope digest 및 deletion lineage
 
-Append-only audit log가 계속 권위입니다. Hot index는 다시 만들 수 있는 projection입니다.
+Append-only audit log가 evidence 권위를 유지합니다. Migration 중에는 legacy StateStore
+projection이 read authority를 유지하고 PostgreSQL은 shadow write를 받습니다. Keyset backfill은
+전체 artifact chain을 재구성하고 삭제된 identity를 zero-size tombstone으로 보존합니다.
+Persisted zero-mismatch marker를 runtime에서 확인한 뒤에만 relational read를 시작할 수 있습니다.
 
 ### Immutable artifact
 
@@ -169,13 +182,14 @@ publisher가 deletion을 앞당길 수 없습니다. Retention publisher task가
 | Forecast detector 및 shadow finding | 구현됨 |
 | Agent pub/sub runtime 및 single-writer enforcement | 구현됨 |
 | Governed trajectory serialization, scanning, checksum 및 retention primitive | 구현됨, 재사용 |
-| `ForecastOutcome` schema, closer 및 topic wiring | 이 slice에서 구현 |
-| Canonical case revision 및 in-memory store | 이 slice에서 구현 |
-| StateStore CAS latest-case projection | 이 slice에서 구현, production에서는 PostgreSQL-backed |
-| 전용 PostgreSQL revision/chunk table | 후속 작업, target model은 위에서 정의 |
-| Azure private artifact adapter | 이 slice에서 구현, deployment는 opt-in |
-| Muninn case materialization, scheduled retention 및 Norns candidate choreography | 이 slice에서 구현 |
-| 전체 live forecast metric scheduler 및 console view | 후속 작업, storage correctness에는 불필요 |
+| `ForecastOutcome` schema, episode closer 및 transactional publication outbox | 구현됨 |
+| Positive, negative 및 판단 보류 episode ledger | 구현됨 |
+| StateStore authority와 PostgreSQL shadow dual-write | 구현됨 |
+| PostgreSQL episode, revision, chunk, migration-marker 및 tombstone table | 구현됨 |
+| 전체 chain keyset backfill 및 zero-mismatch cutover gate | 구현됨 |
+| Azure private artifact adapter | 구현됨, deployment는 opt-in |
+| Muninn case materialization, scheduled retention 및 Norns candidate choreography | 구현됨 |
+| 기계적 forecast tick Job 및 read-only console health view | 구현됨, deployment는 opt-in |
 
 ## Verification
 

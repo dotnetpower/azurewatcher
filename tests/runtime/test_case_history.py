@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
+from fdai.core.case_history.dual_write import DualWriteCaseHistoryMetadataStore
 from fdai.core.learning import NoImprovement, PostTurnReviewInput
 from fdai.runtime.case_history import (
     CaseHistoryRetentionTickPublisher,
@@ -70,6 +71,20 @@ async def test_case_history_runtime_builds_storage_and_mixed_family_analysis() -
         )
     assert runtime is not None
     assert runtime.analyzer is not None
+
+
+async def test_case_history_runtime_uses_relational_metadata_when_dsn_is_configured() -> None:
+    transport = httpx.MockTransport(lambda request: httpx.Response(404, request=request))
+    async with httpx.AsyncClient(transport=transport) as client:
+        runtime = build_case_history_runtime(
+            container_url="https://example.blob.core.windows.net/case-history",
+            state_store=InMemoryStateStore(),
+            identity=_Identity(),
+            http_client=client,
+            dsn="postgresql://example.invalid/fdai",
+        )
+    assert runtime is not None
+    assert isinstance(runtime.metadata, DualWriteCaseHistoryMetadataStore)
 
 
 def test_case_history_retention_defaults_and_validation() -> None:

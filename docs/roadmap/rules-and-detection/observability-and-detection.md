@@ -278,9 +278,10 @@ with sample size and confidence intervals, using precision, recall, false alerts
 PR-AUC, Brier score or calibration error, interval coverage, actionable lead-time distribution,
 abstention, cold-start, and unscorable rates. Aggregate accuracy alone is not a promotion metric.
 
-**Agent choreography.** Heimdall owns the forecast finding; Huginn supplies normalized actual
-observations; Saga records immutable prediction and terminal evidence; Norns performs off-path
-outcome closure and proposes inert detector/rule candidates; Mimir owns reviewed promotion.
+**Agent choreography.** Heimdall owns the forecast finding and deterministic outcome closure;
+Huginn supplies normalized actual observations; Saga records immutable prediction and terminal
+evidence; Norns analyzes closed case-history cohorts off-path and proposes inert detector/rule
+candidates; Mimir owns reviewed promotion.
 Forseti may judge and Thor may act on a finding, but neither may edit its prediction label. These
 agents consume typed events independently and may run in parallel; no direct agent call is part of
 the scoring path.
@@ -288,9 +289,10 @@ the scoring path.
 Promotion requires a pre-registered minimum number of closed, scorable episodes and observation
 days, candidate improvement whose confidence interval clears the incumbent, no guard-metric
 regression, and zero policy escapes. Calibration, recall, interval coverage, or actionable lead
-time degradation automatically returns the detector to shadow. Until durable prediction-envelope,
-outcome-join, and intervention-censoring wiring exists, forecast findings remain shadow-only and
-must not be represented as continuously validated production predictions.
+time degradation automatically returns the detector to shadow. The durable episode ledger,
+event-time outcome join, intervention censoring, transactional publication outbox, and mechanical
+tick wiring are implemented. Promotion still depends on measured deployment evidence and the
+authoritative promotion registry.
 
 ## 4. Root-Cause Analysis
 

@@ -13,14 +13,20 @@ from fdai.core.case_history import (
     CaseHistoryMaterializer,
     CaseHistoryRetentionService,
 )
+from fdai.core.case_history.dual_write import DualWriteCaseHistoryMetadataStore
 from fdai.core.learning import ConsensusPostTurnReviewer, PostTurnProposalModel
 from fdai.delivery.azure.case_history_artifacts import (
     AzureBlobCaseHistoryArtifactStore,
     AzureBlobCaseHistoryConfig,
 )
+from fdai.delivery.persistence.postgres_case_history import (
+    PostgresCaseHistoryMetadataStore,
+    PostgresCaseHistoryMetadataStoreConfig,
+)
 from fdai.delivery.persistence.state_store_case_history import (
     StateStoreCaseHistoryMetadataStore,
 )
+from fdai.shared.providers.case_history import CaseHistoryMetadataStore
 from fdai.shared.providers.event_bus import EventBus
 from fdai.shared.providers.state_store import StateStore
 from fdai.shared.providers.workload_identity import WorkloadIdentity
@@ -28,6 +34,7 @@ from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 @dataclass(frozen=True, slots=True)
 class CaseHistoryRuntime:
+    metadata: CaseHistoryMetadataStore
     materializer: CaseHistoryMaterializer
     analyzer: CaseHistoryAnalyzer | None
     retention: CaseHistoryRetentionService
@@ -84,13 +91,27 @@ def build_case_history_runtime(
     state_store: StateStore,
     identity: WorkloadIdentity | None,
     http_client: httpx.AsyncClient | None,
+    dsn: str | None = None,
+    relational_read_authority: bool = False,
     models: tuple[PostTurnProposalModel, ...] = (),
 ) -> CaseHistoryRuntime | None:
     if container_url is None or not container_url.strip():
         return None
     if identity is None or http_client is None:
         raise RuntimeError("case history storage requires workload identity and HTTP bindings")
-    metadata = StateStoreCaseHistoryMetadataStore(store=state_store)
+    metadata: CaseHistoryMetadataStore
+    state_metadata = StateStoreCaseHistoryMetadataStore(store=state_store)
+    if dsn is not None and dsn.strip():
+        relational_metadata = PostgresCaseHistoryMetadataStore(
+            config=PostgresCaseHistoryMetadataStoreConfig(dsn=dsn.strip())
+        )
+        metadata = DualWriteCaseHistoryMetadataStore(
+            authority=state_metadata,
+            shadow=relational_metadata,
+            read_from_shadow=relational_read_authority,
+        )
+    else:
+        metadata = state_metadata
     artifacts = AzureBlobCaseHistoryArtifactStore(
         config=AzureBlobCaseHistoryConfig(container_url=container_url),
         identity=identity,
@@ -106,6 +127,7 @@ def build_case_history_runtime(
             reviewer=ConsensusPostTurnReviewer(models),
         )
     return CaseHistoryRuntime(
+        metadata=metadata,
         materializer=materializer,
         analyzer=analyzer,
         retention=retention,

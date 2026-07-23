@@ -382,8 +382,8 @@ def test_gateway_source_deployment_is_owned_by_the_workflow() -> None:
         encoding="utf-8"
     )
     assert 'value     = "VECTOR,PG_TRGM"' in postgres
-    assert "topics              = [local.canary_topic]" in terraform
-    assert "auxiliary_topics    = [local.inventory_raw_topic]" in terraform
+    assert re.search(r"topics\s*=\s*\[local\.canary_topic\]", terraform)
+    assert re.search(r"auxiliary_topics\s*=\s*\[local\.inventory_raw_topic\]", terraform)
     assert "module.event_bus_auxiliary.kafka_bootstrap" in terraform
     assert 'resource "azurerm_eventgrid_system_topic" "inventory_resource_changes"' in terraform
     assert re.search(r'topic_type\s*=\s*"microsoft.resources.subscriptions"', terraform)

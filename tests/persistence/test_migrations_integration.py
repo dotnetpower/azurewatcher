@@ -40,6 +40,12 @@ EXPECTED_TABLES = {
     "t2_cache_default",
     "state_kv",
     "t1_pattern_library",
+    "forecast_episode",
+    "forecast_publication_outbox",
+    "case_history",
+    "case_history_revision",
+    "case_history_chunk",
+    "case_history_migration_state",
 }
 
 

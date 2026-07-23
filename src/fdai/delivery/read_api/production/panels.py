@@ -30,6 +30,10 @@ from fdai.delivery.persistence.postgres_browser_evidence import (
     PostgresBrowserEvidenceArtifactStore,
     PostgresBrowserEvidenceStoreConfig,
 )
+from fdai.delivery.persistence.postgres_forecast_episode import (
+    PostgresForecastEpisodeStore,
+    PostgresForecastEpisodeStoreConfig,
+)
 from fdai.delivery.read_api.routes.audit_finops import AuditFinOpsPanel
 from fdai.delivery.read_api.routes.audit_measurement_summary import (
     AuditAutonomyMeasurementPanel,
@@ -39,6 +43,7 @@ from fdai.delivery.read_api.routes.browser_evidence import BrowserEvidencePanel
 from fdai.delivery.read_api.routes.context_selection_comparisons import (
     ContextSelectionComparisonPanel,
 )
+from fdai.delivery.read_api.routes.forecast_learning import ForecastLearningPanel
 from fdai.delivery.read_api.routes.llm_cost import LlmCostPanel
 from fdai.delivery.read_api.routes.onboarding import OnboardingPanel
 from fdai.delivery.read_api.routes.operator_memory import OperatorMemoryPanel
@@ -110,6 +115,9 @@ def build_production_panels(
             metrics=PostTurnReviewMetrics(),
             source="postgres",
             durable=True,
+        ),
+        ForecastLearningPanel(
+            PostgresForecastEpisodeStore(config=PostgresForecastEpisodeStoreConfig(**connection))
         ),
         SchedulerRunsPanel(
             service=ScheduleRunHistoryService(

@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: 7770c25572fdef3ce2ab735aa316af79028de04f
+translation_source_sha: 71a0ed43ef104dd9bc19cf3ebba07781e5ac3156
 translation_revised: 2026-07-23
 ---
 
@@ -120,6 +120,11 @@ set을 즉시 렌더링합니다. Model prose는 선택된 incident, search scop
 membership 또는 absence claim을 바꿀 수 없습니다.
 `availability=unavailable`인 source는 `reachable=true`를 보고하지 않으며 구성되지 않았거나 probe하지
 않은 source는 `reachable=null`을 사용합니다.
+
+Forecast Learning route는 server-owned PostgreSQL projection만 읽습니다. Closure completeness는
+due episode를 denominator로 사용하고 publication health는 미래 scheduled work를 due debt, failed
+attempt 및 dead letter와 구분합니다. Cohort가 없으면 0이 아니라 unavailable로 표시하며 browser는
+관련 없는 count에서 model miss, pipeline miss 또는 retention status를 도출하지 않습니다.
 
 Trace route는 error render 중에도 `correlation_id`, `load_status` 및 값이 있을 때 actionable
 `load_error`를 게시합니다. Server는 이 correlation을 selection hint로만 사용하고 operational

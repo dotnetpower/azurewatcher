@@ -33,6 +33,11 @@ class TelemetryCompleteness(StrEnum):
     UNAVAILABLE = "unavailable"
 
 
+class ForecastMissOrigin(StrEnum):
+    MODEL = "model"
+    PIPELINE = "pipeline"
+
+
 class ForecastOutcome(_Base):
     """One immutable terminal result for a forecast or missed breach."""
 
@@ -57,6 +62,7 @@ class ForecastOutcome(_Base):
     observed_value: float | None = None
     actual_breach_at: datetime | None = None
     label: ForecastOutcomeLabel
+    miss_origin: ForecastMissOrigin | None = None
     intervention_refs: tuple[NonEmpty, ...] = ()
     evidence_refs: Annotated[tuple[NonEmpty, ...], Field(min_length=1)]
     telemetry_completeness: TelemetryCompleteness
@@ -111,8 +117,12 @@ class ForecastOutcome(_Base):
                 for value in (self.predicted_value, self.interval_lower, self.interval_upper)
             ):
                 raise ValueError("false-negative outcome MUST NOT carry prediction evidence")
+            if self.miss_origin is None:
+                raise ValueError("false-negative outcome MUST identify its miss origin")
         elif self.prediction_id is None:
             raise ValueError("non-false-negative outcome MUST reference a prediction")
+        elif self.miss_origin is not None:
+            raise ValueError("non-false-negative outcome MUST NOT carry a miss origin")
         if (
             self.label
             in {
@@ -177,5 +187,6 @@ class ForecastOutcome(_Base):
 __all__ = [
     "ForecastOutcome",
     "ForecastOutcomeLabel",
+    "ForecastMissOrigin",
     "TelemetryCompleteness",
 ]

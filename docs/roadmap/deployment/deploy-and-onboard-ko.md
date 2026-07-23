@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: 9f599de1f2a4020c608f3c4737db0552c33adf27
+translation_source_sha: aa6aaff37763c41de44ad0f031be324a6e6a1ad9
 translation_revised: 2026-07-23
 ---
 
@@ -87,12 +87,12 @@ grant를 별도로 부여합니다. Function `site_config`는 Application Insigh
 gateway principal 검사 전에 core executor managed identity client만 허용합니다. Exact apply가 수렴하면 workflow가 검증된
 source를 official Flex One Deploy action으로 remote build하고 bounded trigger sync 후 두 Function trigger를 확인합니다. 전체 런북:
 [`infra/bootstrap/README.md`](../../../infra/bootstrap/README.md).
-Scheduled driver는 `SCHEDULER_TICK_CRON_EXPRESSION` 및
-`ANALYZER_TICK_CRON_EXPRESSION` 리포지토리 변수를 통해 Terraform이 관리합니다. 선택적
-analyzer 입력에는 `ANALYZER_TARGETS_JSON`, `ANALYZER_WINDOW_SECONDS`,
-`ANALYZER_BUDGET_SECONDS`를 사용합니다. 빈 cron은 해당 job을 비활성화합니다. 각 plan 전에
-workflow는 remote state에 아직 없는 동일 scheduler 또는 analyzer job을 안전하게 가져옵니다.
-이후 image와 configuration 변경은 같은 plan 및 apply 경로를 통해 수렴합니다.
+Scheduled driver는 Terraform이 관리합니다. `SCHEDULER_TICK_CRON_EXPRESSION` 및
+`ANALYZER_TICK_CRON_EXPRESSION`은 기존 job을 설정하고, `forecast_tick_cron_expression`과
+`forecast_targets_json`은 forecast Job을 opt-in하고 `FDAI_FORECAST_TARGETS_JSON`을 주입합니다.
+Forecast Job은 raw tick만 publish하며 Huginn이 이를 Heimdall 평가 및 closure용으로 정규화합니다.
+빈 cron은 해당 job을 비활성화합니다. 기존 scheduler 또는 analyzer job은 plan 전에 안전하게
+가져오고 이후 image와 configuration 변경은 같은 plan 및 apply 경로로 수렴합니다.
 
 #### 제한된 egress 환경의 인벤토리 디스커버리
 

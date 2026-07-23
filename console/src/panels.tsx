@@ -41,6 +41,7 @@ const ReportsRoute = lazy(async () => ({ default: (await import("./routes/report
 const AgentActivityRoute = lazy(async () => ({ default: (await import("./routes/agent-activity")).AgentActivityRoute }));
 const AuditRoute = lazy(async () => ({ default: (await import("./routes/audit")).AuditRoute }));
 const BrowserEvidenceRoute = lazy(async () => ({ default: (await import("./routes/browser-evidence")).BrowserEvidenceRoute }));
+const ForecastLearningRoute = lazy(async () => ({ default: (await import("./routes/forecast-learning")).ForecastLearningRoute }));
 const ConversationSearchRoute = lazy(async () => ({ default: (await import("./routes/conversation-search")).ConversationSearchRoute }));
 const RuleTraceRoute = lazy(async () => ({ default: (await import("./routes/rule-trace")).RuleTraceRoute }));
 const RcaRoute = lazy(async () => ({ default: (await import("./routes/rca")).RcaRoute }));
@@ -251,6 +252,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     subtitle: t("nav.panelSub.browserEvidence"),
     group: "evidence",
     component: BrowserEvidenceRoute,
+  },
+  {
+    id: "forecast-learning",
+    label: t("nav.panel.forecastLearning"),
+    subtitle: t("nav.panelSub.forecastLearning"),
+    group: "evidence",
+    component: ForecastLearningRoute,
   },
   {
     id: "conversation-search",

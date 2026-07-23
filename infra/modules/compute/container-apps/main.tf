@@ -68,6 +68,9 @@ locals {
     var.prometheus_audience == "" ? {} : {
       FDAI_PROMETHEUS_AUDIENCE = var.prometheus_audience
     },
+    var.forecast_targets_json == "" ? {} : {
+      FDAI_FORECAST_TARGETS_JSON = var.forecast_targets_json
+    },
     var.vm_task_enabled ? {
       FDAI_VM_TASK_ENABLED     = "1"
       FDAI_VM_TASK_RUN_AS_USER = var.vm_task_run_as_user

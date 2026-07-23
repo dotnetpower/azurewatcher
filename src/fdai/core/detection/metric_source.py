@@ -94,6 +94,9 @@ class MetricSeriesSource:
                 if not math.isfinite(point.value):
                     dropped += 1
                     continue
+                if point.at < since or point.at > until:
+                    dropped += 1
+                    continue
                 samples.append(MetricSample(timestamp=point.at, value=point.value))
         except MetricProviderError:
             _LOGGER.warning(

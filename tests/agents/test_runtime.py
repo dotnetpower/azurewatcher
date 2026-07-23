@@ -56,6 +56,15 @@ def test_build_enables_bounded_handler_retries() -> None:
     assert runtime.bridge.handler_max_retries == 2
 
 
+def test_forecast_runtime_bindings_are_all_or_none() -> None:
+    with pytest.raises(ValueError, match="MUST be supplied together"):
+        PantheonRuntime.build(
+            provider=InMemoryEventBus(),
+            raw_event_topic=_RAW_TOPIC,
+            forecast_store=object(),  # type: ignore[arg-type]
+        )
+
+
 def test_build_registers_every_declared_subscription_plus_ingress() -> None:
     runtime, _ = _build()
     expected = sum(len(s.subscribes) for s in PANTHEON_SPECS) + 1  # +1 raw ingress

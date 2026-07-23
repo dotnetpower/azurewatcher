@@ -324,6 +324,19 @@ variable "analyzer_tick_cron_expression" {
   default     = ""
 }
 
+variable "forecast_tick_cron_expression" {
+  description = "Cron for the forecast evaluation tick Job. Empty disables the job."
+  type        = string
+  default     = ""
+}
+
+variable "forecast_targets_json" {
+  description = "JSON array of governed forecast target specifications."
+  type        = string
+  default     = ""
+  sensitive   = false
+}
+
 # ---------------------------------------------------------------------------
 # Azure inventory reconciliation. Runs on the VNet-integrated Container Apps
 # environment under a dedicated read-only managed identity.

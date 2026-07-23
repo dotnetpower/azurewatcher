@@ -28,6 +28,10 @@ from fdai.core.chaos.symptom_index import build_from_promoted
 from fdai.core.control_loop import ControlLoop
 from fdai.core.learning import PostTurnProposalModel, RuleHintSubmitter
 from fdai.core.readiness import AuthorityCeiling
+from fdai.delivery.persistence.postgres_case_history import (
+    PostgresCaseHistoryMetadataStore,
+    PostgresCaseHistoryMetadataStoreConfig,
+)
 from fdai.delivery.read_api.streaming.agent_activity_stream import (
     runtime_agent_state_snapshot,
 )
@@ -65,6 +69,10 @@ from fdai.runtime.control_loop import (
     _load_resource_types,
 )
 from fdai.runtime.delivery import _build_incident_notifier
+from fdai.runtime.forecast_learning import (
+    ForecastLearningRuntime,
+    build_forecast_learning_runtime,
+)
 from fdai.runtime.health import RuntimeHealthServer
 from fdai.runtime.post_turn_review import (
     build_azure_post_turn_models,
@@ -167,6 +175,7 @@ async def _run() -> int:
     health_server: RuntimeHealthServer | None = None
     case_history_runtime: CaseHistoryRuntime | None = None
     case_history_retention_publisher: CaseHistoryRetentionTickPublisher | None = None
+    forecast_learning_runtime: ForecastLearningRuntime | None = None
     startup_readiness_runtime: StartupReadinessRuntime | None = None
 
     try:
@@ -445,8 +454,31 @@ async def _run() -> int:
                     state_store=incident_audit_store,
                     identity=case_history_identity,
                     http_client=http_client,
+                    dsn=os.environ.get("FDAI_STATE_STORE_DSN"),
+                    relational_read_authority=(
+                        os.environ.get("FDAI_CASE_HISTORY_RELATIONAL_READ", "").strip() == "1"
+                    ),
                     models=post_turn_models,
                 )
+                if (
+                    case_history_runtime is not None
+                    and os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+                ):
+                    relational_metadata = PostgresCaseHistoryMetadataStore(
+                        config=PostgresCaseHistoryMetadataStoreConfig(
+                            dsn=os.environ["FDAI_STATE_STORE_DSN"]
+                        )
+                    )
+                    await relational_metadata.verify_schema()
+                    if os.environ.get("FDAI_CASE_HISTORY_RELATIONAL_READ", "").strip() == "1":
+                        await relational_metadata.verify_read_cutover()
+                forecast_learning_runtime = build_forecast_learning_runtime(
+                    dsn=os.environ.get("FDAI_STATE_STORE_DSN"),
+                    targets_json=os.environ.get("FDAI_FORECAST_TARGETS_JSON"),
+                    metric_provider=container.metric_provider,
+                )
+                if forecast_learning_runtime is not None:
+                    await forecast_learning_runtime.store.verify_schema()
                 if case_history_runtime is not None:
                     case_history_retention_publisher = CaseHistoryRetentionTickPublisher(
                         bus=bus,
@@ -489,6 +521,21 @@ async def _run() -> int:
                     ),
                     case_retention_days=case_retention_days,
                     case_deletion_days=case_deletion_days,
+                    forecast_evaluator=(
+                        forecast_learning_runtime.evaluator
+                        if forecast_learning_runtime is not None
+                        else None
+                    ),
+                    forecast_closer=(
+                        forecast_learning_runtime.closer
+                        if forecast_learning_runtime is not None
+                        else None
+                    ),
+                    forecast_store=(
+                        forecast_learning_runtime.store
+                        if forecast_learning_runtime is not None
+                        else None
+                    ),
                     action_types=control_loop.action_types,
                 )
                 runtime_state_publisher = AgentRuntimeStatePublisher(

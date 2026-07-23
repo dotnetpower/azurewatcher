@@ -1,7 +1,7 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: ef4dab230e76a816a3546c6797c5a61dc50c8421
+translation_source_sha: 073741eeab4a4bce46edaf84e28627acdbfb0f58
 translation_revised: 2026-07-23
 ---
 
@@ -151,6 +151,11 @@ Event Hubs가 설정되면 agent는 전용 local consumer group으로 Azure tran
 설정되지 않으면 local in-process EventBus가 실제 Pantheon message를 전달하고 agent SSE snapshot을
 제공합니다. 이 adapter는 Azure evidence, durable state 또는 execution authority를 만들지 않습니다.
 Kafka가 구성된 topic을 startup 중 거부하면 Event Hubs adapter는 오류를 전달하기 전에 실패한 consumer를 닫습니다.
+
+Forecast learning은 두 profile에서 동일한 PostgreSQL episode store와 Heimdall handler를
+사용합니다. `FDAI_FORECAST_TARGETS_JSON`이 설정된 경우에만 활성화됩니다. Deployment는 opt-in
+Container Apps Job으로 raw tick을 제공하고 local development는 synthetic metric을 만들거나
+console에 write path를 주지 않고 동일한 기계적 tick CLI를 호출할 수 있습니다.
 
 Local runtime environment generator는 applied Terraform output에서 transport setting을 읽습니다.
 Terraform executor identity resource ID에 포함된 subscription과 활성 Azure CLI subscription을

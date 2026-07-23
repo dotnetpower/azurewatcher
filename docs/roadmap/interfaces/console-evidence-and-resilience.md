@@ -120,6 +120,11 @@ scope, supported cause, collection membership, or absence claim. A source with
 `availability=unavailable` never reports `reachable=true`; unconfigured or unprobed sources use
 `reachable=null`.
 
+The Forecast Learning route reads only the server-owned PostgreSQL projection. Closure completeness
+uses due episodes as its denominator, and publication health separates future scheduled work from
+due debt, failed attempts, and dead letters. Missing cohorts render unavailable rather than zero;
+the browser never derives a model miss, pipeline miss, or retention status from unrelated counts.
+
 The Trace route publishes `correlation_id`, `load_status`, and an actionable `load_error` when
 present, including during an error render. The server may use that correlation only as a selection
 hint and rechecks it against the authorized read model before returning operational evidence.

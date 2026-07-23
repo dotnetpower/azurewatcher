@@ -62,6 +62,31 @@ async def test_multi_point_splits_history_and_observed_sorted() -> None:
     assert series.observed.value == 30.0
 
 
+async def test_provider_points_outside_requested_window_are_dropped() -> None:
+    provider = StaticMetricProvider(
+        [
+            MetricPoint(
+                metric_name=_METRIC,
+                at=_SINCE - timedelta(seconds=1),
+                value=99.0,
+                labels={"resource_id": _RES},
+            ),
+            _point(5, 10.0),
+            _point(1, 30.0),
+            MetricPoint(
+                metric_name=_METRIC,
+                at=_NOW + timedelta(seconds=1),
+                value=100.0,
+                labels={"resource_id": _RES},
+            ),
+        ]
+    )
+    series = await _fetch(provider)
+    assert series is not None
+    assert [sample.value for sample in series.history] == [10.0]
+    assert series.observed.value == 30.0
+
+
 async def test_non_finite_points_are_dropped_at_the_boundary() -> None:
     # A NaN / +-Inf sample from an unsanitized provider must be dropped here so
     # it never poisons a downstream detector; the finite remainder survives.

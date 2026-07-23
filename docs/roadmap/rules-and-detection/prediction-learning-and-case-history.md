@@ -26,9 +26,8 @@ flowchart LR
     HD -->|object.forecast| S[Saga audit]
     HD -->|object.forecast-outcome| S
     HD -->|object.forecast-outcome| MU[Muninn case revision]
-    HD -->|object.forecast-outcome| N[Norns failure analysis]
     MU --> CH[Case history storage]
-    CH --> N
+    MU -->|object.context-index| N[Norns failure analysis]
     N -->|object.rule-candidate| M[Mimir replay and shadow gate]
     M -->|object.rule or policy| HD
     HD --> F[Forseti judgment]
@@ -56,6 +55,12 @@ Subscribers run independently. Slow or failed case materialization does not bloc
 learning intake, or unrelated forecasts. The runtime retries transient subscriber failures twice
 before dead-lettering; stable correlation and idempotency keys make replay safe.
 
+The deployed loop is driven by a mechanical tick publisher. Huginn normalizes the raw tick as an
+`object.event`; Heimdall evaluates configured target and metric pairs, records every positive,
+negative, or held-for-review evaluation as an immutable episode, closes due episodes after the
+telemetry grace period, and drains a transactional publication outbox. A poison publication is
+isolated and dead-lettered without blocking unrelated episodes.
+
 ## Forecast outcome contract
 
 `ForecastOutcome` is a versioned object owned only by Heimdall and published on
@@ -69,6 +74,12 @@ before dead-lettering; stable correlation and idempotency keys make replay safe.
 - one terminal label: `true_positive`, `false_positive`, `false_negative`, `late_breach`,
   `magnitude_error`, `intervention_censored`, or `unscorable`;
 - intervention and evidence references, telemetry completeness, and close time.
+
+The episode ledger also records `predicted_breach`, `predicted_no_breach`, and `abstained`
+evaluations. Persisting all three states preserves the recall denominator and distinguishes a model
+miss from a pipeline miss. Horizon scoring uses event time: a breach after the horizon is not a
+false negative for that horizon, while magnitude compares the interval with the observed value at
+the horizon rather than the first breach sample.
 
 An actual breach without an eligible earlier prediction produces a false-negative outcome with no
 prediction id. At-least-once delivery deduplicates by the stable outcome id. Missing telemetry,
@@ -97,7 +108,10 @@ PostgreSQL stores queryable metadata, not unrestricted evidence bodies:
 - `case_history_chunk`: bounded redacted text, chunk kind, embedding, embedding model version,
   source manifest digest, access-scope digest, and deletion lineage.
 
-The append-only audit log remains the authority. The hot index is a rebuildable projection.
+The append-only audit log remains the evidence authority. During migration, the legacy StateStore
+projection remains the read authority while PostgreSQL receives shadow writes. A keyset backfill
+reconstructs complete artifact chains and preserves deleted identities as zero-size tombstones.
+Relational reads can start only after a persisted zero-mismatch marker is verified at runtime.
 
 ### Immutable artifact
 
@@ -165,13 +179,14 @@ with an unsuccessful exit instead of silently disabling future ticks.
 | Forecast detector and shadow finding | Implemented |
 | Agent pub/sub runtime and single-writer enforcement | Implemented |
 | Governed trajectory serialization, scanning, checksum, and retention primitives | Implemented and reused |
-| `ForecastOutcome` schema, closer, and topic wiring | Implemented by this slice |
-| Canonical case revision and in-memory stores | Implemented by this slice |
-| StateStore CAS latest-case projection | Implemented by this slice; PostgreSQL-backed in production |
-| Dedicated PostgreSQL revision/chunk tables | Follow-up; target model is defined above |
-| Azure private artifact adapter | Implemented by this slice; deployment remains opt-in |
-| Muninn case materialization, scheduled retention, and Norns candidate choreography | Implemented by this slice |
-| Full live forecast metric scheduler and console views | Follow-up; not required for storage correctness |
+| `ForecastOutcome` schema, episode closer, and transactional publication outbox | Implemented |
+| Positive, negative, and held-for-review episode ledger | Implemented |
+| StateStore authority plus PostgreSQL shadow dual-write | Implemented |
+| PostgreSQL episode, revision, chunk, migration-marker, and tombstone tables | Implemented |
+| Full-chain keyset backfill and zero-mismatch cutover gate | Implemented |
+| Azure private artifact adapter | Implemented; deployment remains opt-in |
+| Muninn case materialization, scheduled retention, and Norns candidate choreography | Implemented |
+| Mechanical forecast tick Job and read-only console health view | Implemented; deployment is opt-in |
 
 ## Verification
 

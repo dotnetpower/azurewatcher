@@ -34,6 +34,7 @@ const PANEL_SOURCE_ROUTES: Readonly<Record<string, readonly string[]>> = {
   trace: ["/audit"],
   rca: ["/rca"],
   "browser-evidence": ["/browser-evidence"],
+  "forecast-learning": ["/forecast-learning"],
   reports: ["/reports", "/reports/registry"],
   "conversation-search": ["/me/conversations/search"],
   "scheduled-continuations": ["/me/context"],

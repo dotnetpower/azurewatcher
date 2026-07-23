@@ -36,6 +36,7 @@ import statistics
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fdai.core.detection.series import MetricSample
@@ -44,6 +45,12 @@ from fdai.shared.contracts.models import Category, Event, Mode, Severity
 _FORECAST_EVENT_TYPE = "forecast.finding"
 _DEFAULT_SOURCE = "fdai.core.detection.forecast"
 _DIRECTIONS = ("rising", "falling")
+
+
+class ForecastDetectorDecision(StrEnum):
+    PREDICTED_BREACH = "predicted_breach"
+    PREDICTED_NO_BREACH = "predicted_no_breach"
+    ABSTAINED = "abstained"
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +82,13 @@ class ForecastFinding:
     category: Category
     severity: Severity
     idempotency_key: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class ForecastDetectorEvaluation:
+    decision: ForecastDetectorDecision
+    finding: ForecastFinding | None
     reason: str
 
 
@@ -149,15 +163,34 @@ class LinearForecastDetector:
         history: Sequence[MetricSample],
         window_bucket: str,
     ) -> ForecastFinding | None:
-        """Return a :class:`ForecastFinding` when a breach is projected
-        within the horizon, else ``None``. Pure and deterministic."""
+        """Return a positive finding while preserving the legacy API."""
+        return self.evaluate_result(
+            metric=metric,
+            resource_ref=resource_ref,
+            history=history,
+            window_bucket=window_bucket,
+        ).finding
+
+    def evaluate_result(
+        self,
+        *,
+        metric: str,
+        resource_ref: str,
+        history: Sequence[MetricSample],
+        window_bucket: str,
+    ) -> ForecastDetectorEvaluation:
+        """Return an explicit positive, negative, or abstained evaluation."""
         if len(history) < self._min_samples:
-            return None  # cold-start
+            return ForecastDetectorEvaluation(
+                ForecastDetectorDecision.ABSTAINED, None, "insufficient_samples"
+            )
         t0 = history[0].timestamp
         xs = [(s.timestamp - t0).total_seconds() for s in history]
         ys = [s.value for s in history]
         if xs[-1] == xs[0]:
-            return None  # no time span -> no trend
+            return ForecastDetectorEvaluation(
+                ForecastDetectorDecision.ABSTAINED, None, "zero_time_span"
+            )
 
         # A non-finite sample (NaN / +-Inf) poisons the least-squares fit:
         # slope/intercept/r_squared become NaN, and every abstain guard below
@@ -165,31 +198,53 @@ class LinearForecastDetector:
         # comparison that is always False - so the detector would emit a
         # ForecastFinding full of NaN. Abstain (fail-closed) on corrupt input.
         if not all(math.isfinite(y) for y in ys):
-            return None
+            return ForecastDetectorEvaluation(
+                ForecastDetectorDecision.ABSTAINED, None, "non_finite_sample"
+            )
 
         slope, intercept = statistics.linear_regression(xs, ys)
         if slope == 0.0:
-            return None  # flat trend never crosses
+            return ForecastDetectorEvaluation(
+                ForecastDetectorDecision.PREDICTED_NO_BREACH, None, "flat_trend"
+            )
 
         r_squared, resid_std = _fit_quality(xs, ys, slope, intercept)
         if r_squared < self._min_r_squared:
-            return None  # weak trend: abstain rather than over-predict
+            return ForecastDetectorEvaluation(ForecastDetectorDecision.ABSTAINED, None, "weak_fit")
 
         x_last = xs[-1]
         value_now = intercept + slope * x_last
         if self._direction == "rising":
             if slope <= 0.0 or self._threshold <= value_now:
-                return None
+                if self._threshold <= value_now:
+                    return ForecastDetectorEvaluation(
+                        ForecastDetectorDecision.ABSTAINED, None, "already_breached"
+                    )
+                return ForecastDetectorEvaluation(
+                    ForecastDetectorDecision.PREDICTED_NO_BREACH, None, "wrong_direction"
+                )
         elif slope >= 0.0 or self._threshold >= value_now:
-            return None
+            if self._threshold >= value_now:
+                return ForecastDetectorEvaluation(
+                    ForecastDetectorDecision.ABSTAINED, None, "already_breached"
+                )
+            return ForecastDetectorEvaluation(
+                ForecastDetectorDecision.PREDICTED_NO_BREACH, None, "wrong_direction"
+            )
 
         x_cross = (self._threshold - intercept) / slope
         lead = x_cross - x_last
         if lead <= 0.0 or lead > self._horizon:
-            return None  # already breached, or beyond the horizon
+            if lead <= 0.0:
+                return ForecastDetectorEvaluation(
+                    ForecastDetectorDecision.ABSTAINED, None, "already_breached"
+                )
+            return ForecastDetectorEvaluation(
+                ForecastDetectorDecision.PREDICTED_NO_BREACH, None, "beyond_horizon"
+            )
 
         projected = intercept + slope * (x_last + self._horizon)
-        return ForecastFinding(
+        finding = ForecastFinding(
             detector_id=self._detector_id,
             metric=metric,
             resource_ref=resource_ref,
@@ -211,6 +266,11 @@ class LinearForecastDetector:
                 f"projected {self._direction} crossing of {self._threshold:g} "
                 f"in {lead:.0f}s (r2={r_squared:.2f})"
             ),
+        )
+        return ForecastDetectorEvaluation(
+            ForecastDetectorDecision.PREDICTED_BREACH,
+            finding,
+            "threshold_crossing",
         )
 
     def to_event(self, finding: ForecastFinding, *, mode: Mode = Mode.SHADOW) -> Event:
@@ -260,6 +320,8 @@ class LinearForecastDetector:
 
 
 __all__ = [
+    "ForecastDetectorDecision",
+    "ForecastDetectorEvaluation",
     "ForecastFinding",
     "LinearForecastDetector",
 ]

@@ -93,7 +93,12 @@ from .enums import (
     WorkflowTriggerKind,
 )
 from .event import Event
-from .forecast_outcome import ForecastOutcome, ForecastOutcomeLabel, TelemetryCompleteness
+from .forecast_outcome import (
+    ForecastMissOrigin,
+    ForecastOutcome,
+    ForecastOutcomeLabel,
+    TelemetryCompleteness,
+)
 from .incident import Incident
 from .ontology import (
     ActionBlastRadius,
@@ -163,6 +168,7 @@ __all__ = [
     "Event",
     "ForecastOutcome",
     "ForecastOutcomeLabel",
+    "ForecastMissOrigin",
     "Incident",
     "IncidentSeverity",
     "IncidentState",

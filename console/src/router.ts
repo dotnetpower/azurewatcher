@@ -19,6 +19,7 @@ export const PANEL_PATHS: Readonly<Record<string, string>> = {
   "agent-activity": "/agent-activity",
   audit: "/audit",
   "browser-evidence": "/browser-evidence",
+  "forecast-learning": "/forecast-learning",
   trace: "/trace",
   rca: "/root-cause-analysis",
   architecture: "/architecture",

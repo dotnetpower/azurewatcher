@@ -28,7 +28,7 @@ fdai/
 │   │   ├── operator_memory/    # HIL-approved operator memory injected as untrusted `<operator_note>` data
 │   │   ├── learning/           # consent-gated off-path turn eligibility, consensus, dedup ledger, and inert proposal routing
 │   │   ├── trajectory/         # authorization-first observable trajectory projection, version policy, reviewed aggregate, and offline validation
-│   │   ├── case_history/       # canonical case revisions, scoped cohort retrieval, and inert off-path analysis
+│   │   ├── case_history/       # canonical revisions, shadow dual-write, scoped retrieval, off-path analysis, and retention
 │   │   ├── task_worker/        # isolated depth-one read-only workers: capability attenuation, lifecycle, durable state, and parent synthesis
 │   │   ├── background_task/    # durable detached reads: lease/CAS, atomic completion outbox, bounded retry, process-loss, and retention purge
 │   │   ├── read_investigation/ # exact-resource VM/network planning, evidence, latency policy, owner-scoped direct/stream replay, honest cost usage, SSE heartbeats, and stream-close cancellation; no cloud SDK or execution authority
@@ -45,7 +45,7 @@ fdai/
 │   │   ├── execution_backend/  # profile intersection, durable lifecycle coordination, and shadow probes; no judgment authority
 │   │   ├── audit/              # append-only, hash-chained audit log + KPI/metric emission
 │   │   ├── notifications/      # channel-routing layer over the notifications matrix
-│   │   ├── detection/          # out-of-band anomaly / forecast finding producers (re-enter event-ingest)
+│   │   ├── detection/          # anomaly/forecast evaluation, immutable episodes, event-time closure, and outbox contracts
 │   │   ├── incident/           # incident lifecycle registry + state machine (open → triaging → mitigated → resolved → closed)
 │   │   ├── slo/                # workload SLO / burn-rate evaluator (distinct from control-plane SLOs)
 │   │   ├── runbook/            # runbook orchestrator (linear sequence + on-failure branch)
@@ -85,7 +85,7 @@ fdai/
 │   │   ├── gitops_pr/          # remediation-pr adapter: GitHub App / Azure DevOps, Checks API
 │   │   ├── chatops/            # channel adapters (Teams / Slack / email / webhook / pager / SMS)
 │   │   ├── notifications/      # per-channel senders; sibling `incident_platform/` provides PagerDuty/ServiceNow lifecycle and PagerDuty roster adapters
-│   │   ├── persistence/        # Postgres / pgvector stores, including conversation binding and outbound delivery CAS ledgers
+│   │   ├── persistence/        # Postgres / pgvector stores, including forecast episodes/outbox and relational case-history backfill
 │   │   ├── behavior_knowledge/ # in-memory hybrid behavior index, tracked-source freshness, and built-in behavior seeds
 │   │   ├── pgvector/           # persistent document and behavior vector indexes
 │   │   ├── azure/              # Azure-specific adapters, including bounded logs/metrics/App Insights trace evidence (the only tree allowed to import `azure-*`)
