@@ -1,7 +1,7 @@
 ---
 title: Operator Console - Narrator, DI Seams, and Session Model
 translation_of: operator-console-runtime-model.md
-translation_source_sha: cb51f571e290d185bbc78ef253111ba1c72535d0
+translation_source_sha: b79e2e12b4de17a1dc2922ec70d9d325333a83fa
 translation_revised: 2026-07-23
 ---
 
@@ -274,6 +274,10 @@ class ConversationSession:
   자신이 작성한 surrounding prose만 교정하여 malformed 또는 nonsensical word, 우발적
   character sequence, duplicated fragment 및 우발적 language mixing을 제거합니다. Quoted
   evidence value, identifier, code 및 tool output은 교정, 정규화, 번역 또는 재작성하지 않습니다.
+  Evidence verification 전에 terminal-answer integrity는 Unicode replacement character,
+  unpaired surrogate code point, 허용되지 않은 C0/C1 control 및 bidirectional override 또는
+  isolate control을 차단합니다. Route는 malformed text를 저장하지 않고 localized unverified
+  answer를 반환합니다. Newline, tab 및 script-shaping zero-width joiner는 계속 허용합니다.
   탐색 목록은 대화를 **현재 화면**, **다른 화면**, **에이전트**로 그룹화.
   각 pathname은 제거할 수 없는 기본 화면 대화 하나를 소유. **새 대화**는 현재
   pathname에 대한 빈 임시 thread를 만들고, 첫 operator turn을 보낸 뒤에만 해당

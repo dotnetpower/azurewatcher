@@ -93,6 +93,21 @@ def verify_answer(
     never becomes the terminal conversation history.
     """
 
+    if not _answer_text_is_well_formed(provisional):
+        korean = _is_korean(locale)
+        return AnswerVerification(
+            status="unverified",
+            answer=(
+                "답변에 유효하지 않은 문자가 포함되어 확정하지 않았습니다. 다시 시도해 주세요."
+                if korean
+                else "The answer contained invalid characters and was not finalized. Try again."
+            ),
+            authority="answer_text_integrity",
+            checks_completed=0,
+            checks_total=1,
+            reason_code="answer_text_invalid",
+        )
+
     tool = view_context.get("_tool_evidence")
     if isinstance(tool, Mapping) and tool.get("tool") == "describe_read_sources":
         source_answer = render_read_source_answer(tool, locale=locale)
@@ -654,6 +669,18 @@ def _result(
 
 def _changed(provisional: str, canonical: str) -> VerificationStatus:
     return "verified" if provisional.strip() == canonical.strip() else "corrected"
+
+
+def _answer_text_is_well_formed(value: str) -> bool:
+    for character in value:
+        codepoint = ord(character)
+        if character == "\ufffd" or 0xD800 <= codepoint <= 0xDFFF:
+            return False
+        if (codepoint < 0x20 and character not in "\t\n\r") or 0x7F <= codepoint <= 0x9F:
+            return False
+        if 0x202A <= codepoint <= 0x202E or 0x2066 <= codepoint <= 0x2069:
+            return False
+    return True
 
 
 def _correct_concept_scope_additions(

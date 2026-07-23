@@ -285,6 +285,10 @@ class ConversationSession:
   words, accidental character sequences, duplicated fragments, and accidental language mixing.
   It never corrects, normalizes, translates, or rewrites quoted evidence values, identifiers,
   code, or tool output.
+  Before evidence verification, terminal-answer integrity rejects Unicode replacement characters,
+  unpaired surrogate code points, disallowed C0/C1 controls, and bidirectional override or isolate
+  controls. The route returns a localized unverified answer instead of persisting malformed text.
+  Newlines, tabs, and script-shaping zero-width joiners remain allowed.
   The navigation list groups conversations as **Current screen**, **Other
   screens**, and **Agents**. Each pathname owns one non-removable default
   screen conversation. **New conversation** creates an ephemeral empty thread

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fdai.delivery.read_api.routes.chat_verification import verify_answer
 
 
-def _context(evidence: dict) -> dict:
+def _context(evidence: dict[str, object]) -> dict[str, object]:
     return {"routeId": "dashboard", "_operational_evidence": evidence}
 
 
@@ -103,6 +103,48 @@ def test_screen_qualitative_answer_has_no_checkable_claims() -> None:
     assert result.status == "consistent"
     assert result.reason_code == "screen_no_checkable_claims"
     assert result.checks_total == 0
+
+
+def test_invalid_answer_characters_fail_closed_before_claim_verification() -> None:
+    invalid_answers = (
+        "broken \ufffd output",
+        "broken \ud800 output",
+        "broken \x00 output",
+        "spoofed \u202e output",
+        "isolated \u2066 output",
+    )
+
+    for answer in invalid_answers:
+        result = verify_answer(answer, {"routeId": "dashboard", "facts": []}, locale="en")
+
+        assert result.status == "unverified"
+        assert result.authority == "answer_text_integrity"
+        assert result.reason_code == "answer_text_invalid"
+        assert result.checks_completed == 0
+        assert result.checks_total == 1
+        assert answer not in result.answer
+
+
+def test_answer_integrity_allows_layout_and_script_shaping_characters() -> None:
+    answer = "line one\nline two\tjoined \u200d text"
+
+    result = verify_answer(answer, {"routeId": "dashboard", "facts": []}, locale="en")
+
+    assert result.status == "consistent"
+    assert result.answer == answer
+
+
+def test_invalid_answer_character_abstention_follows_korean_locale() -> None:
+    result = verify_answer(
+        "\uae68\uc9c4 \ufffd \uc751\ub2f5",
+        {"routeId": "dashboard", "facts": []},
+        locale="ko",
+    )
+
+    assert result.status == "unverified"
+    assert result.reason_code == "answer_text_invalid"
+    assert "\uc720\ud6a8\ud558\uc9c0 \uc54a\uc740 \ubb38\uc790" in result.answer
+    assert "\ufffd" not in result.answer
 
 
 def test_korean_settings_explanation_does_not_false_reject_universal_prose() -> None:
