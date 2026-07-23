@@ -161,9 +161,24 @@
   },
   "verticals": {
     "title": "Vertical outcomes",
-    "subtitle": "Operational results and unresolved risk by FDAI vertical.",
+    "subtitle": "Comparable operating results across FDAI verticals without mixing their evidence contracts.",
     "comparison": "Cross-vertical comparison",
-    "unavailable": "This vertical is not present in the current measurement projection."
+    "comparisonSubtitle": "Shared measures only; vertical-specific evidence stays in the selected view.",
+    "unavailable": "This vertical is not present in the current measurement projection.",
+    "summaryLabel": "Vertical summaries",
+    "simulatedTitle": "Illustrative comparison.",
+    "outcomeTitle": "{vertical} outcomes",
+    "outcomeSubtitle": "Measured activity and automatically resolved outcomes in this evidence window.",
+    "evidenceTitle": "{vertical} evidence",
+    "evidenceSubtitle": "Outcome claims attached to the selected vertical.",
+    "trendEvidence": "Vertical outcome trend",
+    "specificEvidence": "Vertical-specific evidence",
+    "state": {
+      "measured": "Measured",
+      "review": "Review",
+      "simulated": "Simulated",
+      "unavailable": "Unavailable"
+    }
   },
   "routing": {
     "title": "Trust routing",

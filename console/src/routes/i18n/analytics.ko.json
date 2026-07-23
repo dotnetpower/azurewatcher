@@ -161,9 +161,24 @@
   },
   "verticals": {
     "title": "영역별 성과",
-    "subtitle": "FDAI 영역별 운영 성과와 미해결 위험을 보여줍니다.",
+    "subtitle": "근거 계약을 혼합하지 않고 FDAI 영역별 운영 성과를 비교합니다.",
     "comparison": "영역 비교",
-    "unavailable": "현재 측정 projection에 이 영역이 없습니다."
+    "comparisonSubtitle": "공유 지표만 비교하며 영역별 고유 근거는 선택한 보기에 유지합니다.",
+    "unavailable": "현재 측정 projection에 이 영역이 없습니다.",
+    "summaryLabel": "영역 요약",
+    "simulatedTitle": "예시 비교입니다.",
+    "outcomeTitle": "{vertical} 성과",
+    "outcomeSubtitle": "이 근거 기간에 측정된 활동과 자동 해결 결과입니다.",
+    "evidenceTitle": "{vertical} 근거",
+    "evidenceSubtitle": "선택한 영역에 연결된 성과 주장입니다.",
+    "trendEvidence": "영역별 성과 추세",
+    "specificEvidence": "영역별 고유 근거",
+    "state": {
+      "measured": "측정됨",
+      "review": "검토",
+      "simulated": "시뮬레이션",
+      "unavailable": "근거 없음"
+    }
   },
   "routing": {
     "title": "신뢰 라우팅",

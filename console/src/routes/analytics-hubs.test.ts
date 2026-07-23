@@ -22,6 +22,7 @@ import {
   outcomeMetric,
   outcomeViewContract,
 } from "./operating-outcomes";
+import { verticalDisplayState, verticalPayloadKey, verticalRouteSlug } from "./vertical-outcomes";
 
 const AUTONOMY: AutonomyPayload = {
   synthetic: false,
@@ -146,6 +147,15 @@ describe("trust-routing measurements", () => {
       open_risks: 0,
       monthly_savings: 0,
     })).toBe(0.75);
+  });
+
+  it("maps vertical routes and evidence states without inventing health", () => {
+    expect(verticalPayloadKey("change-safety")).toBe("change_safety");
+    expect(verticalRouteSlug("cost")).toBe("cost-governance");
+    expect(verticalDisplayState(AUTONOMY.verticals[0]!, false)).toBe("unavailable");
+    expect(verticalDisplayState(AUTONOMY.verticals[1]!, false)).toBe("measured");
+    expect(verticalDisplayState({ ...AUTONOMY.verticals[1]!, open_risks: 2 }, false)).toBe("review");
+    expect(verticalDisplayState(AUTONOMY.verticals[1]!, true)).toBe("simulated");
   });
 
   it("never turns synthetic guard values into operational verdicts", () => {

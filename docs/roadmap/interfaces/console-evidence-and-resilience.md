@@ -61,6 +61,14 @@ their narrowest audit, approval, or promotion destination. Synthetic guards neve
 operational pass or failure, and a missing projection renders unavailable instead of supplying a
 prototype value or inferred zero.
 
+Vertical Outcomes presents all implemented verticals as comparable summary links, then shows the
+selected vertical's measured activity, auto-resolution, unresolved risk, savings, and supporting
+destinations. The cross-vertical table includes only fields shared by every vertical projection.
+Global confidence and trend values aren't repeated as vertical-specific claims; missing trend or
+domain-specific evidence remains unavailable until the read model supplies an attributed source.
+An empty vertical has no inferred resolution rate, and synthetic evidence never creates an
+operational health label or a filtered runtime-evidence claim.
+
 ## Loading presentation
 
 Every route, panel, and bounded content region renders a skeleton from its first loading frame.

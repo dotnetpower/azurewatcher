@@ -1,5 +1,5 @@
 import type { ReadApiClient } from "../api";
-import type { AutonomyPayload, VerticalSummary } from "../types";
+import type { AutonomyPayload } from "../types";
 import { usePublishViewContext } from "../deck/context";
 import {
   AsyncBoundary,
@@ -15,10 +15,12 @@ import {
 import { getLocale } from "../i18n";
 import { t } from "./i18n/analytics";
 import { currentRoute, routeHref } from "../router";
-import { formatShare, formatUsd } from "./dashboard.model";
+import { formatShare } from "./dashboard.model";
 import { useAnalyticsData, type AnalyticsData } from "./analytics-data";
 import { buildOperatingOutcomeViewSnapshot } from "./analytics-hubs.view";
 import { ControlAssuranceBody } from "./control-assurance";
+import { VerticalOutcomesBody } from "./vertical-outcomes";
+export { formatMeasuredSavings, verticalResolutionRate } from "./vertical-outcomes";
 import {
   OperatingOutcomeBody,
   OUTCOME_KEYS,
@@ -35,10 +37,6 @@ export function measuredTierValue(
   return Object.prototype.hasOwnProperty.call(values, tier) ? values[tier] ?? null : null;
 }
 
-export function formatMeasuredSavings(value: number): string {
-  return formatUsd(value);
-}
-
 export function searchParamsRecord(search: URLSearchParams): Readonly<Record<string, string>> {
   return Object.fromEntries(search.entries());
 }
@@ -51,10 +49,6 @@ export function routingParamsForTier(
   if (tier === "t2") return params;
   const { indicator: _indicator, ...shared } = params;
   return shared;
-}
-
-export function verticalResolutionRate(vertical: VerticalSummary): number | null {
-  return vertical.events > 0 ? vertical.auto_resolved / vertical.events : null;
 }
 
 function HubTabs({
@@ -171,18 +165,6 @@ export function ControlAssuranceRoute({ client }: Props) {
 
 const VERTICAL_KEYS = ["resilience", "change-safety", "cost-governance"] as const;
 
-function verticalPayloadKey(slug: string): string {
-  if (slug === "change-safety") return "change_safety";
-  if (slug === "cost-governance") return "cost";
-  return slug;
-}
-
-function verticalRouteSlug(payloadKey: string): string {
-  if (payloadKey === "change_safety") return "change-safety";
-  if (payloadKey === "cost") return "cost-governance";
-  return payloadKey;
-}
-
 export function VerticalOutcomesRoute({ client }: Props) {
   const state = useAnalyticsData(client);
   const segment = currentRoute().segments[0];
@@ -195,70 +177,18 @@ export function VerticalOutcomesRoute({ client }: Props) {
       <HubTabs panelId="verticals" values={VERTICAL_KEYS} active={active ?? ""} label={(key) => t(`analytics.vertical.${key}`)} />
       {active === null ? <UnavailableState message={t("analytics.invalidDetail")} /> : (
         <AsyncBoundary state={state} resourceLabel={t("analytics.verticals.title")}>
-          {(data) => data.autonomy ? <VerticalBody data={data} active={active} /> : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
+          {(data) => data.autonomy ? (
+            <VerticalOutcomesBody
+              active={active}
+              autonomy={data.autonomy}
+              context={searchParamsRecord(currentRoute().search)}
+              evidence={<EvidenceStrip autonomy={data.autonomy} />}
+            />
+          ) : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
         </AsyncBoundary>
       )}
     </div>
   );
-}
-
-function VerticalBody({ data, active }: { readonly data: AnalyticsData; readonly active: string }) {
-  const vertical = data.autonomy!.verticals.find((item) => item.key === verticalPayloadKey(active));
-  if (!vertical) return <UnavailableState message={t("analytics.verticals.unavailable")} />;
-  const resolution = verticalResolutionRate(vertical);
-  const context = searchParamsRecord(currentRoute().search);
-  const verticalKey = data.autonomy!.synthetic ? null : verticalPayloadKey(active);
-  const auditContext = {
-    ...context,
-    window: `${data.autonomy!.window_days}d`,
-    vertical: verticalKey,
-  };
-  return (
-    <div class="stack">
-      <EvidenceStrip autonomy={data.autonomy!} />
-      <KpiGrid>
-        <KpiCard href={routeHref("audit", { params: auditContext })} label={t("analytics.events")} value={vertical.events} />
-        <KpiCard href={routeHref("audit", { params: { ...auditContext, outcome: "auto" } })} label={t("analytics.autoResolved")} value={vertical.auto_resolved} />
-        <KpiCard evidenceState={resolution === null ? "insufficient-sample" : "measured"} href={routeHref("audit", { params: { ...auditContext, outcome: "auto" } })} label={t("analytics.resolutionRate")} value={resolution === null ? kpiEvidenceLabel("insufficient-sample") : formatShare(resolution)} hint={resolution === null ? t("analytics.insufficientSampleHint") : undefined} />
-        <KpiCard href={routeHref("incidents", { params: { ...context, vertical: verticalKey } })} label={t("analytics.openRisks")} value={vertical.open_risks} tone={vertical.open_risks > 0 ? "warning" : "positive"} />
-        <KpiCard href={routeHref("audit", { params: auditContext })} label={t("analytics.monthlySavings")} value={formatMeasuredSavings(vertical.monthly_savings)} />
-      </KpiGrid>
-      <section class="analytics-panel">
-        <h3>{t("analytics.verticals.comparison")}</h3>
-        <VerticalTable verticals={data.autonomy!.verticals} />
-      </section>
-      {data.autonomy!.synthetic ? (
-        <p class="muted footnote">{t("analytics.simulatedEvidenceBoundary")}</p>
-      ) : null}
-      <EvidenceLinks links={[
-        [t("analytics.viewIncidents"), routeHref("incidents", {
-          params: { vertical: data.autonomy!.synthetic ? null : verticalPayloadKey(active) },
-        })],
-        [t("analytics.viewAudit"), routeHref("audit", {
-          params: { vertical: data.autonomy!.synthetic ? null : verticalPayloadKey(active) },
-        })],
-      ]} />
-    </div>
-  );
-}
-
-function VerticalTable({ verticals }: { readonly verticals: readonly VerticalSummary[] }) {
-  const params = searchParamsRecord(currentRoute().search);
-  const columns: readonly Column<VerticalSummary>[] = [
-    {
-      key: "vertical",
-      header: t("analytics.verticalLabel"),
-      render: (row) => (
-        <a href={routeHref("verticals", { segments: [verticalRouteSlug(row.key)], params })}>
-          {t(`overview.vertical.${row.key}`)}
-        </a>
-      ),
-    },
-    { key: "events", header: t("analytics.events"), render: (row) => row.events, cellClass: "num" },
-    { key: "resolved", header: t("analytics.autoResolved"), render: (row) => row.auto_resolved, cellClass: "num" },
-    { key: "risks", header: t("analytics.openRisks"), render: (row) => row.open_risks, cellClass: "num" },
-  ];
-  return <DataTable columns={columns} rows={verticals} keyOf={(row) => row.key} />;
 }
 
 const TIER_KEYS = ["t0", "t1", "t2"] as const;

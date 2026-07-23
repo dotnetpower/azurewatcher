@@ -1,7 +1,7 @@
 ---
 title: 콘솔 근거 및 복원력
 translation_of: console-evidence-and-resilience.md
-translation_source_sha: 4d34c453ac8cffff6d4d666dcad53035d9b24443
+translation_source_sha: 6e2d88c6f3a69d5ff28d4baeeb37fb1d958845c4
 translation_revised: 2026-07-23
 ---
 
@@ -62,6 +62,14 @@ required-attention total을 표시합니다. Guard row는 current, baseline 및 
 filtered evidence로 연결됩니다. Distribution segment와 attention row는 가장 좁은 audit, approval
 또는 promotion 목적지로 연결됩니다. Synthetic guard는 operational pass 또는 failure를 만들지 않으며,
 projection이 누락되면 prototype value나 추론한 0을 공급하지 않고 unavailable로 렌더링합니다.
+
+Vertical Outcomes는 구현된 모든 영역을 비교 가능한 summary link로 표시한 다음, 선택한 영역의 측정
+활동, auto-resolution, 미해결 위험, 절감액 및 supporting destination을 보여줍니다. Cross-vertical
+table에는 모든 vertical projection이 공유하는 field만 포함합니다. Global confidence와 trend value는
+vertical-specific claim으로 반복하지 않습니다. Trend 또는 영역별 고유 evidence가 누락되면 read
+model이 귀속 source를 제공할 때까지 unavailable로 유지합니다. 빈 영역에는 resolution rate를
+추론하지 않으며 synthetic evidence는 operational health label이나 filtered runtime-evidence claim을
+만들지 않습니다.
 
 ## 로딩 표현
 
