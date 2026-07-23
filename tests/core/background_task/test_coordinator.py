@@ -9,6 +9,7 @@ from fdai.core.background_task import (
     BackgroundTask,
     BackgroundTaskAttempt,
     BackgroundTaskBudget,
+    BackgroundTaskConflictError,
     BackgroundTaskCoordinator,
     BackgroundTaskCoordinatorConfig,
     BackgroundTaskKind,
@@ -208,6 +209,38 @@ async def test_completion_handoff_timeout_is_bounded_and_retries_without_rerun()
     assert elapsed < 0.25
     assert executor.calls == 1
     assert sink.calls == 2
+
+
+class _LeaseLostStore(InMemoryBackgroundTaskStore):
+    """A store whose lease renewal always conflicts (lease lost mid-flight)."""
+
+    async def renew(self, *args: object, **kwargs: object) -> BackgroundTaskAttempt:
+        raise BackgroundTaskConflictError("lease lost mid-flight")
+
+
+async def test_renew_conflict_hands_off_without_stale_complete() -> None:
+    store = _LeaseLostStore()
+    await store.create(_task("background-lease-lost"))
+    executor = _Executor(delay=1.2)
+    coordinator = BackgroundTaskCoordinator(
+        store=store,
+        executor=executor,
+        config=BackgroundTaskCoordinatorConfig(
+            coordinator_id="coordinator-lease-lost",
+            lease_seconds=2,
+        ),
+    )
+
+    # The lease is lost at the first renewal (~1s). The coordinator MUST hand
+    # off the durable row instead of completing with a stale revision (which
+    # would raise a second conflict the tick could only swallow) or crashing.
+    results = await coordinator.run_once()
+
+    assert len(results) == 1
+    durable = await store.get("background-lease-lost")
+    assert durable is not None
+    assert results[0] == durable
+    assert results[0].status is not BackgroundTaskStatus.SUCCEEDED
 
 
 async def test_coordinator_failure_timeout_and_owner_cancel_are_terminal() -> None:

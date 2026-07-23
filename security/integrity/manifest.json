@@ -87,7 +87,7 @@
     "src/fdai/core/audit/rule_fire_trace.py": "7cf7d0f145566d29c6cf8c7c20cf07d9bf9d44783ffeafe28e6c9b37aa0c260c",
     "src/fdai/core/audit/what_if_replay.py": "15aef7e71b1ac02a23dbf7338e0049a316a6b4e9cd68310638769c9acca0a096",
     "src/fdai/core/background_task/__init__.py": "34e2bb0a250e2b5765d0d9e05fd794c8d7922031f48b794497f40b6b791ba8eb",
-    "src/fdai/core/background_task/coordinator.py": "7e703511eb4a8c7cd3a5d752aed2e09704fe7d7d22f8a93ac548e09ebec7782a",
+    "src/fdai/core/background_task/coordinator.py": "fdff61ed31bc71e2b6e03497ebbfb4fad6fe447a475b5e75a4ef9ef9a8176980",
     "src/fdai/core/background_task/models.py": "171170b5b21d43d5ccfdcc05868a3d174463fa33be3be94e25e7c9c500a16544",
     "src/fdai/core/background_task/quota.py": "b82e1302151d6fb1a4cf604555759e87d8f748c613e62a480f8586b9498c20cf",
     "src/fdai/core/background_task/service.py": "66442ad36cdd992a534a0437228108070853241d85ce486f4e7e71a1b0fd75dd",
@@ -786,7 +786,7 @@
     "src/fdai/shared/providers/workflow_definition.py": "01c40a52343b9b0f301a921d7931cc03ae5cc1d916b12f8fcaf06816d0b1c23a",
     "src/fdai/shared/providers/workload_identity.py": "96f26525f5d243ff4c818766d0ee9223a23f1c31c76b141708a01e405a8fd204"
   },
-  "generated_at": "2026-07-23T12:53:28Z",
+  "generated_at": "2026-07-23T14:38:14Z",
   "surface": [
     "src/fdai/core/",
     "src/fdai/composition.py",

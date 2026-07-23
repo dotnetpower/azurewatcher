@@ -201,14 +201,28 @@ class BackgroundTaskCoordinator:
                         result = execution.result()
                         status = BackgroundTaskStatus.SUCCEEDED
                         break
-                    current = await self._store.renew(
-                        current.attempt_id,
-                        expected_revision=current.revision,
-                        lease_token=lease_token,
-                        now=max(self._clock(), current.updated_at),
-                        lease_seconds=self._config.lease_seconds,
-                        usage=reporter.usage,
-                    )
+                    try:
+                        current = await self._store.renew(
+                            current.attempt_id,
+                            expected_revision=current.revision,
+                            lease_token=lease_token,
+                            now=max(self._clock(), current.updated_at),
+                            lease_seconds=self._config.lease_seconds,
+                            usage=reporter.usage,
+                        )
+                    except BackgroundTaskConflictError:
+                        # Lost the lease: reconcile marked this attempt UNKNOWN
+                        # (lease expiry) or another coordinator re-claimed it. We
+                        # no longer own it, so cancel local work and hand off the
+                        # durable row instead of completing with a stale revision.
+                        # That second conflict could only be swallowed by the tick
+                        # and would mis-record a lease loss as an executor error.
+                        execution.cancel()
+                        await asyncio.gather(execution, return_exceptions=True)
+                        latest = await self._store.get(current.task.task_id)
+                        if latest is not None:
+                            return latest
+                        raise
         except TimeoutError:
             execution.cancel()
             await asyncio.gather(execution, return_exceptions=True)
