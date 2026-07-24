@@ -732,9 +732,13 @@
       "must_read": [
         ".github/instructions/app-shape.instructions.md",
         "docs/roadmap/deployment/deployment.md",
-        "docs/roadmap/deployment/deploy-and-onboard.md"
+        "docs/roadmap/deployment/deploy-and-onboard.md",
+        "docs/roadmap/deployment/deployment-resource-conventions.md"
       ],
-      "docs_update": ["docs/roadmap/deployment/deploy-and-onboard.md"]
+      "docs_update": [
+        "docs/roadmap/deployment/deploy-and-onboard.md",
+        "docs/roadmap/deployment/deployment-resource-conventions.md"
+      ]
     },
     {
       "id": "fork-customization",

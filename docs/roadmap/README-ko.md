@@ -1,8 +1,8 @@
 ---
 title: FDAI 로드맵
 translation_of: README.md
-translation_source_sha: b2607f0950110661f6d2c6626becc1bf2db60ef5
-translation_revised: 2026-07-23
+translation_source_sha: 4d77283425d833a2c281ffd11a9ddf03b7f6e475
+translation_revised: 2026-07-24
 ---
 
 # FDAI 로드맵
@@ -65,6 +65,7 @@ FDAI 뒤편의 엔지니어링 계획. 이 폴더는
 | 10 | [observability-and-detection-ko.md](rules-and-detection/observability-and-detection-ko.md) | 이벤트 상관, 이상 탐지, 예측, 근본 원인 분석 |
 | 10a | [manual-distillation-ko.md](rules-and-detection/manual-distillation-ko.md) | 도입 회사의 운영 / 배포 매뉴얼을 결정론적 규칙 / 워크플로우 / 정책으로 컴파일(런타임 RAG 대비)하고 증류를 검증 |
 | 11 | [deploy-and-onboard-ko.md](deployment/deploy-and-onboard-ko.md) | 구체적인 Azure 리소스 인벤토리, 부트스트랩 순서, fork vs core 분리 |
+| 11a | [deployment-resource-conventions-ko.md](deployment/deployment-resource-conventions-ko.md) | 결정론적 CAF 리소스 이름, 소유권 태그, 배포 공급 태그 규칙 |
 | 11b | [hyperscale-cell-architecture-ko.md](architecture/hyperscale-cell-architecture-ko.md) | 구독 300개용 scale-out 청사진: 셀 기반 스트리밍, 정책-기반 fan-in, 2-평면 로깅, ADX 위의 CQRS 감사 인덱싱, 비용 엔벨로프, standard/sovereign 프로파일, Container Apps 기본(AKS 연기) |
 | 12 | [startup-and-lifecycle-ko.md](operations/startup-and-lifecycle-ko.md) | 콜드 스타트, day-zero 카탈로그, shadow-first 롤아웃, discovery-loop 킥오프 |
 | 13 | [operating-and-verification-ko.md](operations/operating-and-verification-ko.md) | 자체 헬스 신호, canary 이벤트, 스모크 테스트, 알림 라우팅, 런북 |

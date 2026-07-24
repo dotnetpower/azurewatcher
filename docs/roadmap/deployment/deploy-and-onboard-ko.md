@@ -1,8 +1,8 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: aa6aaff37763c41de44ad0f031be324a6e6a1ad9
-translation_revised: 2026-07-23
+translation_source_sha: daf4e699be0089f8d8d4f7dc7491f1d2d622c9ed
+translation_revised: 2026-07-24
 ---
 
 # 배포와 온보딩(Deploy and Onboard)
@@ -209,133 +209,12 @@ provision 하며, alert 는 인간 신호일 뿐 자율 액션이 아니다.
 
 ## 리소스 명명 규약(Resource Naming Convention)
 
-이 리포가 프로비저닝하는 모든 Azure 리소스는 **Microsoft Cloud Adoption Framework(CAF)**
-축약 규약을 따릅니다. 이름은 결정론적이며 배포에 종속적이지 않고 grep 가능해야 합니다 -
-이름 변경은 Terraform diff이지, 손편집이 아닙니다.
+리소스 명명 및 태깅 계약은
+[배포 리소스 규약](deployment-resource-conventions-ko.md)이 소유합니다. 이 집중 문서는
+CAF 접두사, 결정론적 길이 처리, `fdai:` 태그 네임스페이스, 배포 공급 태그,
+`fdai:managed=true` 소유권 경계를 정의합니다. 이 제목은 기존 링크의 안정적인 대상으로
+유지합니다.
 
-패턴:
-
-```
-<caf-prefix>-<workload>[-<component>][-<env>][-<region>][-<instance>]
-```
-
-- **workload**는 고정 리터럴 `fdai` (프로덕트 이름이지 고객 identifier가 아니라
-  [generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md)
-  에 따라 허용됩니다).
-- **component**는 같은 리소스 종류가 두 개 이상 프로비저닝될 때만 추가 (예:
-  `ca-fdai-core` vs 미래의 `ca-fdai-worker`).
-- **env** (`dev`/`staging`/`prod`)와 **region** (`krc`/`weu`/`eus`) 접미사는 리소스가
-  나란히 배포될 때만 추가; day-zero 배포는 접미사 없이 유지.
-- **instance** (`01`, `02`, ...)는 한 env에 다중 인스턴스가 있을 때만 추가.
-
-기본 **리소스 그룹**은 `rg-fdai` (사용자 지시로 고정). 서브스크립션 범위 배치가 필요한
-리소스 종류(오늘은 없음)를 제외하면 시스템이 프로비저닝하는 모든 것은 이 RG 아래에 있음.
-
-### Day-zero 인벤토리를 위한 CAF 접두사
-
-| 리소스 | CAF 접두사 | 문자 규칙 | 예시 이름 |
-|--------|-----------|----------|-----------|
-| Resource Group | `rg-` | 1-90; 알파벳숫자 + 하이픈/언더스코어 | `rg-fdai` |
-| User-assigned Managed Identity | `id-` | 3-128 | `id-fdai-executor` |
-| Container Apps environment | `cae-` | 2-32; 알파벳숫자 + 하이픈 | `cae-fdai` |
-| Container App (core) | `ca-` | 2-32 | `ca-fdai-core` |
-| Container Apps Job (out-of-band) | `caj-` | 2-32 | `caj-fdai-oob` |
-| Event Hubs namespace | `evhns-` | 6-50 | `evhns-fdai` |
-| PostgreSQL Flexible Server | `psql-` | 3-63; 소문자 | `psql-fdai` |
-| Key Vault | `kv-` | 3-24; 알파벳숫자 + 하이픈 | `kv-fdai` |
-| **Container Registry (ACR)** | `cr` | 5-50; **알파벳숫자만, 하이픈 불가** | `crfdai` |
-| Log Analytics workspace | `log-` | 4-63 | `log-fdai` |
-| Azure Bot (HIL Adaptive Cards) | `bot-` | 2-64 | `bot-fdai` |
-| Static Web App (read-only 콘솔) | `stapp-` | 2-40 | `stapp-fdai` |
-
-### 길이 안전 규칙 (MUST)
-
-- **ACR 이름은 절대 하이픈을 포함하지 않음**; 접두사 `cr`는 workload 토큰과 융합
-  (`crfdai`). env/region 접미사가 붙을 때에도 하이픈을 재도입하지 말 것 - 하나의
-  연속된 소문자 알파벳숫자 문자열 사용(예: `crfdaidevkrc01`).
-- **Storage account**는 24자 소문자 알파벳숫자만 사용합니다. Document storage는 전역
-  유일성을 위해 subscription + environment에서 파생한 안정적인 6자 hash suffix를 사용합니다.
-- 합법적 이름이 env/region/instance 추가 후 문자 제한을 초과하면 문서화된 short-name
-  `aip`를 `fdai` 대신 사용 - 그리고 그 리소스 종류에만. 전체 이름이 여전히 맞으면
-  `aip`를 흩뿌리지 말 것.
-
-### 이 규칙이 금지하는 것
-
-- **무작위 접미사 없음.** Storage처럼 전역 유일 이름이 필요한 리소스의 짧은 deterministic
-  hash는 허용하지만, 매 plan마다 바뀌는 random suffix는 리뷰 블로커입니다.
-- **고객 이름이나 환경 값을 identifier에 굽지 말 것** - 그것들은 `*.tfvars`와 태그
-  맵에 있고, 리소스 이름에는 절대 없음.
-- **Python에 인라인 명명 로직 없음** - 앱은 env vars로 받은 것을 읽음; 이름은 plan
-  시점의 `infra/` 에서 결정.
-
-## 리소스 태깅 규약(Resource Tagging Convention)
-
-명명은 리소스를 *읽기 쉽게* 만들고, 태깅은 플릿을 *질의 가능하게* 만든다. 이 repo가
-프로비저닝하는 모든 리소스는 작고 기계 파싱 가능한 태그 세트를 지닌다. FDAI 소유의 모든
-키는 `fdai:` 접두어로 네임스페이스되어 전체 세트가 grep 가능하고, 다른 팀 리소스가 나란히
-있는 **공유 구독**에서도 FDAI가 프로비저닝한 리소스를 명확히 구분한다. 태그 맵은
-Terraform(`infra/main.tf` `base_tags`)에서 결정하며, Python에서 계산하지 않는다.
-
-### 기본 태그 세트 (모든 리소스에 적용)
-
-| 태그 키 | 값 | 소스 | 목적 |
-|---------|-----|------|------|
-| `fdai:managed` | `true` | 상수 | **소유권 마커.** "FDAI가 이걸 프로비저닝함"을 나타내는 유일한 권위 있는 플래그. `az resource list --tag fdai:managed=true` 로 FDAI 소유 리소스를 정확히 열거 - blast-radius 스코핑, 정리/감사 교차검증, 비용 귀속의 기반. |
-| `fdai:workload` | `fdai` | `var.workload` | 제품/워크로드 토큰; CAF 이름 토큰과 일치. |
-| `fdai:env` | `day-zero` / `dev` / `staging` / `prod` | `var.env` | 환경. `day-zero` 는 미한정 배포. |
-| `fdai:layer` | `control-plane` / `ops-bootstrap` | 구성별 | 아키텍처 레이어 - 앱 spoke(`infra/main.tf`) vs ops/hub bootstrap(`infra/bootstrap`). |
-| `fdai:managed-by` | `terraform` | 상수 | 프로비저닝 도구. |
-| `fdai:vertical` | `shared` / `resilience` / `change-safety` / `cost-governance` | `var.cost_vertical` (기본 `shared`) | 리소스 비용이 귀속되는 AIOps 버티컬. 교차 버티컬 컨트롤 플레인 인프라는 `shared` 유지; 버티컬별 리소스(예: 3개 executor MI)는 이 키를 오버라이드. |
-
-### `fdai:managed` 가 중요한 이유
-
-executor 는 FDAI가 소유하지 **않는** 리소스도 함께 호스팅하는 구독 안에서 실행될 수 있다.
-소유권 마커가 바로 컨트롤 플레인이 그 경계를 긋게 해준다 - 어느 한 스크립트가 하드코딩하는
-동작이 아니라, 이 능력들이 의존하는 질의 키다:
-
-- **blast-radius 스코핑** - 자율 액션이 타겟 세트를 한정해야 한다는 안전 불변식은
-  `fdai:managed=true` 로 표현되므로, 리메디에이션을 FDAI가 만든 리소스로 제한하고
-  만들지 않은 것엔 절대 닿지 않게 함.
-- **정리와 감사** - `terraform destroy` 는 이미 상태 기반으로 프로비저닝된 플릿을 제거;
-  마커는 스윗이나 감사가 삭제 대상으로 고려하기 전에 리소스가 FDAI 소유인지 확인하는
-  out-of-band 교차검증.
-- **비용 귀속** - Cost Management 와 Resource Graph 는 `fdai:vertical` 로 지출을 그룹핑하고
-  전체 FDAI 풋프린트를 `fdai:managed=true` 슬라이스로 분리 가능.
-
-### Deployment 공급 태그(`additional_tags`)
-
-고객 및 환경 특정 키는 `base_tags` 에 **절대** 하드코딩하지 않는다(그러면
-[generic-scope](../../../.github/instructions/generic-scope.instructions.md) 위반). Deployment는
-자신의 `*.tfvars` 안 `additional_tags` 맵으로 `fdai:` 네임스페이스를 유지하며 공급한다:
-
-```hcl
-additional_tags = {
-  "fdai:cost-center"        = "cc-1234"
-  "fdai:owner"              = "team-platform"
-  "fdai:criticality"        = "high"
-  "fdai:data-classification" = "internal"
-}
-```
-
-`additional_tags` 는 `base_tags` 위에 병합되므로, deployment는 core를 편집하지 않고 기본값을
-오버라이드(예: `fdai:vertical` 고정)할 수도 있다.
-
-### 리소스별 오버라이드
-
-모듈 호출은 로컬 `merge` 로 단일 키를 좁힐 수 있다 - 예: 버티컬별 executor MI 는
-`merge(local.tags, { "fdai:vertical" = "resilience" })` 를 설정. 한 리소스가 한 개념에 대해
-경쟁하는 두 키를 갖지 않도록 동일한 `fdai:` 네임스페이스를 사용한다. 한 리소스 종류가 두 번
-이상 프로비저닝될 때(예: `core` vs `worker`)의 CAF component 토큰에는 위 명명 규약을 따라
-`fdai:component` 를 예약한다.
-
-### 규칙
-
-- **모든 FDAI 키는 `fdai:` 네임스페이스 사용.** 맨 `env` 나 `vertical` 키는 리뷰 블로커 -
-  다른 팀과 충돌하고 grep 가능성 보장을 깨뜨림.
-- **`base_tags` 에 고객/비밀 값 없음** - 그것들은 리소스 이름과 똑같이 `*.tfvars` 의
-  `additional_tags` 에 있음.
-- **질의에 쓰이는 값은 안정적이고 소문자**(`true`, `dev`, `resilience`); Cost Management 와
-  Resource Graph 는 리터럴로 그룹핑하므로 드리프트가 집계를 깨뜨림.
 ## Azure 리소스 인벤토리 (최소 세트)
 
 인벤토리는 **비용 효율 우선**을 위해 의도적으로 최소화. 아래 모든 선택은 이 문서 끝의
