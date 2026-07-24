@@ -1,6 +1,6 @@
 {
   "algorithm": "sha256",
-  "file_count": 783,
+  "file_count": 784,
   "files": {
     ".github/instructions/agent-pantheon.instructions.md": "666854e591a82a0878f521d1d26b59d9e72c3228eadf52506e891a581bffd39d",
     ".github/instructions/agent-stewardship.instructions.md": "a1d3657f05323259023fbb1abf304495ec923f6bb917be739ed49647171195ba",
@@ -169,7 +169,7 @@
     "src/fdai/core/conversation/channel_gateway.py": "01329adb6015c4b14b11296f895b1545bf7714c2059ed1fbf829c7f0350227bb",
     "src/fdai/core/conversation/context_bridge.py": "934a22748fc9b755778bd5fefa1c391348bc4f9ef9e0a4a154b4d7dc96d4fe69",
     "src/fdai/core/conversation/contextual_translation.py": "70e7029bdd8983efefac50f260366195612722ddb52f483ca20d4d522275e321",
-    "src/fdai/core/conversation/coordinator.py": "524a253f19f50ac9cda5324413db11b5e91db5fdce6ab0c5bd6bd90a7e9f9d30",
+    "src/fdai/core/conversation/coordinator.py": "682a26761be290f5c33a76f32c3f8bc30e6bce194a4ab7ac42ff926f1357dc88",
     "src/fdai/core/conversation/creation.py": "f220a81dc7636a6ac0ff57cc9981345119ee10152bd478ebbe5c01cc93c3410e",
     "src/fdai/core/conversation/grounded_answer_validation.py": "412426de78e05190870cd5dd2f499a68f66d019b26a7c40fa23292a8f5a3234b",
     "src/fdai/core/conversation/identity_links.py": "3ace36998d2ed21a7f91fb195e78cac3d77b2366e4779cda7bc23cccce0ecbf7",
@@ -183,6 +183,7 @@
     "src/fdai/core/conversation/session.py": "d4d9e2a6fa1fda4f309be7052e2fe656c14dc8461b9ed7ada9982a5442f0b45e",
     "src/fdai/core/conversation/skill_discovery.py": "b2fd7e846af0a8ad9e698d3932ba4a77549a1dd8cd4d5968cc48b1afe6fe72ef",
     "src/fdai/core/conversation/system_tools.py": "cdb2d5a6af14d3c691e77ee6b457fa6794c1a55f21ad4ef9600074864bd76486",
+    "src/fdai/core/conversation/tool_arguments.py": "df998cdde8513f2057cc6524126be38e61460201aac6d81425e2a962d4595506",
     "src/fdai/core/conversation/tool_discovery.py": "305d4a7e971a800f5068d0b7c57fbcdf038fc59f8f7dd67591657bc0f5376b60",
     "src/fdai/core/conversation/tools.py": "93f39747c2e4d2e219fdda9bbee602df80d9f805262da1a7536179fe0988c1b2",
     "src/fdai/core/conversation/write_tools.py": "77dae0f125caa27683344b6987dc530c707e16842e5aeaf568f035a9c94b5978",
@@ -786,7 +787,7 @@
     "src/fdai/shared/providers/workflow_definition.py": "01c40a52343b9b0f301a921d7931cc03ae5cc1d916b12f8fcaf06816d0b1c23a",
     "src/fdai/shared/providers/workload_identity.py": "96f26525f5d243ff4c818766d0ee9223a23f1c31c76b141708a01e405a8fd204"
   },
-  "generated_at": "2026-07-23T14:38:14Z",
+  "generated_at": "2026-07-24T01:49:12Z",
   "surface": [
     "src/fdai/core/",
     "src/fdai/composition.py",

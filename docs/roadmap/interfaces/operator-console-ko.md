@@ -1,8 +1,8 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: a20b6ccb80f24541fed383826131f5bb7fbf0a1d
-translation_revised: 2026-07-23
+translation_source_sha: 66c39293b5d1d3b74c69d5608a65a292af0cd265
+translation_revised: 2026-07-24
 ---
 
 # 오퍼레이터 콘솔 (Conversational)
@@ -144,6 +144,7 @@ flowchart TD
 
 - [`src/fdai/core/conversation/`](../../../src/fdai/core/conversation)
   - `coordinator.py` - `ConversationCoordinator` (Layer 2 orchestrator).
+  - `tool_arguments.py` - 순수 canonical-verb argument parsing이며 tool authority를 부여하지 않습니다.
   - `read_plan.py` - bounded-plan 순수 검증, serial read 실행, result aggregation 및 identity-scoped
     high-signal conflict detection.
   - `contextual_translation.py` - 현재 및 prior turn text에 대한 순수 scalar argument provenance.
@@ -176,6 +177,11 @@ flowchart TD
 - [`src/fdai/delivery/read_api/routes/chat_current_time.py`](../../../src/fdai/delivery/read_api/routes/chat_current_time.py)
   - injected aware clock과 principal IANA timezone에서 current-time 질문을 resolve합니다. Deterministic
     verification은 exact timestamp와 명시적 UTC fallback을 emit합니다.
+- [`src/fdai/delivery/read_api/routes/`](../../../src/fdai/delivery/read_api/routes)
+  - `chat_stream_setup.py`는 busy-input state machine 시작 전 authenticated request, document,
+    vision, history, answer-plan validation을 소유합니다.
+  - `chat_vision_prompt.py`는 검증된 inline image를 narrator content로 projection하고,
+    `chat_verification_text.py`는 Unicode normalization과 answer-text integrity 검사를 소유합니다.
 - Scheduler Runs, Automation Blueprints, Scheduled Continuations, [관리형 trajectory dataset](governed-trajectory-datasets-ko.md), [execution backend status](execution-backends-ko.md)는 read-only metadata를 제공합니다. 이 view에는 enable, submit, retry, cancel, cleanup, execute, approval control이 없고 credential 및 Thor identity를 제외하며 command는 SPA 밖에 유지됩니다.
 - [`tools/chat.py`](../../../tools/chat.py) - core coordinator를 위한 headless
   JSONL 개발 harness입니다. 별도 policy 구현이 아닙니다.

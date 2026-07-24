@@ -15,7 +15,6 @@ from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.routing import Route
 
-from fdai.core.conversation.answer_plan import build_answer_plan
 from fdai.core.conversation.answer_planning import AnswerPlanningResult
 from fdai.core.conversation.busy_input_coordinator import BusyInputCoordinator
 from fdai.core.metering import InvocationScope, with_invocation_scope
@@ -35,7 +34,6 @@ from fdai.delivery.read_api.routes.chat_answer_quality import (
 from fdai.delivery.read_api.routes.chat_backend_common import (
     ChatBackend,
     ChatBackendUnavailableError,
-    _reject_direct_override,
 )
 from fdai.delivery.read_api.routes.chat_backend_router import LatencyRoutedChatBackend
 from fdai.delivery.read_api.routes.chat_busy_input import (
@@ -48,7 +46,6 @@ from fdai.delivery.read_api.routes.chat_busy_input import (
 from fdai.delivery.read_api.routes.chat_document_evidence import (
     ChatDocumentEvidenceResolver,
     merge_document_verification,
-    resolve_document_refs,
     with_document_evidence,
 )
 from fdai.delivery.read_api.routes.chat_evidence_enrichment import (
@@ -80,14 +77,10 @@ from fdai.delivery.read_api.routes.chat_prompt import (
 )
 from fdai.delivery.read_api.routes.chat_route_common import (
     DEFAULT_MAX_CHAT_BODY_BYTES,
-    DEFAULT_MAX_HISTORY_ITEMS,
     AnswerPreferenceResolver,
     AuthorizeFn,
     ModelPreferenceResolver,
-    _conversation_context,
     _metering_correlation_id,
-    _request_id,
-    _session_id,
     _turn_metadata,
     _uses_evidence_fast_path,
     _with_compiled_user_policy,
@@ -99,11 +92,10 @@ from fdai.delivery.read_api.routes.chat_stream_protocol import (
     _sse_heartbeat,
     _with_sse_heartbeats,
 )
-from fdai.delivery.read_api.routes.chat_stream_request import read_chat_stream_body
+from fdai.delivery.read_api.routes.chat_stream_setup import prepare_chat_stream_request
 from fdai.delivery.read_api.routes.chat_system_health import render_system_health_answer
 from fdai.delivery.read_api.routes.chat_verification import verify_answer
 from fdai.delivery.read_api.routes.chat_vision_evidence import (
-    parse_vision_attachments,
     vision_source_previews,
 )
 from fdai.delivery.read_api.routes.post_turn_review import (
@@ -112,7 +104,6 @@ from fdai.delivery.read_api.routes.post_turn_review import (
     explicit_corrections,
 )
 from fdai.shared.providers.briefing import ConversationPolicyStore
-from fdai.shared.providers.document_ingestion import DocumentAccessDeniedError
 from fdai.shared.providers.user_context import ConversationHistoryStore, UserContextConflictError
 from fdai.shared.telemetry.correlation import with_correlation
 
@@ -151,78 +142,28 @@ def make_chat_stream_route(
     frame is emitted and the stream closes. Backends that do not implement
     ``answer_stream`` fall back to a single-shot ``answer`` emitted as one
     token + done, so the FE can always consume the same protocol.
-
     Read-only in the FDAI sense - no state mutation, no privileged call.
     """
 
     async def handler(request: Request) -> StreamingResponse:
-        user_id = await authorize(request)
-        preferred_model = (
-            await model_preference_resolver(user_id)
-            if model_preference_resolver is not None
-            else None
+        prepared = await prepare_chat_stream_request(
+            request,
+            authorize=authorize,
+            model_preference_resolver=model_preference_resolver,
+            answer_preference_resolver=answer_preference_resolver,
+            document_evidence_resolver=document_evidence_resolver,
+            max_body_bytes=max_body_bytes,
         )
-        answer_preferences = (
-            await answer_preference_resolver(user_id)
-            if answer_preference_resolver is not None
-            else None
-        )
-
-        body = await read_chat_stream_body(request, max_body_bytes=max_body_bytes)
-        try:
-            document_evidence_refs = await resolve_document_refs(
-                body=body,
-                principal_id=user_id,
-                resolver=document_evidence_resolver,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except DocumentAccessDeniedError as exc:
-            raise HTTPException(status_code=403, detail="document reference access denied") from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=501, detail=str(exc)) from exc
-        prompt = body.get("prompt")
-        if not isinstance(prompt, str) or not prompt.strip():
-            raise HTTPException(status_code=400, detail="prompt MUST be a non-empty string")
-        view_context = body.get("view_context")
-        if view_context is None:
-            view_context = {}
-        if not isinstance(view_context, dict):
-            raise HTTPException(status_code=400, detail="view_context MUST be an object")
-        view_context.pop("_answer_plan", None)
-        # `_attachments` is a server-owned, validated field: never trust a
-        # client-supplied one, then set it from the parsed inline images.
-        view_context.pop("_attachments", None)
-        try:
-            vision_attachments = parse_vision_attachments(body)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        if vision_attachments:
-            view_context["_attachments"] = [a.to_view_dict() for a in vision_attachments]
-        conversation_context = _conversation_context(body)
-        history_raw = body.get("history", [])
-        if not isinstance(history_raw, list):
-            raise HTTPException(status_code=400, detail="history MUST be a list")
-        if len(history_raw) > DEFAULT_MAX_HISTORY_ITEMS:
-            raise HTTPException(status_code=400, detail="history exceeds cap")
-        history: list[dict[str, str]] = []
-        for turn in history_raw:
-            if isinstance(turn, dict):
-                role = turn.get("role")
-                content = turn.get("content")
-                if isinstance(role, str) and isinstance(content, str):
-                    history.append({"role": role, "content": content})
-
-        clean_prompt = prompt.strip()
-        _reject_direct_override(clean_prompt)
-        answer_plan = build_answer_plan(
-            clean_prompt,
-            route_id=str(view_context.get("routeId") or "") or None,
-            preferences=answer_preferences,
-        )
-        view_context["_answer_plan"] = answer_plan.to_dict()
-        session_id = _session_id(body)
-        request_id = _request_id(body)
+        user_id = prepared.user_id
+        preferred_model = prepared.preferred_model
+        document_evidence_refs = prepared.document_evidence_refs
+        clean_prompt = prepared.clean_prompt
+        view_context = prepared.view_context
+        conversation_context = prepared.conversation_context
+        history = prepared.history
+        answer_plan = prepared.answer_plan
+        session_id = prepared.session_id
+        request_id = prepared.request_id
         active_turn = None
         if busy_input_coordinator is not None:
             try:

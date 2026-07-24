@@ -148,6 +148,7 @@ flowchart TD
 
 - [`src/fdai/core/conversation/`](../../../src/fdai/core/conversation)
   - `coordinator.py` - `ConversationCoordinator` (Layer 2 orchestrator).
+  - `tool_arguments.py` - pure canonical-verb argument parsing; it grants no tool authority.
   - `read_plan.py` - pure bounded-plan validation, serial read execution, result aggregation, and
     identity-scoped high-signal conflict detection.
   - `contextual_translation.py` - pure scalar argument provenance over current and prior turn text.
@@ -181,6 +182,11 @@ flowchart TD
 - [`src/fdai/delivery/read_api/routes/chat_current_time.py`](../../../src/fdai/delivery/read_api/routes/chat_current_time.py)
   - resolves current-time questions from an injected aware clock and principal IANA timezone;
     deterministic verification emits the exact timestamp and an explicit UTC fallback.
+- [`src/fdai/delivery/read_api/routes/`](../../../src/fdai/delivery/read_api/routes)
+  - `chat_stream_setup.py` owns authenticated request, document, vision, history, and answer-plan
+    validation before the busy-input state machine starts.
+  - `chat_vision_prompt.py` projects validated inline images into narrator content, and
+    `chat_verification_text.py` owns Unicode normalization and answer-text integrity checks.
 - Scheduler Runs, Automation Blueprints, Scheduled Continuations, [governed trajectory datasets](governed-trajectory-datasets.md), and [execution backend status](execution-backends.md) expose read-only metadata. These views have no enable, submit, retry, cancel, cleanup, execute, or approval controls; omit credentials and Thor's identity; and keep commands outside the SPA.
 - [`tools/chat.py`](../../../tools/chat.py) - headless JSONL development harness
   for the core coordinator. It is not a second policy implementation.

@@ -59,7 +59,7 @@ fdai/
 │   │   ├── deploy_preflight/   # pre-deployment feasibility probes → grounded readiness report
 │   │   ├── readiness/          # operational handoff + deterministic startup contracts, reducer, evidence expiry, and authority ceilings
 │   │   ├── assurance_twin/     # read-only ontology twin: text-to-query review / Q&A / assessment (proposes, never executes)
-│   │   ├── conversation/       # operator-console contextual intent/tool coordination, conflict-aware read plans, clarification, dynamic grounded narration with canonical/atomic-claim fallback, safe attachments, per-turn isolation, durable delivery, adapter health, and busy-input arbitration
+│   │   ├── conversation/       # operator-console contextual intent/tool coordination, pure tool-argument parsing, conflict-aware read plans, clarification, dynamic grounded narration with canonical/atomic-claim fallback, safe attachments, per-turn isolation, durable delivery, adapter health, and busy-input arbitration
 │   │   ├── user_context_projection.py  # metadata-only principal context / workflow binding projection into runtime ontology
 │   │   ├── console_request/    # operator-console write-direction re-request policy (Scenario B deny-override), a single pure `evaluate_operator_rerequest`
 │   │   ├── verticals/          # Resilience / Change Safety / Cost Governance (P3 integration surface); each is a sub-package (G-6) with its own orchestrator + submodules, plus the shared `Vertical` Protocol in `base.py` and the `VerticalRegistry` seam
@@ -98,7 +98,7 @@ fdai/
 │   │   ├── trajectory/         # deterministic JSONL streaming export with quarantine and atomic partial-file cleanup
 │   │   ├── chaos/              # live chaos-inject adapters when a `Chaos` runbook step goes enforce: `live_injectors.py` (CSP-neutral primitive fan-out) + `chaos_mesh.py` (Chaos Mesh CRDs) + `mysql_load.py` (MySQL benchmark load)
 │   │   ├── remediation/        # concrete `DirectApiExecutor` for direct-API remediation (`live_direct_api.py`); the Protocol lives in `shared/providers/`
-│   │   ├── read_api/           # thin ASGI - `main.py` composes route modules, including principal-timezone server-clock answers, hybrid T0/semantic search intent + query normalization, bounded narrator review, SSE fan-out, and separate dev/production wiring. GET routes project bounded state; POST commands submit governed records or typed proposals and never call a privileged executor directly
+│   │   ├── read_api/           # thin ASGI - `main.py` composes route modules, with focused chat request/setup, vision prompt, text verification, principal-timezone server-clock, hybrid T0/semantic search, bounded narrator review, SSE fan-out, and separate dev/production wiring. GET routes project bounded state; POST commands submit governed records or typed proposals and never call a privileged executor directly
 │   │   ├── ingestion_gateway/  # dedicated content-write ASGI: scoped uploads, uploader-scoped web chat refs, governed deletion, and optional handover governance
 │   │   ├── provisioning/       # surface-A Genesis bootstrap: pure `terraform_bridge.py` (terraform `-json` → `provision.*`) + `serve.py` harness (`aiter_json_lines` + `pump_provision_events`, I/O injected, no subprocess)
 │   │   └── scheduler_tick_cli.py  # standalone entry point that drives the scheduler tick from a cron / Container Apps Job
@@ -109,7 +109,7 @@ fdai/
 │   │   └── codegen/            # authoring helpers (`new_action_type`, `new_object_type`) - generate scaffolds, never mutate the live catalog
 │   ├── agents/                # pantheon runtime - 15 named agent modules (odin / thor / forseti / huginn / heimdall / ...), typed topics + bus, adapters + registry; see [agent-pantheon.md](../agents/agent-pantheon.md)
 │   ├── composition/           # composition root package (G-3, tracker #14): `__init__.py` (facade + `default_container` + `default_container_from_env`) + `_helpers.py` (Container / LlmBindings / LlmBindingsUnavailableError) + `wire_capabilities.py` (validated fork CapabilityBundle installer) + `wire_llm.py` (Azure OpenAI LLM binder) + `wire_azure.py` (fork-wire container + `AzureWireOverrides`) + `wire_change_feed.py` (Azure DevOps / GitHub change-feed factories) + `wire_metric_provider.py` (MetricProvider binder; Azure Monitor Logs auto-bind when `FDAI_MONITOR_WORKSPACE_ID` is set - split out of `wire_azure` to hold the LOC ceiling, G-4)
-│   ├── runtime/               # headless lifecycle and composition, including pre-Pantheon startup readiness, continuous worker gating, and durable post-turn review wiring into Norns
+│   ├── runtime/               # headless lifecycle and composition, including focused transport/identity bootstrap bindings, pre-Pantheon startup readiness, continuous worker gating, and durable post-turn review wiring into Norns
 │   └── __main__.py            # entry point (starts the P1 control loop)
 ├── rule-catalog/              # catalog-as-code DATA (YAML) - no Python; pipeline lives in src/fdai/rule_catalog/
 │   ├── schema/                 # JSON Schema definitions (data)

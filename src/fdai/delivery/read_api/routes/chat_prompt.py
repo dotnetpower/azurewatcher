@@ -29,6 +29,9 @@ from fdai.delivery.read_api.routes.chat_prompt_content import (
     _VISION_EVIDENCE_DIRECTIVE,
     _WEB_EVIDENCE_DIRECTIVE,
 )
+from fdai.delivery.read_api.routes.chat_vision_prompt import (
+    vision_user_content as _vision_user_content,
+)
 
 _LOG = logging.getLogger(__name__)
 
@@ -684,26 +687,6 @@ def _ontology_selection(value: Any) -> str | None:
     if any(ord(character) < 32 or ord(character) == 127 for character in selected):
         return None
     return selected
-
-
-def _vision_user_content(text: str, attachments: Any) -> str | list[dict[str, Any]]:
-    """Build the user-turn content, adding image parts when attachments exist.
-
-    Returns the plain text when there are no attachments (byte-identical to the
-    text-only path), otherwise an OpenAI-style multimodal content list: the text
-    followed by one ``image_url`` part per validated inline image. Only
-    ``data:image/`` URLs pass through, matching the server-side parser guard.
-    """
-    if not isinstance(attachments, list) or not attachments:
-        return text
-    parts: list[dict[str, Any]] = [{"type": "text", "text": text}]
-    for attachment in attachments:
-        if not isinstance(attachment, dict):
-            continue
-        url = attachment.get("data_url")
-        if isinstance(url, str) and url.startswith("data:image/"):
-            parts.append({"type": "image_url", "image_url": {"url": url}})
-    return parts if len(parts) > 1 else text
 
 
 def _build_messages(
