@@ -41,13 +41,85 @@
     .aa-corr { font-family: "Cascadia Code","Consolas",monospace; font-size: 11.5px; color: var(--cs-text-soft); }
     .aa-corr a { color: var(--cs-steel); }
 
+    .aal-workspace { display: grid; gap: 16px; }
+    .aal-panel { overflow: hidden; border: 1px solid var(--cs-hairline); border-radius: 12px; background: var(--cs-card); box-shadow: var(--cs-shadow); }
+    .aal-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 64px; padding: 12px 16px; border-bottom: 1px solid var(--cs-hairline); background: linear-gradient(110deg, var(--cs-shade), var(--cs-card) 62%); }
+    .aal-panel-kicker { display: block; margin-bottom: 2px; color: var(--cs-text-soft); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .aal-panel-head h2 { margin: 0; font-size: 16px; letter-spacing: 0; }
+    .aal-runtime-summary { display: flex; align-items: center; gap: 8px; color: var(--cs-text-soft); font-size: 12px; white-space: nowrap; }
+    .aal-runtime-summary strong { color: var(--cs-text); font-weight: 650; }
+    .aal-live-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--cs-sage); box-shadow: 0 0 0 4px rgba(94,130,89,.12); }
+    .aal-live-dot::after { position: absolute; inset: -4px; border: 1px solid rgba(94,130,89,.38); border-radius: 50%; content: ""; animation: aal-pulse 2.2s ease-out infinite; }
+    @keyframes aal-pulse { 0% { opacity: .75; transform: scale(.72); } 70%, 100% { opacity: 0; transform: scale(1.5); } }
+    .aal-status-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .aal-agent { position: relative; display: grid; grid-template-columns: 9px minmax(0, 1fr); gap: 8px; align-items: center; min-width: 0; min-height: 58px; padding: 9px 12px; border-right: 1px solid var(--cs-hairline); border-bottom: 1px solid var(--cs-hairline); color: var(--cs-text); text-decoration: none; }
+    .aal-agent:nth-child(5n) { border-right: 0; }
+    .aal-agent:nth-last-child(-n+5) { border-bottom: 0; }
+    .aal-agent:hover { background: var(--cs-shade); text-decoration: none; }
+    .aal-agent.is-selected { background: rgba(68,104,142,.08); box-shadow: inset 3px 0 0 var(--cs-steel); }
+    .aal-agent-dot { width: 8px; height: 8px; border: 2px solid var(--cs-card); border-radius: 50%; background: #A19D98; box-shadow: 0 0 0 1px #A19D98; }
+    .aal-agent-dot.is-active { background: var(--cs-sage); box-shadow: 0 0 0 1px var(--cs-sage); }
+    .aal-agent-dot.is-watch { background: var(--cs-steel); box-shadow: 0 0 0 1px var(--cs-steel); }
+    .aal-agent-dot.is-wait { background: var(--cs-terracotta); box-shadow: 0 0 0 1px var(--cs-terracotta); }
+    .aal-agent-copy { min-width: 0; }
+    .aal-agent-copy strong, .aal-agent-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .aal-agent-copy strong { font-size: 12.5px; line-height: 1.35; }
+    .aal-agent-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
+    .aal-agent-copy small { flex: 1 1 auto; color: var(--cs-text-soft); font-size: 10.5px; line-height: 1.35; }
+    .aal-agent-state { color: var(--cs-text-soft); font-size: 9.5px; font-weight: 700; text-transform: uppercase; }
+    .aal-agent-state.is-active { color: var(--cs-sage); }
+    .aal-agent-state.is-watch { color: var(--cs-steel); }
+    .aal-agent-state.is-wait { color: var(--cs-terracotta); }
+    .aal-journal-head-actions { display: flex; align-items: center; gap: 8px; }
+    .aal-follow { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 4px 10px; border: 1px solid var(--cs-hairline); border-radius: 6px; background: var(--cs-card); color: var(--cs-text); font: inherit; font-size: 11px; font-weight: 650; cursor: pointer; }
+    .aal-follow:hover { background: var(--cs-shade); }
+    .aal-follow[aria-pressed="false"] { color: var(--cs-text-soft); }
+    .aal-follow-icon { width: 7px; height: 7px; border-radius: 50%; background: var(--cs-sage); }
+    .aal-follow[aria-pressed="false"] .aal-follow-icon { background: #A19D98; }
+    .aal-event-count { color: var(--cs-text-soft); font-size: 11px; }
+    .aal-log-scroll { block-size: clamp(340px, 50vh, 500px); overflow: auto; overscroll-behavior: contain; scrollbar-color: #B8B4AF transparent; scrollbar-width: thin; }
+    .aal-log-grid { min-width: 920px; }
+    .aal-columns, .aal-event { display: grid; grid-template-columns: 86px 112px 94px minmax(320px, 1fr) 170px; gap: 12px; align-items: center; }
+    .aal-columns { position: sticky; top: 0; z-index: 2; min-height: 34px; padding: 7px 14px; border-bottom: 1px solid var(--cs-hairline); background: rgba(244,242,240,.96); color: var(--cs-text-soft); font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; backdrop-filter: blur(8px); }
+    .aal-event { min-height: 48px; padding: 8px 14px; border-top: 1px solid var(--cs-hairline); font-size: 12px; }
+    .aal-columns + .aal-event { border-top: 0; }
+    .aal-event:hover { background: rgba(244,242,240,.58); }
+    .aal-event.is-init { background: rgba(68,104,142,.045); }
+    .aal-event[hidden] { display: none; }
+    .aal-event .aa-time { font-size: 11px; }
+    .aal-event-agent { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--cs-text); font-weight: 650; }
+    .aal-event-agent:hover { text-decoration: none; }
+    .aal-event-agent span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .aal-event .aa-verb { justify-self: start; min-width: 0; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .aal-event .aa-summary { min-width: 0; line-height: 1.45; }
+    .aal-event .aa-corr { overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+    .aal-init-details summary { cursor: pointer; list-style: none; }
+    .aal-init-details summary::-webkit-details-marker { display: none; }
+    .aal-init-details summary::after { margin-left: 7px; color: var(--cs-steel); content: "Show agents"; font-size: 10.5px; font-weight: 600; }
+    .aal-init-details[open] summary::after { content: "Hide agents"; }
+    .aal-init-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+    .aal-init-list span { padding: 1px 6px; border: 1px solid var(--cs-hairline); border-radius: 4px; background: var(--cs-card); color: var(--cs-text-soft); font-size: 10px; }
+    .aal-journal-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; padding: 8px 14px; border-top: 1px solid var(--cs-hairline); background: var(--cs-shade); color: var(--cs-text-soft); font-size: 10.5px; }
+    .aal-journal-foot a { font-weight: 600; }
+    .aal-empty-log { padding: 36px 16px; color: var(--cs-text-soft); text-align: center; }
+
     @media (max-width: 720px) {
       .aa-group-head { align-items: flex-start; flex-wrap: wrap; gap: 6px 10px; }
       .aa-group-meta { width: 100%; margin-left: 22px; overflow-wrap: anywhere; }
       .aa-row { grid-template-columns: 72px minmax(0, 1fr); gap: 6px 10px; }
       .aa-summary, .aa-corr { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
       .aa-selection { align-items: flex-start; flex-wrap: wrap; }
+      .aal-panel-head { align-items: flex-start; flex-direction: column; gap: 6px; }
+      .aal-runtime-summary { white-space: normal; }
+      .aal-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .aal-agent, .aal-agent:nth-child(5n), .aal-agent:nth-last-child(-n+5) { border-right: 1px solid var(--cs-hairline); border-bottom: 1px solid var(--cs-hairline); }
+      .aal-agent:nth-child(2n) { border-right: 0; }
+      .aal-agent:last-child { border-bottom: 0; }
+      .aal-journal-head-actions { width: 100%; justify-content: space-between; }
+      .aal-log-scroll { block-size: 420px; }
+      .aal-journal-foot { align-items: flex-start; flex-direction: column; }
     }
+    @media (prefers-reduced-motion: reduce) { .aal-live-dot::after { animation: none; } }
   </style>
 </head>
 <body>
@@ -59,11 +131,11 @@
     </div>
 
     <div class="cs-page-header cs-mb-16">
-      <div class="cs-eyebrow">History &middot; per-agent timeline</div>
+      <div class="cs-eyebrow">Runtime &middot; bounded live journal</div>
       <h1>Agent activity</h1>
-      <p class="cs-lead">Same append-only audit log as the <a href="audit.html">Audit</a> stream,
-        projected per agent. Answers "who did what, when, and how" without leaving the operator
-        console. Read-only - the timeline is never re-executed.</p>
+      <p class="cs-lead">Current state for the full agent fleet, followed by one chronological
+        activity journal. Evidence remains linked to the append-only <a href="audit.html">Audit</a>
+        stream and is never re-executed.</p>
     </div>
 
     <div class="aa-toolbar">
@@ -250,44 +322,205 @@
     (function () {
       "use strict";
 
-      var agentNames = {
-        odin: "Odin", thor: "Thor", forseti: "Forseti", huginn: "Huginn",
-        heimdall: "Heimdall", vidar: "Vidar", var: "Var", bragi: "Bragi",
-        saga: "Saga", mimir: "Mimir", muninn: "Muninn", norns: "Norns",
-        njord: "Njord", freyr: "Freyr", loki: "Loki"
-      };
+      var agents = [
+        { slug: "odin", name: "Odin", role: "Orchestrator", state: "Coordinating", tone: "active" },
+        { slug: "thor", name: "Thor", role: "Responder", state: "Executing", tone: "active" },
+        { slug: "forseti", name: "Forseti", role: "Judge", state: "Reviewing", tone: "active" },
+        { slug: "huginn", name: "Huginn", role: "Planner", state: "Ready", tone: "ready" },
+        { slug: "heimdall", name: "Heimdall", role: "Observer", state: "Watching", tone: "watch" },
+        { slug: "var", name: "Var", role: "Approver", state: "Waiting", tone: "wait" },
+        { slug: "vidar", name: "Vidar", role: "Recovery", state: "Ready", tone: "ready" },
+        { slug: "bragi", name: "Bragi", role: "Narrator", state: "Ready", tone: "ready" },
+        { slug: "saga", name: "Saga", role: "Auditor", state: "Auditing", tone: "active" },
+        { slug: "mimir", name: "Mimir", role: "Knowledge", state: "Ready", tone: "ready" },
+        { slug: "norns", name: "Norns", role: "Scheduler", state: "Ready", tone: "ready" },
+        { slug: "muninn", name: "Muninn", role: "Learner", state: "Ready", tone: "ready" },
+        { slug: "njord", name: "Njord", role: "Cost specialist", state: "Ready", tone: "ready" },
+        { slug: "freyr", name: "Freyr", role: "Resilience", state: "Ready", tone: "ready" },
+        { slug: "loki", name: "Loki", role: "Simulator", state: "Ready", tone: "ready" }
+      ];
+      var agentBySlug = agents.reduce(function (index, agent) {
+        index[agent.slug] = agent;
+        return index;
+      }, {});
       var requested = new URLSearchParams(window.location.search).get("agent");
-      if (!requested) return;
-
-      var slug = requested.trim().toLowerCase();
+      var slug = requested ? requested.trim().toLowerCase() : null;
       var selection = document.getElementById("activitySelection");
       var selectionText = document.getElementById("activitySelectionText");
       var empty = document.getElementById("activityEmpty");
       var groups = Array.prototype.slice.call(document.querySelectorAll(".aa-group[data-agent]"));
-      var name = agentNames[slug];
+      var events = [];
 
-      selection.hidden = false;
-      if (!name) {
+      function element(tag, className, text) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      groups.forEach(function (group) {
+        var eventAgent = agentBySlug[group.dataset.agent];
+        Array.prototype.forEach.call(group.querySelectorAll(".aa-row"), function (row) {
+          var time = row.querySelector(".aa-time");
+          var agentLink = element("a", "aal-event-agent");
+          agentLink.href = "agent-activity.html?agent=" + eventAgent.slug;
+          agentLink.appendChild(element("span", "aal-agent-dot is-" + eventAgent.tone));
+          agentLink.appendChild(element("span", "", eventAgent.name));
+          row.classList.add("aal-event");
+          row.dataset.agent = eventAgent.slug;
+          row.dataset.time = time.textContent;
+          time.insertAdjacentElement("afterend", agentLink);
+          events.push(row);
+        });
+      });
+
+      var initRow = element("div", "aal-event is-init");
+      initRow.dataset.agent = "system";
+      initRow.dataset.time = "09:30:00";
+      var initAgent = element("span", "aal-event-agent");
+      initAgent.appendChild(element("span", "aal-agent-dot is-watch"));
+      initAgent.appendChild(element("span", "", "System"));
+      var initSummary = element("span", "aa-summary");
+      var initDetails = element("details", "aal-init-details");
+      var initTitle = element("summary");
+      var initList = element("div", "aal-init-list");
+      initTitle.appendChild(element("strong", "", "15 agents initialized"));
+      initTitle.appendChild(document.createTextNode(" · contracts loaded · stream connected"));
+      agents.forEach(function (agent) { initList.appendChild(element("span", "", agent.name)); });
+      initDetails.appendChild(initTitle);
+      initDetails.appendChild(initList);
+      initSummary.appendChild(initDetails);
+      initRow.appendChild(element("span", "aa-time", "09:30:00"));
+      initRow.appendChild(initAgent);
+      initRow.appendChild(element("span", "aa-verb is-approve", "Initialize"));
+      initRow.appendChild(initSummary);
+      initRow.appendChild(element("span", "aa-corr", "boot-01H7A4P-..."));
+      events.push(initRow);
+      events.sort(function (left, right) { return left.dataset.time.localeCompare(right.dataset.time); });
+
+      var workspace = element("div", "aal-workspace");
+      var statusPanel = element("section", "aal-panel");
+      statusPanel.setAttribute("aria-labelledby", "agentStatusTitle");
+      var statusHead = element("header", "aal-panel-head");
+      var statusTitleWrap = element("div");
+      statusTitleWrap.appendChild(element("span", "aal-panel-kicker", "Runtime now"));
+      var statusTitle = element("h2", "", "Agent status");
+      statusTitle.id = "agentStatusTitle";
+      statusTitleWrap.appendChild(statusTitle);
+      var statusSummary = element("div", "aal-runtime-summary");
+      statusSummary.appendChild(element("span", "aal-live-dot"));
+      var statusSummaryText = element("span");
+      statusSummaryText.appendChild(element("strong", "", "15 connected"));
+      statusSummaryText.appendChild(document.createTextNode(" · 5 active · 1 waiting · 9 ready"));
+      statusSummary.appendChild(statusSummaryText);
+      statusHead.appendChild(statusTitleWrap);
+      statusHead.appendChild(statusSummary);
+      var statusGrid = element("div", "aal-status-grid");
+      agents.forEach(function (agent) {
+        var item = element("a", "aal-agent" + (slug === agent.slug ? " is-selected" : ""));
+        item.href = "agent-activity.html?agent=" + agent.slug;
+        item.setAttribute("aria-label", agent.name + ", " + agent.role + ", " + agent.state);
+        item.appendChild(element("span", "aal-agent-dot is-" + agent.tone));
+        var copy = element("span", "aal-agent-copy");
+        copy.appendChild(element("strong", "", agent.name));
+        var meta = element("span", "aal-agent-meta");
+        meta.appendChild(element("small", "", agent.role));
+        meta.appendChild(element("span", "aal-agent-state is-" + agent.tone, agent.state));
+        copy.appendChild(meta);
+        item.appendChild(copy);
+        statusGrid.appendChild(item);
+      });
+      statusPanel.appendChild(statusHead);
+      statusPanel.appendChild(statusGrid);
+
+      var journal = element("section", "aal-panel");
+      journal.setAttribute("aria-labelledby", "activityJournalTitle");
+      var journalHead = element("header", "aal-panel-head");
+      var journalTitleWrap = element("div");
+      journalTitleWrap.appendChild(element("span", "aal-panel-kicker", "Append-only evidence stream"));
+      var journalTitle = element("h2", "", "Live activity");
+      journalTitle.id = "activityJournalTitle";
+      journalTitleWrap.appendChild(journalTitle);
+      var journalActions = element("div", "aal-journal-head-actions");
+      var eventCount = element("span", "aal-event-count");
+      var follow = element("button", "aal-follow");
+      follow.type = "button";
+      follow.id = "activityFollow";
+      follow.setAttribute("aria-pressed", "true");
+      follow.appendChild(element("span", "aal-follow-icon"));
+      follow.appendChild(element("span", "aal-follow-label", "Following latest"));
+      journalActions.appendChild(eventCount);
+      journalActions.appendChild(follow);
+      journalHead.appendChild(journalTitleWrap);
+      journalHead.appendChild(journalActions);
+
+      var log = element("div", "aal-log-scroll");
+      log.id = "activityLog";
+      log.tabIndex = 0;
+      log.setAttribute("aria-label", "Chronological agent activity log");
+      var logGrid = element("div", "aal-log-grid");
+      var columns = element("div", "aal-columns");
+      ["Time", "Agent", "Event", "Activity", "Evidence"].forEach(function (label) {
+        columns.appendChild(element("span", "", label));
+      });
+      logGrid.appendChild(columns);
+      events.forEach(function (row) { logGrid.appendChild(row); });
+      var logEmpty = element("div", "aal-empty-log", "No activity for this agent in the selected window.");
+      logEmpty.hidden = true;
+      logGrid.appendChild(logEmpty);
+      log.appendChild(logGrid);
+      var journalFoot = element("footer", "aal-journal-foot");
+      journalFoot.appendChild(element("span", "", "Live retention · latest 200 events · older evidence remains in Audit"));
+      var auditLink = element("a", "", "Open full audit →");
+      auditLink.href = "audit.html";
+      journalFoot.appendChild(auditLink);
+      journal.appendChild(journalHead);
+      journal.appendChild(log);
+      journal.appendChild(journalFoot);
+      workspace.appendChild(statusPanel);
+      workspace.appendChild(journal);
+
+      groups[0].parentNode.insertBefore(workspace, groups[0]);
+      groups.forEach(function (group) { group.remove(); });
+
+      var selectedAgent = slug ? agentBySlug[slug] : null;
+      if (slug && !selectedAgent) {
+        selection.hidden = false;
         selectionText.innerHTML = "Unknown agent filter. Showing <strong>all recent activity</strong>.";
-        selection.focus({ preventScroll: true });
-        return;
+        slug = null;
+      } else if (selectedAgent) {
+        selection.hidden = false;
+        selectionText.innerHTML = "Activity for <strong>" + selectedAgent.name + "</strong>.";
+        document.title = selectedAgent.name + " activity - FDAI Console";
       }
 
-      document.title = name + " activity - FDAI Console";
-      selectionText.innerHTML = "Activity for <strong>" + name + "</strong>.";
-      var matching = groups.find(function (group) { return group.dataset.agent === slug; });
-      groups.forEach(function (group) { group.hidden = group !== matching; });
-      if (matching) {
-        matching.setAttribute("tabindex", "-1");
-        matching.focus({ preventScroll: true });
-        matching.scrollIntoView({ block: "start" });
-        return;
+      function updateVisibleEvents() {
+        var visibleCount = 0;
+        events.forEach(function (row) {
+          var visible = !slug || row.dataset.agent === slug;
+          row.hidden = !visible;
+          if (visible) visibleCount += 1;
+        });
+        eventCount.textContent = visibleCount + (visibleCount === 1 ? " event" : " events");
+        logEmpty.hidden = visibleCount !== 0;
+        empty.hidden = true;
       }
 
-      empty.hidden = false;
-      empty.textContent = "No activity for " + name + " in this sample window.";
-      empty.setAttribute("tabindex", "-1");
-      empty.focus({ preventScroll: true });
+      var following = true;
+      function updateFollow(next) {
+        following = next;
+        follow.setAttribute("aria-pressed", String(following));
+        follow.querySelector(".aal-follow-label").textContent = following ? "Following latest" : "Resume live";
+        if (following) log.scrollTop = log.scrollHeight;
+      }
+      follow.addEventListener("click", function () { updateFollow(!following); });
+      log.addEventListener("scroll", function () {
+        var atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 24;
+        if (following && !atBottom) updateFollow(false);
+      }, { passive: true });
+
+      updateVisibleEvents();
+      window.requestAnimationFrame(function () { updateFollow(true); });
     }());
   </script>
 </body>
